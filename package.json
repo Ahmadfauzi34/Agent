@@ -1,0 +1,29 @@
+{
+  "name": "app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "tsc --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@google/genai": "^1.40.0",
+    "@tensorflow/tfjs": "^4.22.0",
+    "fft.js": "^4.0.4",
+    "nerdamer": "^1.1.13",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "rxjs": "7.8.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.13",
+    "@vitejs/plugin-react": "^5.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}

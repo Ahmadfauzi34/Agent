@@ -1,0 +1,71 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TF.js Sentinel - AI Chatbot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020617;
+            color: #f8fafc;
+            overflow: hidden;
+        }
+        .mono { font-family: 'Fira Code', monospace; }
+        .glass {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .scroll-hide::-webkit-scrollbar { display: none; }
+        .glow-text {
+            text-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "@google/genai": "https://esm.sh/@google/genai@^1.40.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "@tensorflow/tfjs": "https://esm.sh/@tensorflow/tfjs@^4.22.0",
+    "rxjs": "https://esm.sh/rxjs@7.8.1"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <div id="root"></div>
+    
+    <!-- PDR LIVE DIAGNOSTIC DASHBOARD -->
+    <div id="mri-dashboard" style="background: #111; color: #0f0; font-family: monospace; padding: 20px; margin-top: 20px; border-top: 2px solid #0f0;">
+      <h2>🧠 PDR LIVE DIAGNOSTIC (V83 TS-EDITION)</h2>
+      
+      <div class="row" style="margin-bottom: 20px;">
+        <canvas id="spatial-canvas" width="800" height="200" style="border: 1px solid #333; background: #000;"></canvas>
+        <p>Spatial Signal (Primal Y)</p>
+      </div>
+
+      <div class="row" style="margin-bottom: 20px;">
+        <canvas id="spectral-canvas" width="800" height="200" style="border: 1px solid #333; background: #000;"></canvas>
+        <p>Spectral Spectrum (Dual Z)</p>
+      </div>
+
+      <div id="status-panel" style="border: 1px solid #0f0; padding: 10px; margin-top: 10px;">
+        <div>STATUS: <span id="gate-status">--</span></div>
+        <div>Freq PMR: <span id="freq-pmr">0.00</span></div>
+        <div>Spat PMR: <span id="spat-pmr">0.00</span></div>
+      </div>
+    </div>
+
+    <script type="module" src="index.tsx"></script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+{
+  "description": "A high-safety data science chatbot using Gemini function calling to interact with TensorFlow.js.",
+  "requestFramePermissions": [],
+  "name": "Remix: App"
+}
