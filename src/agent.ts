@@ -98,9 +98,15 @@ export class GridAgent {
         currentInput: number[][], 
         currentTrainPairs: {input: number[][], output: number[][]}[], 
         depth: number, 
-        maxDepth: number
+        maxDepth: number,
+        visitedStates: Set<string> = new Set()
     ): number[][] | null {
         if (depth > maxDepth) return null;
+
+        // Cycle detection
+        const stateKey = JSON.stringify(currentInput);
+        if (visitedStates.has(stateKey)) return null;
+        visitedStates.add(stateKey);
 
         // 1. Check if we already solved it (for all training pairs)
         let allSolved = true;
@@ -115,12 +121,14 @@ export class GridAgent {
         // 2. Meta-Reasoning Phase
         const rankedSolvers = this.metaReasoner.selectRankedSolvers(currentTrainPairs, currentInput);
         
-        // 3. Try the ranked solvers first
-        const solversToTry = rankedSolvers.map(rs => rs.solver);
+        // 3. Try the ranked solvers first (limit to top 5 to avoid explosion)
+        const solversToTry = rankedSolvers.slice(0, 5).map(rs => rs.solver);
         
-        // Always include all solvers as fallback, but ranked ones first
-        const otherSolvers = this.solvers.filter(s => !solversToTry.includes(s));
-        solversToTry.push(...otherSolvers);
+        // Always include all solvers as fallback at depth 0, but ranked ones first
+        if (depth === 0) {
+            const otherSolvers = this.solvers.filter(s => !solversToTry.includes(s));
+            solversToTry.push(...otherSolvers.slice(0, 10)); // Limit fallback too
+        }
 
         for (const solver of solversToTry) {
             try {
@@ -128,6 +136,9 @@ export class GridAgent {
                 // Apply solver to current input
                 const nextInput = solver(currentInput, currentTrainPairs);
                 
+                // Avoid no-ops
+                if (JSON.stringify(nextInput) === JSON.stringify(currentInput)) continue;
+
                 // Apply same solver to all training inputs to keep them in sync
                 const nextTrainPairs = currentTrainPairs.map(pair => ({
                     input: solver(pair.input, currentTrainPairs),
@@ -137,7 +148,9 @@ export class GridAgent {
                 // Check if this step made progress (at least for one pair)
                 let madeProgress = false;
                 for (let i = 0; i < currentTrainPairs.length; i++) {
-                    if (JSON.stringify(nextTrainPairs[i].input) !== JSON.stringify(currentTrainPairs[i].input)) {
+                    const dBefore = this.getDistance(currentTrainPairs[i].input, currentTrainPairs[i].output);
+                    const dAfter = this.getDistance(nextTrainPairs[i].input, nextTrainPairs[i].output);
+                    if (dAfter < dBefore) {
                         madeProgress = true;
                         break;
                     }
@@ -148,7 +161,7 @@ export class GridAgent {
                 console.log(`RRM [Depth ${depth}]: Applied ${solverName}. Progress made.`);
 
                 // Recurse
-                const finalResult = this.recursiveSearch(nextInput, nextTrainPairs, depth + 1, maxDepth);
+                const finalResult = this.recursiveSearch(nextInput, nextTrainPairs, depth + 1, maxDepth, new Set(visitedStates));
                 if (finalResult) return finalResult;
 
             } catch (e) {
@@ -157,6 +170,17 @@ export class GridAgent {
         }
 
         return null;
+    }
+
+    private getDistance(grid1: number[][], grid2: number[][]): number {
+        if (grid1.length !== grid2.length || grid1[0].length !== grid2[0].length) return 9999;
+        let dist = 0;
+        for (let r = 0; r < grid1.length; r++) {
+            for (let c = 0; c < grid1[0].length; c++) {
+                if (grid1[r][c] !== grid2[r][c]) dist++;
+            }
+        }
+        return dist;
     }
 
     private fallbackSolve(input: number[][], trainPairs?: {input: number[][], output: number[][]}[]) {
