@@ -3,6 +3,7 @@ export type TensorOp =
     | "PHASE_SHIFT" 
     | "CONSTRUCTIVE_INTERFERENCE"
     | "DESTRUCTIVE_INTERFERENCE"
+    | "COMPLEX_WAVEFORM" // NEW: Bergerak + Berubah ukuran
     | "UNKNOWN";
 
 export interface TensorRule {
@@ -23,111 +24,103 @@ export interface TensorSolution {
 export class ARCTensorEngine {
     
     public solveTensor(taskId: string, trainPairs: {input: number[][], output: number[][]}[]) : TensorSolution {
-        const uniqueTokens = Array.from(
-            new Set(trainPairs[0].input.flatMap(row => row).filter(val => val !== 0))
-        );
+        // FIX 3: Ambil SEMUA warna unik dari Input DAN Output di SEMUA pasang
+        const uniqueTokens = new Set<number>();
+        trainPairs.forEach(pair => {
+            pair.input.flat().forEach(v => { if (v !== 0) uniqueTokens.add(v) });
+            pair.output.flat().forEach(v => { if (v !== 0) uniqueTokens.add(v) });
+        });
 
-        const rules = uniqueTokens.map(token => {
-            const inWave = this.createWaveMask(trainPairs[0].input, token);
-            const outWave = this.createWaveMask(trainPairs[0].output, token);
-            return this.calculateInterference(token, inWave, outWave);
+        const rules = Array.from(uniqueTokens).map(token => {
+            // FIX 1: Analisa melintasi SEMUA training pair untuk mencari rata-rata/konsistensi
+            return this.calculateInterferenceConsensus(token, trainPairs);
         });
 
         const dominantOp = this.getDominantOperation(rules);
 
-        const logicMap: Record<string, string> = {
-            "STANDING_WAVE": "STATE_PRESERVATION",
-            "PHASE_SHIFT": "TRANSLATIONAL_DYNAMICS",
-            "CONSTRUCTIVE_INTERFERENCE": "MORPHOLOGICAL_EXPANSION",
-            "DESTRUCTIVE_INTERFERENCE": "MORPHOLOGICAL_DECAY",
-            "UNKNOWN": "NON_LINEAR_DYNAMICS"
-        };
-
-        const mechanicsMap: Record<string, string> = {
-            "STANDING_WAVE": "RESONANT_ANCHORING",
-            "PHASE_SHIFT": "WAVE_PROPAGATION",
-            "CONSTRUCTIVE_INTERFERENCE": "WAVE_DISPERSION", // Updated to reflect spatial expansion
-            "DESTRUCTIVE_INTERFERENCE": "WAVE_COLLAPSE",
-            "UNKNOWN": "ENTROPY_INCREASE"
-        };
+        // FIX 4: Deterministic Seed Generation dari Task ID
+        const deterministicSeed = 80000 + (parseInt(taskId.substring(0, 4), 16) % 19999);
 
         return {
             task_id: taskId,
-            logic_type: logicMap[dominantOp] || "QUANTUM_FLUCTUATION",
-            mechanics: mechanicsMap[dominantOp] || "UNKNOWN_MECHANICS",
-            description: "Differentiable spatio-temporal wave interference",
+            logic_type: this.mapLogic(dominantOp),
+            mechanics: this.mapMechanics(dominantOp),
+            description: "Deterministic Spatio-Temporal Wave Interference",
             rules: rules,
-            target_seed: Math.floor(Math.random() * 19999) + 80000
+            target_seed: deterministicSeed
         };
     }
 
-    private calculateInterference(token: number, inWave: number[][], outWave: number[][]): TensorRule {
-        // 1. Calculate Mass (Amplitude Sum)
-        const massIn = this.tensorSum(inWave);
-        const massOut = this.tensorSum(outWave);
-        const massDelta = massOut - massIn;
-        
-        // 2. Calculate Phase Center (Center of Mass)
-        const [cxIn, cyIn] = this.calculatePhaseCenter(inWave, massIn);
-        const [cxOut, cyOut] = this.calculatePhaseCenter(outWave, massOut);
-        
-        // 3. Calculate Shift Vector
-        const shiftX = Math.round(cxOut - cxIn) || 0;
-        const shiftY = Math.round(cyOut - cyIn) || 0;
+    private calculateInterferenceConsensus(token: number, trainPairs: any[]): TensorRule {
+        let totalMassIn = 0, totalMassOut = 0;
+        let totalShiftX = 0, totalShiftY = 0;
+        let totalSpreadIn = 0, totalSpreadOut = 0;
 
-        // 4. Calculate Spatial Dispersion (Bounding Box Area / Spread)
-        // This calculates if the wave physically spread out (radius)
-        const spreadIn = this.calculateSpatialSpread(inWave);
-        const spreadOut = this.calculateSpatialSpread(outWave);
-        
-        // Dispersion radius is roughly the difference in bounding box dimensions divided by 2
-        const dispersionRadius = Math.max(0, Math.round((spreadOut - spreadIn) / 2));
+        trainPairs.forEach(pair => {
+            const inWave = this.createWaveMask(pair.input, token);
+            const outWave = this.createWaveMask(pair.output, token);
 
-        // 5. Generate Interference Signature
+            const mIn = this.tensorSum(inWave);
+            const mOut = this.tensorSum(outWave);
+            totalMassIn += mIn;
+            totalMassOut += mOut;
+
+            if (mIn > 0 && mOut > 0) {
+                const [cxIn, cyIn] = this.calculatePhaseCenter(inWave, mIn);
+                const [cxOut, cyOut] = this.calculatePhaseCenter(outWave, mOut);
+                totalShiftX += (cxOut - cxIn);
+                totalShiftY += (cyOut - cyIn);
+            }
+
+            totalSpreadIn += this.calculateSpatialSpread(inWave);
+            totalSpreadOut += this.calculateSpatialSpread(outWave);
+        });
+
+        // Rata-rata dari seluruh training data
+        const pairsCount = trainPairs.length;
+        const avgShiftX = Math.round(totalShiftX / pairsCount);
+        const avgShiftY = Math.round(totalShiftY / pairsCount);
+        const massDelta = totalMassOut - totalMassIn;
+        
+        const dispersionRadius = Math.max(0, Math.round((totalSpreadOut - totalSpreadIn) / (2 * pairsCount)));
+        const contractionRadius = Math.max(0, Math.round((totalSpreadIn - totalSpreadOut) / (2 * pairsCount)));
+
         const signDelta = Math.sign(massDelta); 
-        const isShifted = Math.min(1, Math.abs(shiftX) + Math.abs(shiftY)); 
+        const isShifted = Math.min(1, Math.abs(avgShiftX) + Math.abs(avgShiftY)); 
         
         const signature = `${signDelta}_${isShifted}`;
 
-        // 6. Dictionary Routing
         const operationMap: Record<string, TensorOp> = {
             "0_0": "STANDING_WAVE",
             "0_1": "PHASE_SHIFT",
             "1_0": "CONSTRUCTIVE_INTERFERENCE",
-            "1_1": "CONSTRUCTIVE_INTERFERENCE",
+            "1_1": "COMPLEX_WAVEFORM", // FIX 2: Tumbuh + Bergeser
             "-1_0": "DESTRUCTIVE_INTERFERENCE",
-            "-1_1": "DESTRUCTIVE_INTERFERENCE"
+            "-1_1": "COMPLEX_WAVEFORM"
         };
 
         const op = operationMap[signature] || "UNKNOWN";
 
-        // 7. Parameter Generation Map (Now includes Spatial Dispersion)
         const paramsMap: Record<string, any> = {
-            "STANDING_WAVE": { 
-                energy_state: "conserved", 
-                phase_shift: 0 
-            },
-            "PHASE_SHIFT": { 
-                vector_x: shiftX, 
-                vector_y: shiftY, 
-                phase_angle_rad: Math.atan2(shiftY, shiftX) 
-            },
+            "STANDING_WAVE": { energy_state: "conserved" },
+            "PHASE_SHIFT": { vector_x: avgShiftX, vector_y: avgShiftY },
             "CONSTRUCTIVE_INTERFERENCE": { 
-                amplification_factor: massIn === 0 ? Infinity : Number((massOut / massIn).toFixed(2)),
-                phase_dispersion_radius: dispersionRadius // NEW: Spatial expansion
+                amplification_factor: totalMassIn === 0 ? Infinity : Number((totalMassOut / totalMassIn).toFixed(2)),
+                phase_dispersion_radius: dispersionRadius 
             },
             "DESTRUCTIVE_INTERFERENCE": { 
-                attenuation_factor: massIn === 0 ? 0 : Number((massOut / massIn).toFixed(2)),
-                phase_contraction_radius: Math.max(0, Math.round((spreadIn - spreadOut) / 2)) // NEW: Spatial contraction
+                attenuation_factor: totalMassIn === 0 ? 0 : Number((totalMassOut / totalMassIn).toFixed(2)),
+                phase_contraction_radius: contractionRadius 
+            },
+            "COMPLEX_WAVEFORM": {
+                vector_x: avgShiftX, vector_y: avgShiftY,
+                amplification_factor: totalMassIn === 0 ? 0 : Number((totalMassOut / totalMassIn).toFixed(2)),
+                spatial_delta: dispersionRadius > 0 ? dispersionRadius : -contractionRadius
             },
             "UNKNOWN": { entropy: "high" }
         };
 
-        return {
-            target_token: token,
-            op: op,
-            params: paramsMap[op]
-        };
+        return { target_token: token, op: op, params: paramsMap[op] };
     }
 
     // --- PURE FUNCTIONAL UTILITIES ---
@@ -151,7 +144,6 @@ export class ARCTensorEngine {
         return [cx * massMultiplier, cy * massMultiplier];
     }
 
-    // Calculates the maximum spatial extent (width or height of bounding box)
     private calculateSpatialSpread(tensor: number[][]): number {
         let minX = Infinity, maxX = -Infinity;
         let minY = Infinity, maxY = -Infinity;
@@ -170,11 +162,8 @@ export class ARCTensorEngine {
         });
 
         if (!hasMass) return 0;
-        
         const width = maxX - minX + 1;
         const height = maxY - minY + 1;
-        
-        // Return the largest dimension as the "spread"
         return Math.max(width, height);
     }
 
@@ -183,7 +172,30 @@ export class ARCTensorEngine {
             acc[r.op] = (acc[r.op] || 0) + 1;
             return acc;
         }, {} as Record<string, number>);
-        
         return Object.keys(opScores).sort((a, b) => opScores[b] - opScores[a])[0] || "UNKNOWN";
+    }
+
+    private mapLogic(op: string): string {
+        const logicMap: Record<string, string> = {
+            "STANDING_WAVE": "STATE_PRESERVATION",
+            "PHASE_SHIFT": "TRANSLATIONAL_DYNAMICS",
+            "CONSTRUCTIVE_INTERFERENCE": "MORPHOLOGICAL_EXPANSION",
+            "DESTRUCTIVE_INTERFERENCE": "MORPHOLOGICAL_DECAY",
+            "COMPLEX_WAVEFORM": "NON_LINEAR_DYNAMICS",
+            "UNKNOWN": "QUANTUM_FLUCTUATION"
+        };
+        return logicMap[op] || "UNKNOWN";
+    }
+
+    private mapMechanics(op: string): string {
+        const mechanicsMap: Record<string, string> = {
+            "STANDING_WAVE": "RESONANT_ANCHORING",
+            "PHASE_SHIFT": "WAVE_PROPAGATION",
+            "CONSTRUCTIVE_INTERFERENCE": "WAVE_DISPERSION",
+            "DESTRUCTIVE_INTERFERENCE": "WAVE_COLLAPSE",
+            "COMPLEX_WAVEFORM": "SPATIO_TEMPORAL_SUPERPOSITION",
+            "UNKNOWN": "ENTROPY_INCREASE"
+        };
+        return mechanicsMap[op] || "UNKNOWN";
     }
 }
