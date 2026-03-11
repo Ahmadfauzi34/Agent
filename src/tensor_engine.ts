@@ -1,201 +1,501 @@
+/**
+ * ARCTensorEngine v5.1 - Holographic Quantum Edition
+ * Fitur: Wavefront Partitioning, Kinematics, Vector Symbolic Architectures (VSA)
+ */
+
 export type TensorOp = 
-    | "STANDING_WAVE" 
-    | "PHASE_SHIFT" 
-    | "CONSTRUCTIVE_INTERFERENCE"
-    | "DESTRUCTIVE_INTERFERENCE"
-    | "COMPLEX_WAVEFORM" // NEW: Bergerak + Berubah ukuran
+    | "STANDING_WAVE"              
+    | "PHASE_SHIFT"                
+    | "CONSTRUCTIVE_INTERFERENCE"  
+    | "DESTRUCTIVE_INTERFERENCE"   
+    | "COMPLEX_WAVEFORM"           
     | "UNKNOWN";
 
+export type ForceType = "ATTRACTION" | "REPULSION" | "NEUTRAL" | "COLLISION";
+
+export interface AgentInteraction {
+    target_agent_id: string;
+    force_type: ForceType;
+    distance_delta: number;
+}
+
+export interface WaveAgent {
+    agent_id: string; 
+    token: number;
+    island_id: number;
+    mask: number[][]; 
+    mass: number;     
+    abs_center: { x: number, y: number }; 
+    rel_center: { x: number, y: number }; 
+    spread: number;   
+}
+
 export interface TensorRule {
-    target_token: number | string;
+    target_token: number;
+    island_id: number;
+    agent_id: string;
     op: TensorOp;
-    params?: Record<string, any>;
+    params: {
+        vector_x_abs: number;
+        vector_y_abs: number;
+        vector_x_rel: number;
+        vector_y_rel: number;
+        amplification: number;
+        spatial_delta: number;
+    };
+    interactions: AgentInteraction[];
+    holographic_law: string; // NEW: VSA Hypervector Representation
 }
 
 export interface TensorSolution {
     task_id: string;
-    logic_type: string;
-    mechanics: string;
     description: string;
     rules: TensorRule[];
     target_seed: number;
 }
 
+// ==========================================
+// 🌌 VECTOR SYMBOLIC ARCHITECTURE (VSA) CORE
+// ==========================================
+class VSACore {
+    private readonly D = 64; // Dimensi Hypervector (64 untuk efisiensi JSON, idealnya 10000)
+    private codebook: Map<string, number[]> = new Map();
+    private seed: number;
+
+    constructor(seed: number) {
+        this.seed = seed;
+    }
+
+    // Pseudo-Random Number Generator deterministik
+    private random(): number {
+        const x = Math.sin(this.seed++) * 10000;
+        return x - Math.floor(x);
+    }
+
+    // Menghasilkan Hypervector Bipolar acak (+1 / -1)
+    private generateRandomHV(): number[] {
+        return Array.from({ length: this.D }, () => this.random() > 0.5 ? 1 : -1);
+    }
+
+    // Mengambil atau membuat Hypervector dasar dari Codebook
+    public getBaseHV(key: string): number[] {
+        if (!this.codebook.has(key)) {
+            this.codebook.set(key, this.generateRandomHV());
+        }
+        return this.codebook.get(key)!;
+    }
+
+    // BIND (XOR / Element-wise multiplication)
+    public bind(v1: number[], v2: number[]): number[] {
+        return v1.map((val, i) => val * v2[i]!);
+    }
+
+    // BUNDLE (Superposition / Element-wise addition + thresholding)
+    public bundle(vectors: number[][]): number[] {
+        if (vectors.length === 0) return Array(this.D).fill(1);
+        const sum = Array(this.D).fill(0);
+        vectors.forEach(v => {
+            v.forEach((val, i) => sum[i] += val);
+        });
+        // Thresholding kembali ke Bipolar (+1 / -1)
+        return sum.map(val => val >= 0 ? 1 : -1);
+    }
+
+    // INVERT (Dalam Bipolar VSA, Invert adalah dirinya sendiri karena 1*1=1, -1*-1=1)
+    public invert(v: number[]): number[] {
+        return [...v]; 
+    }
+
+    // Encode Agent State menjadi Hypervector
+    public encodeAgent(agent: WaveAgent): number[] {
+        const tokenHV = this.getBaseHV(`TOKEN_${agent.token}`);
+        const massHV = this.getBaseHV(`MASS_${Math.round(agent.mass)}`);
+        // Kuantisasi posisi relatif ke 10 grid area untuk stabilitas VSA
+        const posXHV = this.getBaseHV(`POSX_${Math.round(agent.rel_center.x * 10)}`);
+        const posYHV = this.getBaseHV(`POSY_${Math.round(agent.rel_center.y * 10)}`);
+        
+        return this.bundle([tokenHV, massHV, posXHV, posYHV]);
+    }
+
+    // Konversi HV ke String Padat untuk JSON
+    public hvToString(v: number[]): string {
+        return v.map(val => val === 1 ? '+' : '-').join('');
+    }
+
+    // Konversi String Padat ke HV
+    public stringToHv(s: string): number[] {
+        return s.split('').map(char => char === '+' ? 1 : -1);
+    }
+}
+
 export class ARCTensorEngine {
-    
+    private readonly MATCH_THRESHOLD = 50.0; 
+    private vsa!: VSACore;
+
     public solveTensor(taskId: string, trainPairs: {input: number[][], output: number[][]}[]) : TensorSolution {
-        // FIX 3: Ambil SEMUA warna unik dari Input DAN Output di SEMUA pasang
-        const uniqueTokens = new Set<number>();
-        trainPairs.forEach(pair => {
-            pair.input.flat().forEach(v => { if (v !== 0) uniqueTokens.add(v) });
-            pair.output.flat().forEach(v => { if (v !== 0) uniqueTokens.add(v) });
-        });
-
-        const rules = Array.from(uniqueTokens).map(token => {
-            // FIX 1: Analisa melintasi SEMUA training pair untuk mencari rata-rata/konsistensi
-            return this.calculateInterferenceConsensus(token, trainPairs);
-        });
-
-        const dominantOp = this.getDominantOperation(rules);
-
-        // FIX 4: Deterministic Seed Generation dari Task ID
         const deterministicSeed = 80000 + (parseInt(taskId.substring(0, 4), 16) % 19999);
+        this.vsa = new VSACore(deterministicSeed); // Inisialisasi VSA Core
+        
+        const allRules: TensorRule[] = [];
+
+        trainPairs.forEach((pair) => {
+            const inputAgents = this.findAllAgents(pair.input);
+            let outputAgents = this.findAllAgents(pair.output);
+
+            const survivingAgents: { inAgent: WaveAgent, outAgent: WaveAgent }[] = [];
+            const pairRules: TensorRule[] = [];
+
+            inputAgents.forEach((inWave) => {
+                const potentials = outputAgents
+                    .filter(o => o.token === inWave.token)
+                    .map(outCandidate => ({
+                        out: outCandidate,
+                        score: this.calculateSimilarityScore(inWave, outCandidate)
+                    }))
+                    .sort((a, b) => a.score - b.score);
+
+                const best = potentials[0];
+
+                if (!best || best.score > this.MATCH_THRESHOLD) {
+                    pairRules.push(this.createDestructiveRule(inWave));
+                } else {
+                    survivingAgents.push({ inAgent: inWave, outAgent: best.out });
+                    pairRules.push(this.extractRule(inWave, best.out));
+                    outputAgents = outputAgents.filter(o => o !== best.out);
+                }
+            });
+
+            outputAgents.forEach((leftover) => {
+                pairRules.push(this.createConstructiveRule(leftover));
+            });
+
+            const interactionsMap = this.calculateInterAgentForces(survivingAgents);
+            
+            pairRules.forEach(rule => {
+                if (interactionsMap[rule.agent_id]) {
+                    rule.interactions = interactionsMap[rule.agent_id];
+                }
+            });
+
+            allRules.push(...pairRules);
+        });
+
+        const consensusRules = this.calculateConsensus(allRules);
 
         return {
             task_id: taskId,
-            logic_type: this.mapLogic(dominantOp),
-            mechanics: this.mapMechanics(dominantOp),
-            description: "Deterministic Spatio-Temporal Wave Interference",
-            rules: rules,
+            description: "Holographic Quantum Law Extraction (VSA/HDC)",
+            rules: consensusRules,
             target_seed: deterministicSeed
         };
     }
 
-    private calculateInterferenceConsensus(token: number, trainPairs: any[]): TensorRule {
-        let totalMassIn = 0, totalMassOut = 0;
-        let totalShiftX = 0, totalShiftY = 0;
-        let totalSpreadIn = 0, totalSpreadOut = 0;
+    // ==========================================
+    // 🌌 MULTI-AGENT DYNAMICS & VSA
+    // ==========================================
 
-        trainPairs.forEach(pair => {
-            const inWave = this.createWaveMask(pair.input, token);
-            const outWave = this.createWaveMask(pair.output, token);
+    private calculateInterAgentForces(survivors: { inAgent: WaveAgent, outAgent: WaveAgent }[]): Record<string, AgentInteraction[]> {
+        const interactionsMap: Record<string, AgentInteraction[]> = {};
+        survivors.forEach(a => interactionsMap[a.inAgent.agent_id] = []);
 
-            const mIn = this.tensorSum(inWave);
-            const mOut = this.tensorSum(outWave);
-            totalMassIn += mIn;
-            totalMassOut += mOut;
+        for (let i = 0; i < survivors.length; i++) {
+            for (let j = 0; j < survivors.length; j++) {
+                if (i === j) continue;
+                const agentA = survivors[i]!;
+                const agentB = survivors[j]!;
 
-            if (mIn > 0 && mOut > 0) {
-                const [cxIn, cyIn] = this.calculatePhaseCenter(inWave, mIn);
-                const [cxOut, cyOut] = this.calculatePhaseCenter(outWave, mOut);
-                totalShiftX += (cxOut - cxIn);
-                totalShiftY += (cyOut - cyIn);
+                const distIn = Math.hypot(
+                    agentB.inAgent.abs_center.x - agentA.inAgent.abs_center.x, 
+                    agentB.inAgent.abs_center.y - agentA.inAgent.abs_center.y
+                );
+                const distOut = Math.hypot(
+                    agentB.outAgent.abs_center.x - agentA.outAgent.abs_center.x, 
+                    agentB.outAgent.abs_center.y - agentA.outAgent.abs_center.y
+                );
+
+                const delta = distOut - distIn;
+                const isCollision = distOut < 1.5 ? 1 : 0; 
+                const signDelta = Math.sign(Math.round(delta * 10) / 10); 
+
+                const forceSignature = `${isCollision}_${signDelta}`;
+                const forceMap: Record<string, ForceType> = {
+                    "1_-1": "COLLISION", "1_0": "COLLISION", "1_1": "COLLISION", 
+                    "0_-1": "ATTRACTION", "0_1": "REPULSION", "0_0": "NEUTRAL"
+                };
+
+                const forceType = forceMap[forceSignature] || "NEUTRAL";
+
+                if (forceType !== "NEUTRAL") {
+                    interactionsMap[agentA.inAgent.agent_id]!.push({
+                        target_agent_id: agentB.inAgent.agent_id,
+                        force_type: forceType,
+                        distance_delta: Number(delta.toFixed(2))
+                    });
+                }
             }
+        }
+        return interactionsMap;
+    }
 
-            totalSpreadIn += this.calculateSpatialSpread(inWave);
-            totalSpreadOut += this.calculateSpatialSpread(outWave);
+    private extractRule(inW: WaveAgent, outW: WaveAgent): TensorRule {
+        const shiftX = outW.abs_center.x - inW.abs_center.x;
+        const shiftY = outW.abs_center.y - inW.abs_center.y;
+        const shiftXRel = outW.rel_center.x - inW.rel_center.x;
+        const shiftYRel = outW.rel_center.y - inW.rel_center.y;
+        const massDelta = outW.mass - inW.mass;
+
+        let op: TensorOp = "STANDING_WAVE";
+        const isShifted = Math.abs(shiftX) > 0.1 || Math.abs(shiftY) > 0.1;
+        const isMassChanged = Math.abs(massDelta) > 0.1;
+
+        if (!isMassChanged && isShifted) op = "PHASE_SHIFT";
+        else if (isMassChanged && !isShifted) op = massDelta > 0 ? "CONSTRUCTIVE_INTERFERENCE" : "DESTRUCTIVE_INTERFERENCE";
+        else if (isShifted && isMassChanged) op = "COMPLEX_WAVEFORM";
+
+        // --- VSA: HOLOGRAPHIC LAW EXTRACTION ---
+        const inHV = this.vsa.encodeAgent(inW);
+        const outHV = this.vsa.encodeAgent(outW);
+        
+        // Delta Transformasi: B_out * B_in^-1
+        const deltaT = this.vsa.bind(outHV, this.vsa.invert(inHV));
+        
+        // Konteks: Status agen saat ini (Bisa diperluas dengan interaksi agen lain)
+        const contextHV = inHV; 
+        
+        // Hukum Alam: Konteks diikat dengan Transformasi
+        const lawHV = this.vsa.bind(contextHV, deltaT);
+
+        return {
+            target_token: inW.token,
+            island_id: inW.island_id,
+            agent_id: inW.agent_id,
+            op,
+            params: {
+                vector_x_abs: Number(shiftX.toFixed(2)),
+                vector_y_abs: Number(shiftY.toFixed(2)),
+                vector_x_rel: Number(shiftXRel.toFixed(3)),
+                vector_y_rel: Number(shiftYRel.toFixed(3)),
+                amplification: inW.mass === 0 ? 0 : Number((outW.mass / inW.mass).toFixed(2)),
+                spatial_delta: outW.spread - inW.spread
+            },
+            interactions: [],
+            holographic_law: this.vsa.hvToString(lawHV) // Simpan sebagai string padat
+        };
+    }
+
+    private createDestructiveRule(inW: WaveAgent): TensorRule {
+        const inHV = this.vsa.encodeAgent(inW);
+        const outHV = this.vsa.getBaseHV("STATE_ANNIHILATED");
+        const deltaT = this.vsa.bind(outHV, this.vsa.invert(inHV));
+        const lawHV = this.vsa.bind(inHV, deltaT);
+
+        return {
+            target_token: inW.token,
+            island_id: inW.island_id,
+            agent_id: inW.agent_id,
+            op: "DESTRUCTIVE_INTERFERENCE",
+            params: { vector_x_abs: 0, vector_y_abs: 0, vector_x_rel: 0, vector_y_rel: 0, amplification: 0, spatial_delta: -inW.spread },
+            interactions: [],
+            holographic_law: this.vsa.hvToString(lawHV)
+        };
+    }
+
+    private createConstructiveRule(outW: WaveAgent): TensorRule {
+        const inHV = this.vsa.getBaseHV("STATE_VOID");
+        const outHV = this.vsa.encodeAgent(outW);
+        const deltaT = this.vsa.bind(outHV, this.vsa.invert(inHV));
+        const lawHV = this.vsa.bind(inHV, deltaT);
+
+        return {
+            target_token: outW.token,
+            island_id: outW.island_id,
+            agent_id: outW.agent_id,
+            op: "CONSTRUCTIVE_INTERFERENCE",
+            params: { 
+                vector_x_abs: outW.abs_center.x, vector_y_abs: outW.abs_center.y, 
+                vector_x_rel: outW.rel_center.x, vector_y_rel: outW.rel_center.y, 
+                amplification: outW.mass, spatial_delta: outW.spread 
+            },
+            interactions: [],
+            holographic_law: this.vsa.hvToString(lawHV)
+        };
+    }
+
+    // ==========================================
+    // ⚖️ CONSENSUS & QUANTIZATION
+    // ==========================================
+
+    private snapToGrid(val: number, epsilon: number = 0.08): number {
+        const nearest = Math.round(val);
+        if (Math.abs(val - nearest) < epsilon) return nearest;
+        return val;
+    }
+
+    private calculateConsensus(rules: TensorRule[]): TensorRule[] {
+        const groups: Record<string, TensorRule[]> = {};
+        rules.forEach(r => {
+            if (!groups[r.agent_id]) groups[r.agent_id] = [];
+            groups[r.agent_id]!.push(r);
         });
 
-        // Rata-rata dari seluruh training data
-        const pairsCount = trainPairs.length;
-        const avgShiftX = Math.round(totalShiftX / pairsCount);
-        const avgShiftY = Math.round(totalShiftY / pairsCount);
-        const massDelta = totalMassOut - totalMassIn;
-        
-        const dispersionRadius = Math.max(0, Math.round((totalSpreadOut - totalSpreadIn) / (2 * pairsCount)));
-        const contractionRadius = Math.max(0, Math.round((totalSpreadIn - totalSpreadOut) / (2 * pairsCount)));
+        return Object.values(groups).map(group => {
+            const count = group.length;
+            const opList = group.map(g => g.op);
+            
+            let finalOp: TensorOp = "STANDING_WAVE";
+            if (opList.includes("COMPLEX_WAVEFORM")) finalOp = "COMPLEX_WAVEFORM";
+            else if (opList.includes("PHASE_SHIFT")) finalOp = "PHASE_SHIFT";
+            else if (opList.includes("CONSTRUCTIVE_INTERFERENCE")) finalOp = "CONSTRUCTIVE_INTERFERENCE";
+            else if (opList.includes("DESTRUCTIVE_INTERFERENCE")) finalOp = "DESTRUCTIVE_INTERFERENCE";
 
-        const signDelta = Math.sign(massDelta); 
-        const isShifted = Math.min(1, Math.abs(avgShiftX) + Math.abs(avgShiftY)); 
-        
-        const signature = `${signDelta}_${isShifted}`;
+            const avg = group.reduce((acc, curr) => ({
+                vector_x_abs: acc.vector_x_abs + curr.params.vector_x_abs / count,
+                vector_y_abs: acc.vector_y_abs + curr.params.vector_y_abs / count,
+                vector_x_rel: acc.vector_x_rel + curr.params.vector_x_rel / count,
+                vector_y_rel: acc.vector_y_rel + curr.params.vector_y_rel / count,
+                amplification: acc.amplification + curr.params.amplification / count,
+                spatial_delta: acc.spatial_delta + curr.params.spatial_delta / count
+            }), { vector_x_abs: 0, vector_y_abs: 0, vector_x_rel: 0, vector_y_rel: 0, amplification: 0, spatial_delta: 0 });
 
-        const operationMap: Record<string, TensorOp> = {
-            "0_0": "STANDING_WAVE",
-            "0_1": "PHASE_SHIFT",
-            "1_0": "CONSTRUCTIVE_INTERFERENCE",
-            "1_1": "COMPLEX_WAVEFORM", // FIX 2: Tumbuh + Bergeser
-            "-1_0": "DESTRUCTIVE_INTERFERENCE",
-            "-1_1": "COMPLEX_WAVEFORM"
-        };
+            const refinedParams = {
+                vector_x_abs: this.snapToGrid(avg.vector_x_abs),
+                vector_y_abs: this.snapToGrid(avg.vector_y_abs),
+                vector_x_rel: Number(avg.vector_x_rel.toFixed(3)),
+                vector_y_rel: Number(avg.vector_y_rel.toFixed(3)),
+                amplification: this.snapToGrid(avg.amplification),
+                spatial_delta: this.snapToGrid(avg.spatial_delta)
+            };
 
-        const op = operationMap[signature] || "UNKNOWN";
+            const allInteractions = group.flatMap(g => g.interactions || []);
+            const uniqueInteractionsMap = new Map<string, AgentInteraction>();
+            
+            allInteractions.forEach(interaction => {
+                if (uniqueInteractionsMap.has(interaction.target_agent_id)) {
+                    const existing = uniqueInteractionsMap.get(interaction.target_agent_id)!;
+                    existing.distance_delta = Number(((existing.distance_delta + interaction.distance_delta) / 2).toFixed(2));
+                    if (interaction.force_type === "COLLISION") existing.force_type = "COLLISION";
+                } else {
+                    uniqueInteractionsMap.set(interaction.target_agent_id, { ...interaction });
+                }
+            });
 
-        const paramsMap: Record<string, any> = {
-            "STANDING_WAVE": { energy_state: "conserved" },
-            "PHASE_SHIFT": { vector_x: avgShiftX, vector_y: avgShiftY },
-            "CONSTRUCTIVE_INTERFERENCE": { 
-                amplification_factor: totalMassIn === 0 ? Infinity : Number((totalMassOut / totalMassIn).toFixed(2)),
-                phase_dispersion_radius: dispersionRadius 
-            },
-            "DESTRUCTIVE_INTERFERENCE": { 
-                attenuation_factor: totalMassIn === 0 ? 0 : Number((totalMassOut / totalMassIn).toFixed(2)),
-                phase_contraction_radius: contractionRadius 
-            },
-            "COMPLEX_WAVEFORM": {
-                vector_x: avgShiftX, vector_y: avgShiftY,
-                amplification_factor: totalMassIn === 0 ? 0 : Number((totalMassOut / totalMassIn).toFixed(2)),
-                spatial_delta: dispersionRadius > 0 ? dispersionRadius : -contractionRadius
-            },
-            "UNKNOWN": { entropy: "high" }
-        };
+            // --- VSA: BUNDLE CONSENSUS ---
+            // Menumpuk semua Hukum Holografik dari setiap observasi menjadi satu Hukum Universal
+            const allLawHVs = group.map(g => this.vsa.stringToHv(g.holographic_law));
+            const universalLawHV = this.vsa.bundle(allLawHVs);
 
-        return { target_token: token, op: op, params: paramsMap[op] };
+            return {
+                target_token: group[0]!.target_token,
+                island_id: group[0]!.island_id,
+                agent_id: group[0]!.agent_id,
+                op: finalOp,
+                params: refinedParams,
+                interactions: Array.from(uniqueInteractionsMap.values()),
+                holographic_law: this.vsa.hvToString(universalLawHV) // Hukum Universal
+            };
+        });
     }
 
-    // --- PURE FUNCTIONAL UTILITIES ---
+    // ==========================================
+    // 🧮 MATH UTILITIES
+    // ==========================================
 
-    private createWaveMask(manifold: number[][], token: number): number[][] {
-        return manifold.map(row => row.map(val => val === token ? 1 : 0));
+    private findAllAgents(grid: number[][]): WaveAgent[] {
+        const height = grid.length;
+        const width = grid[0]?.length || 0;
+        const visited = Array.from({ length: height }, () => Array(width).fill(false));
+        const agents: WaveAgent[] =[];
+        const tokenCounter: Record<number, number> = {};
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const token = grid[y]![x]!;
+                if (token !== 0 && !visited[y]![x]) {
+                    tokenCounter[token] = (tokenCounter[token] || 0) + 1;
+                    const island_id = tokenCounter[token]!;
+                    const mask = this.floodFill(grid, x, y, token, visited);
+                    const mass = this.calculateMass(mask);
+                    
+                    agents.push({
+                        agent_id: `${token}_${island_id}`,
+                        token,
+                        island_id,
+                        mask,
+                        mass,
+                        abs_center: this.calculateCenter(mask, mass),
+                        rel_center: this.calculateRelativeCenter(mask, mass, width, height),
+                        spread: this.calculateSpread(mask)
+                    });
+                }
+            }
+        }
+        return agents;
     }
 
-    private tensorSum(tensor: number[][]): number {
-        return tensor.reduce((sum, row) => sum + row.reduce((a, b) => a + b, 0), 0);
+    private floodFill(grid: number[][], startX: number, startY: number, token: number, visited: boolean[][]): number[][] {
+        const height = grid.length;
+        const width = grid[0]!.length;
+        const mask = Array.from({ length: height }, () => Array(width).fill(0));
+        const stack = [[startX, startY]];
+
+        while (stack.length > 0) {
+            const [x, y] = stack.pop()!;
+            if (x! < 0 || x! >= width || y! < 0 || y! >= height) continue;
+            if (visited[y!]![x!] || grid[y!]![x!] !== token) continue;
+
+            visited[y!]![x!] = true;
+            mask[y!]![x!] = 1;
+
+            for (let i = -1; i <= 1; i++) {
+                for (let j = -1; j <= 1; j++) {
+                    if (i === 0 && j === 0) continue;
+                    stack.push([x! + i, y! + j]);
+                }
+            }
+        }
+        return mask;
     }
 
-    private calculatePhaseCenter(tensor: number[][], mass: number): [number, number] {
-        const points = tensor.flatMap((row, y) => row.map((val, x) => ({x, y, val})));
-        const safeMass = mass || 1; 
-        
-        const cx = points.reduce((sum, p) => sum + p.x * p.val, 0) / safeMass;
-        const cy = points.reduce((sum, p) => sum + p.y * p.val, 0) / safeMass;
-        
-        const massMultiplier = Math.min(1, mass);
-        return [cx * massMultiplier, cy * massMultiplier];
+    private calculateSimilarityScore(inW: WaveAgent, outW: WaveAgent): number {
+        const massDelta = Math.abs(inW.mass - outW.mass);
+        const spreadDelta = Math.abs(inW.spread - outW.spread);
+        const dist = Math.sqrt(
+            Math.pow(outW.rel_center.x - inW.rel_center.x, 2) + 
+            Math.pow(outW.rel_center.y - inW.rel_center.y, 2)
+        );
+        return (massDelta * 10) + (spreadDelta * 5) + (dist * 2);
     }
 
-    private calculateSpatialSpread(tensor: number[][]): number {
-        let minX = Infinity, maxX = -Infinity;
-        let minY = Infinity, maxY = -Infinity;
+    private calculateMass(mask: number[][]): number {
+        return mask.flat().reduce((a, b) => a + b, 0);
+    }
+
+    private calculateCenter(mask: number[][], mass: number): {x: number, y: number} {
+        let tx = 0, ty = 0;
+        mask.forEach((row, y) => row.forEach((val, x) => { 
+            if (val > 0) { tx += x; ty += y; } 
+        }));
+        return { x: tx / (mass || 1), y: ty / (mass || 1) };
+    }
+
+    private calculateRelativeCenter(mask: number[][], mass: number, w: number, h: number): {x: number, y: number} {
+        const abs = this.calculateCenter(mask, mass);
+        return { x: abs.x / (Math.max(1, w - 1)), y: abs.y / (Math.max(1, h - 1)) };
+    }
+
+    private calculateSpread(mask: number[][]): number {
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
         let hasMass = false;
-
-        tensor.forEach((row, y) => {
+        mask.forEach((row, y) => {
             row.forEach((val, x) => {
                 if (val > 0) {
                     hasMass = true;
-                    if (x < minX) minX = x;
-                    if (x > maxX) maxX = x;
-                    if (y < minY) minY = y;
-                    if (y > maxY) maxY = y;
+                    if (x < minX) minX = x; if (x > maxX) maxX = x;
+                    if (y < minY) minY = y; if (y > maxY) maxY = y;
                 }
             });
         });
-
         if (!hasMass) return 0;
-        const width = maxX - minX + 1;
-        const height = maxY - minY + 1;
-        return Math.max(width, height);
-    }
-
-    private getDominantOperation(rules: TensorRule[]): string {
-        const opScores = rules.reduce((acc, r) => {
-            acc[r.op] = (acc[r.op] || 0) + 1;
-            return acc;
-        }, {} as Record<string, number>);
-        return Object.keys(opScores).sort((a, b) => opScores[b] - opScores[a])[0] || "UNKNOWN";
-    }
-
-    private mapLogic(op: string): string {
-        const logicMap: Record<string, string> = {
-            "STANDING_WAVE": "STATE_PRESERVATION",
-            "PHASE_SHIFT": "TRANSLATIONAL_DYNAMICS",
-            "CONSTRUCTIVE_INTERFERENCE": "MORPHOLOGICAL_EXPANSION",
-            "DESTRUCTIVE_INTERFERENCE": "MORPHOLOGICAL_DECAY",
-            "COMPLEX_WAVEFORM": "NON_LINEAR_DYNAMICS",
-            "UNKNOWN": "QUANTUM_FLUCTUATION"
-        };
-        return logicMap[op] || "UNKNOWN";
-    }
-
-    private mapMechanics(op: string): string {
-        const mechanicsMap: Record<string, string> = {
-            "STANDING_WAVE": "RESONANT_ANCHORING",
-            "PHASE_SHIFT": "WAVE_PROPAGATION",
-            "CONSTRUCTIVE_INTERFERENCE": "WAVE_DISPERSION",
-            "DESTRUCTIVE_INTERFERENCE": "WAVE_COLLAPSE",
-            "COMPLEX_WAVEFORM": "SPATIO_TEMPORAL_SUPERPOSITION",
-            "UNKNOWN": "ENTROPY_INCREASE"
-        };
-        return mechanicsMap[op] || "UNKNOWN";
+        return Math.max(maxX - minX + 1, maxY - minY + 1);
     }
 }
