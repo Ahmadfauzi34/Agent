@@ -196,9 +196,31 @@ export class ARCTensorEngine {
         const height = inputGrid.length;
         const width = inputGrid[0]?.length || 0;
         
-        // We need to determine the output grid size. For now, assume it's the same as input.
-        // A more advanced engine would predict the output size based on rules.
-        const outputGrid = Array.from({ length: height }, () => Array(width).fill(0));
+        // Kalkulasi ukuran grid berdasarkan deteksi anomali pada aturan Tensor
+        // Operasi dengan perubahan spatial ekstrim (OPTICAL_INTERFERENCE) dapat memicu penskalaan global
+        let outHeight = height;
+        let outWidth = width;
+        let globalScalingFactor = 1;
+
+        rules.forEach(r => {
+            if (r.op === "OPTICAL_INTERFERENCE" || r.op === "COMPLEX_WAVEFORM") {
+                const amplification = r.params.amplification;
+                if (amplification > 2) {
+                    // Asumsi heuristik: matriks membesar sesuai akar pangkat dari pembesaran massa/dimensi (skala 2D)
+                    const scaleEstimate = Math.round(Math.sqrt(amplification));
+                    if (scaleEstimate > globalScalingFactor) {
+                        globalScalingFactor = scaleEstimate;
+                    }
+                }
+            }
+        });
+
+        if (globalScalingFactor > 1) {
+             outHeight = height * globalScalingFactor;
+             outWidth = width * globalScalingFactor;
+        }
+
+        const outputGrid = Array.from({ length: outHeight }, () => Array(outWidth).fill(0));
         
         const inputAgents = this.findAllAgents(inputGrid);
         
