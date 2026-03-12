@@ -21,7 +21,7 @@ export interface AgentInteraction {
     distance_delta: number;
 }
 
-export interface WavePacket {
+export interface WaveAgent {
     agent_id: string;
     token: number;
     island_id: number;
@@ -109,7 +109,7 @@ class VSACore {
     }
 
     // Encode Agent State menjadi Hypervector
-    public encodeAgent(agent: WavePacket): number[] {
+    public encodeAgent(agent: WaveAgent): number[] {
         const tokenHV = this.getBaseHV(`TOKEN_${agent.token}`);
         const massHV = this.getBaseHV(`MASS_${Math.round(agent.mass)}`);
         // Kuantisasi posisi relatif ke 10 grid area untuk stabilitas VSA
@@ -144,7 +144,7 @@ export class ARCTensorEngine {
             const inputAgents = this.findAllAgents(pair.input);
             let outputAgents = this.findAllAgents(pair.output);
 
-            const survivingAgents: { inAgent: WavePacket, outAgent: WavePacket }[] = [];
+            const survivingAgents: { inAgent: WaveAgent, outAgent: WaveAgent }[] = [];
             const pairRules: TensorRule[] = [];
 
             inputAgents.forEach((inWave) => {
@@ -237,7 +237,7 @@ export class ARCTensorEngine {
         return outputGrid;
     }
 
-    private renderAgent(grid: number[][], agent: WavePacket, dx: number, dy: number) {
+    private renderAgent(grid: number[][], agent: WaveAgent, dx: number, dy: number) {
         const height = grid.length;
         const width = grid[0]?.length || 0;
         
@@ -258,7 +258,7 @@ export class ARCTensorEngine {
     // 🌌 MULTI-AGENT DYNAMICS & VSA
     // ==========================================
 
-    private calculateInterAgentForces(survivors: { inAgent: WavePacket, outAgent: WavePacket }[]): Record<string, AgentInteraction[]> {
+    private calculateInterAgentForces(survivors: { inAgent: WaveAgent, outAgent: WaveAgent }[]): Record<string, AgentInteraction[]> {
         const interactionsMap: Record<string, AgentInteraction[]> = {};
         survivors.forEach(a => interactionsMap[a.inAgent.agent_id] = []);
 
@@ -301,7 +301,7 @@ export class ARCTensorEngine {
         return interactionsMap;
     }
 
-    private extractRule(inW: WavePacket, outW: WavePacket): TensorRule {
+    private extractRule(inW: WaveAgent, outW: WaveAgent): TensorRule {
         const shiftX = outW.abs_center.x - inW.abs_center.x;
         const shiftY = outW.abs_center.y - inW.abs_center.y;
         const shiftXRel = outW.rel_center.x - inW.rel_center.x;
@@ -375,7 +375,7 @@ export class ARCTensorEngine {
         };
     }
 
-    private createDestructiveRule(inW: WavePacket): TensorRule {
+    private createDestructiveRule(inW: WaveAgent): TensorRule {
         const inHV = this.vsa.encodeAgent(inW);
         const outHV = this.vsa.getBaseHV("STATE_ANNIHILATED");
         const deltaT = this.vsa.bind(outHV, this.vsa.invert(inHV));
@@ -392,7 +392,7 @@ export class ARCTensorEngine {
         };
     }
 
-    private createConstructiveRule(outW: WavePacket): TensorRule {
+    private createConstructiveRule(outW: WaveAgent): TensorRule {
         const inHV = this.vsa.getBaseHV("STATE_VOID");
         const outHV = this.vsa.encodeAgent(outW);
         const deltaT = this.vsa.bind(outHV, this.vsa.invert(inHV));
@@ -502,11 +502,11 @@ export class ARCTensorEngine {
     // 🧮 MATH UTILITIES
     // ==========================================
 
-    private findAllAgents(grid: number[][]): WavePacket[] {
+    private findAllAgents(grid: number[][]): WaveAgent[] {
         const height = grid.length;
         const width = grid[0]?.length || 0;
         const visited = Array.from({ length: height }, () => Array(width).fill(false));
-        const agents: WavePacket[] =[];
+        const agents: WaveAgent[] =[];
         const tokenCounter: Record<number, number> = {};
 
         for (let y = 0; y < height; y++) {
@@ -558,7 +558,7 @@ export class ARCTensorEngine {
         return mask;
     }
 
-    private calculateSimilarityScore(inW: WavePacket, outW: WavePacket): number {
+    private calculateSimilarityScore(inW: WaveAgent, outW: WaveAgent): number {
         const massDelta = Math.abs(inW.mass - outW.mass);
         const spreadDelta = Math.abs(inW.spread - outW.spread);
         const dist = Math.sqrt(
