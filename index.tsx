@@ -137,7 +137,7 @@ const App = () => {
     for (const model of embeddingModels) {
         try {
             const result = await ai.models.embedContent({ model, contents: text });
-            if (result.embedding?.values) return result.embedding.values;
+            if (result.embeddings?.[0]?.values) return result.embeddings[0].values;
         } catch (e: any) {
             console.warn(`Embedding failed for ${model}:`, e.message);
             if (model === embeddingModels[embeddingModels.length - 1]) throw e;

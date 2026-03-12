@@ -61,7 +61,7 @@ export class TensorSimulation {
 
           if (type === 'reaction-diffusion') {
               const oldB = this.state2!;
-              this.state2 = tf.keep(oldB.add(mask).clipByValue(0, 1));
+              this.state2 = tf.keep(oldB.add(mask).clipByValue(0, 1)) as tf.Tensor2D;
               tf.dispose(oldB);
           } else {
               const old1 = this.state1!;
@@ -99,8 +99,8 @@ export class TensorSimulation {
 
         const old1 = this.state1;
         const old2 = this.state2;
-        this.state1 = tf.keep(nextA.clipByValue(0, 1));
-        this.state2 = tf.keep(nextB.clipByValue(0, 1));
+        this.state1 = tf.keep(nextA.clipByValue(0, 1)) as tf.Tensor2D;
+        this.state2 = tf.keep(nextB.clipByValue(0, 1)) as tf.Tensor2D;
         tf.dispose([old1, old2]);
         
       } else if (type === 'wave-equation') {
@@ -119,7 +119,7 @@ export class TensorSimulation {
         const old1 = this.state1;
         const old2 = this.state2;
         this.state2 = old1; // u(t-1) becomes old u(t)
-        this.state1 = tf.keep(nextU); // u(t) becomes nextU
+        this.state1 = tf.keep(nextU) as tf.Tensor2D; // u(t) becomes nextU
         tf.dispose(old2); // Only dispose the old u(t-1)
       }
     });

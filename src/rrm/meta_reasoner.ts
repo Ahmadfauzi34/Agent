@@ -38,7 +38,7 @@ export class MetaReasoner {
 
     private getSolverById(id: string): SolverFunction {
         switch (id) {
-            case 'GRAVITY': return solveGravity;
+            case 'GRAVITY': return (input: number[][]) => solveGravity(input);
             case 'FRAME_EXTRACTION': return solveFrameExtraction;
             case 'PATTERN_SPLIT': return solvePatternedSplit;
             case 'SIDE_COMPARISON': return solveSideComparison;

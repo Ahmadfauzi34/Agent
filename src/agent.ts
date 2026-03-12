@@ -32,7 +32,7 @@ import { solveFrameExtraction } from './solvers/frame_extraction.ts';
 export class GridAgent {
     private metaReasoner: MetaReasoner;
     private solvers: Array<(input: number[][], trainPairs?: {input: number[][], output: number[][]}[]) => number[][]> = [
-        Object.assign(solveGravity, { id: 'solveGravity' }),
+        Object.assign((input: number[][]) => solveGravity(input), { id: 'solveGravity' }),
         Object.assign(solveFrameExtraction, { id: 'solveFrameExtraction' }),
         Object.assign(solvePatternedSplit, { id: 'solvePatternedSplit' }),
         Object.assign(solveSideComparison, { id: 'solveSideComparison' }),
@@ -40,7 +40,7 @@ export class GridAgent {
         Object.assign(solveColorSubstitution, { id: 'solveColorSubstitution' }),
         Object.assign(solveCrossFill, { id: 'solveCrossFill' }),
         Object.assign(solveKronecker, { id: 'solveKronecker' }),
-        Object.assign(solveEnclosure, { id: 'solveEnclosure' }),
+        Object.assign((input: number[][]) => solveEnclosure(input), { id: 'solveEnclosure' }),
         Object.assign((input: number[][]) => solvePeriodicity(input, 9, { 1: 2 }), { id: 'solvePeriodicity' }),
         Object.assign(solveShear, { id: 'solveShear' }),
         Object.assign(solveIntersection, { id: 'solveIntersection' }),
