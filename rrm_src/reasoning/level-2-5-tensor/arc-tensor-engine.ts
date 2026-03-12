@@ -10,6 +10,7 @@ export type TensorOp =
     | "CONSTRUCTIVE_INTERFERENCE"
     | "DESTRUCTIVE_INTERFERENCE"
     | "COMPLEX_WAVEFORM"
+    | "OPTICAL_INTERFERENCE"
     | "UNKNOWN";
 
 export type ForceType = "ATTRACTION" | "REPULSION" | "NEUTRAL" | "COLLISION";
@@ -307,13 +308,41 @@ export class ARCTensorEngine {
         const shiftYRel = outW.rel_center.y - inW.rel_center.y;
         const massDelta = outW.mass - inW.mass;
 
-        let op: TensorOp = "STANDING_WAVE";
+        // Implementasi logika OPTICAL_INTERFERENCE:
+        // Saat agen berubah dalam fasa posisi maupun massa dan juga mengalami perluasan spatial.
+        const opArray: TensorOp[] = [
+            "STANDING_WAVE",
+            "PHASE_SHIFT",
+            "DESTRUCTIVE_INTERFERENCE",
+            "CONSTRUCTIVE_INTERFERENCE",
+            "COMPLEX_WAVEFORM",
+            "OPTICAL_INTERFERENCE"
+        ];
+
         const isShifted = Math.abs(shiftX) > 0.1 || Math.abs(shiftY) > 0.1;
         const isMassChanged = Math.abs(massDelta) > 0.1;
+        const isSpatialChanged = Math.abs(outW.spread - inW.spread) > 0.1;
 
-        if (!isMassChanged && isShifted) op = "PHASE_SHIFT";
-        else if (isMassChanged && !isShifted) op = massDelta > 0 ? "CONSTRUCTIVE_INTERFERENCE" : "DESTRUCTIVE_INTERFERENCE";
-        else if (isShifted && isMassChanged) op = "COMPLEX_WAVEFORM";
+        // Tensor kalkulasi indeks secara linier menggunakan basis bitmask pangkat 2 (1, 2, 4)
+        const opIndex = Number(isShifted) * 1 + Number(isMassChanged) * 2 + Number(isSpatialChanged) * 4;
+
+        // Operasi fallback tanpa kondisional menggunakan array
+        const interferenceOps: TensorOp[] = ["DESTRUCTIVE_INTERFERENCE", "CONSTRUCTIVE_INTERFERENCE"];
+        const interferenceOp = interferenceOps[Number(massDelta > 0)]!;
+
+        // Pemetaan state ke Operator secara unik (0-7)
+        const opMap: Record<number, TensorOp> = {
+            0: "STANDING_WAVE",             // 000: No Shift, No Mass, No Spatial
+            1: "PHASE_SHIFT",               // 001: Shift, No Mass, No Spatial
+            2: interferenceOp,              // 010: No Shift, Mass, No Spatial
+            3: "COMPLEX_WAVEFORM",          // 011: Shift, Mass, No Spatial
+            4: interferenceOp,              // 100: No Shift, No Mass (tetapi massDelta > 0?), Spatial -> Konseptual Interference
+            5: "OPTICAL_INTERFERENCE",      // 101: Shift, No Mass, Spatial
+            6: interferenceOp,              // 110: No Shift, Mass, Spatial
+            7: "OPTICAL_INTERFERENCE"       // 111: Shift, Mass, Spatial
+        };
+
+        const op: TensorOp = opMap[opIndex] || "STANDING_WAVE";
 
         // --- VSA: HOLOGRAPHIC LAW EXTRACTION ---
         const inHV = this.vsa.encodeAgent(inW);
@@ -405,11 +434,21 @@ export class ARCTensorEngine {
             const count = group.length;
             const opList = group.map(g => g.op);
             
-            let finalOp: TensorOp = "STANDING_WAVE";
-            if (opList.includes("COMPLEX_WAVEFORM")) finalOp = "COMPLEX_WAVEFORM";
-            else if (opList.includes("PHASE_SHIFT")) finalOp = "PHASE_SHIFT";
-            else if (opList.includes("CONSTRUCTIVE_INTERFERENCE")) finalOp = "CONSTRUCTIVE_INTERFERENCE";
-            else if (opList.includes("DESTRUCTIVE_INTERFERENCE")) finalOp = "DESTRUCTIVE_INTERFERENCE";
+            // Eliminasi block IF-ELSE untuk pemilihan operator pada tingkat konsensus
+            // Menggunakan bobot hierarki operator tensor
+            const opHierarchy: Record<TensorOp, number> = {
+                "OPTICAL_INTERFERENCE": 6,
+                "COMPLEX_WAVEFORM": 5,
+                "CONSTRUCTIVE_INTERFERENCE": 4,
+                "DESTRUCTIVE_INTERFERENCE": 3,
+                "PHASE_SHIFT": 2,
+                "STANDING_WAVE": 1,
+                "UNKNOWN": 0
+            };
+
+            const finalOp = opList.reduce((highest, current) =>
+                opHierarchy[current] > opHierarchy[highest] ? current : highest
+            , "STANDING_WAVE" as TensorOp);
 
             const avg = group.reduce((acc, curr) => ({
                 vector_x_abs: acc.vector_x_abs + curr.params.vector_x_abs / count,
