@@ -28,10 +28,19 @@ async function runExternalTask(filename: string) {
     log(`🧩 MENGERJAKAN EXTERNAL TASK: ${task.name} (VIA RRM ORCHESTRATOR)`);
     log(`==================================================`);
 
-    await agent.solveTask(task, log);
+    const result = await agent.solveTask(task, log);
 
     // Print all log buffer
     console.log(PDRLogger.getBuffer());
+
+    if (result) {
+        console.log(`\n==================================================`);
+        console.log(`✅ HASIL PREDIKSI (COLLAPSED REALITY):`);
+        console.dir(result, { depth: null });
+        console.log(`==================================================`);
+    } else {
+        console.log(`\n❌ AGEN MENYERAH. Entropi terlalu tinggi untuk meruntuhkan gelombang.`);
+    }
 }
 
 runExternalTask('b0c4d837.json').catch(err => {

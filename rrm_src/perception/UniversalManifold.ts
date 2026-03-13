@@ -94,4 +94,63 @@ export class UniversalManifold {
         const xyBind = FHRR.bind(xTensor, yTensor);
         return FHRR.bind(xyBind, colorTensor);
     }
+
+    /**
+     * 🌌 DECODE TENSOR (THE COLLAPSE)
+     * Mengukur kedekatan tensor entitas terhadap kombinasi (X, Y, Token) murni.
+     * Mengembalikan probabilitas tertinggi warna (Token) untuk posisi spasial tertentu.
+     * Ini dilakukan murni melalui Interferometri Optik (Dot Product Mag Sq), tanpa aturan spasial kaku.
+     */
+    public decodePixelFromEntity(entity: TensorVector, relX: number, relY: number): number {
+        const xTensor = this.encodeCoordinate(this.X_AXIS_SEED, relX);
+        const yTensor = this.encodeCoordinate(this.Y_AXIS_SEED, relY);
+        const xyBind = FHRR.bind(xTensor, yTensor);
+
+        // Untuk mengekstrak warna, kita unbind (Inverse Bind) koordinat dari Entitas
+        // ColorPrediction = Entity * Inverse(X*Y)
+        const xyInverse = FHRR.inverse(xyBind);
+        const colorPrediction = FHRR.bind(entity, xyInverse);
+
+        let bestColor = 0; // Default background color
+        let maxResonance = -1;
+
+        // Mencari spektrum warna mana (0-9) yang paling beresonansi dengan hasil unbind
+        for (let c = 1; c <= 9; c++) {
+            const colorSeed = this.encodeCoordinate(this.COLOR_SEED, c);
+            const resonance = FHRR.similarity(colorPrediction, colorSeed);
+
+            // Kita menghindari if-else berantai dengan menggunakan bitwise atau pembandingan sekuensial sederhana
+            const isBetter = resonance > maxResonance;
+            bestColor = (isBetter as unknown as number) * c + ((!isBetter) as unknown as number) * bestColor;
+            maxResonance = (isBetter as unknown as number) * resonance + ((!isBetter) as unknown as number) * maxResonance;
+        }
+
+        // Jika resonansi warna maksimal sangat rendah, itu noise / bukan warna tsb
+        return maxResonance > 0.3 ? bestColor : 0;
+    }
+
+    /**
+     * Mengubah sekumpulan CognitiveEntities kembali menjadi array/grid aslinya.
+     * Membutuhkan ukuran canvas tujuan (karena agen bekerja di relativitas 0.0 - 1.0).
+     */
+    public collapseEntitiesToGrid(entities: TensorVector[], width: number, height: number): number[][] {
+        const grid: number[][] = Array.from({ length: height }, () => Array(width).fill(0));
+
+        // Terapkan fungsi probabilitas gelombang kuantum ke seluruh kanvas spasial
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const relX = x / Math.max(1, width - 1);
+                const relY = y / Math.max(1, height - 1);
+
+                // Kumpulkan superposisi warna dari semua entitas yang menjangkau koordinat ini
+                for (const entity of entities) {
+                    const color = this.decodePixelFromEntity(entity, relX, relY);
+
+                    // Superposisi tumpang tindih: Warna terdeteksi menimpa ruang kosong
+                    grid[y]![x] = (color > 0 ? color : grid[y]![x]!);
+                }
+            }
+        }
+        return grid;
+    }
 }

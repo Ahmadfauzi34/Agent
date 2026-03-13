@@ -26,9 +26,9 @@ export class RRM_Agent {
 
     /**
      * Memproses satu teka-teki penuh (ARC / NLP) murni berdasarkan sinyal spektral.
-     * @returns Boolean true jika solusi tervalidasi dengan entropi 0, false jika gagal.
+     * @returns Output grid/sequence hasil collapse tensor, atau null jika gagal.
      */
-    public async solveTask(task: Task, log: (msg: string) => void): Promise<boolean> {
+    public async solveTask(task: Task, log: (msg: string) => void): Promise<number[][] | number[] | null> {
         log(`\n🌌 RRM QUANTUM CYCLE: ${task.name || 'Unknown_Anomaly'}`);
 
         // 1. =======================================================
@@ -102,7 +102,7 @@ export class RRM_Agent {
         log(statusMessages[Number(rulesCount > 0)]!);
 
         // Jika tidak ada rule yang selamat, agen menyerah.
-        if (rulesCount === 0) return false;
+        if (rulesCount === 0) return null;
 
         // 4. =======================================================
         // 🌌 THE COLLAPSE PHASE
@@ -117,11 +117,24 @@ export class RRM_Agent {
             this.waveDynamics.applyWaveGravity(testEntity, attractors, []);
         }
 
-        // Verifikasi Pseudo-Abstract (Karena kita belum merender matriks float32 kembali ke integer pixel 2D secara murni)
-        // Kita menggunakan korelasi entropi VSA. Semakin murni tensor akhirnya, semakin valid.
-        // Simulasi ini mengembalikan status sukses (karena if-else boolean mapping)
-        const isCollapsed = true;
+        // Mengambil ukuran asli test grid (Jika 2D) untuk re-render
+        // Kita gunakan logika agnostik untuk resolusi (mencari max X dan Y dari input asli)
+        const testInput = task.test[0]!.input;
+        const is2D = Array.isArray(testInput[0]);
 
-        return isCollapsed;
+        if (is2D) {
+            const grid = testInput as number[][];
+            const height = grid.length;
+            const width = grid[0]?.length || 0;
+
+            const collapsedEntities = testEntities.map(e => e.tensor);
+            const collapsedGrid = this.perceiver.collapseEntitiesToGrid(collapsedEntities, width, height);
+
+            log(`   ✅ REALITAS TERBENTUK: Grid (${width}x${height}) dirender ulang dari superposisi kuantum.`);
+            return collapsedGrid;
+        } else {
+            // Placeholder untuk token 1D jika diperlukan
+            return testInput;
+        }
     }
 }
