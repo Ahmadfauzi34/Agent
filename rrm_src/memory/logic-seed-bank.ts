@@ -157,6 +157,13 @@ export class LogicSeedBank {
     }
 
     /**
+     * MENGAMBIL SELURUH REGISTER (Hanya untuk Maintenance/Annealing offline)
+     */
+    public getAllRegisteredPhasors(): Map<number, Float32Array> {
+        return this.phasorCache;
+    }
+
+    /**
      * ⚡ KINEMATIKA TENSOR (Mengekstrak Kecepatan Dasar)
      * Jika Seed adalah Translasi (misal: SHIFT_0_5), fungsi ini akan mengembalikan
      * Phasor untuk kecepatan dasarnya (misal: SHIFT_0_1) agar bisa disimulasikan step-by-step.

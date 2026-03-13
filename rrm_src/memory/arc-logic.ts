@@ -3,7 +3,7 @@ import { VSAUtils, LensType, POS_X, POS_Y, ARC_COLORS } from '../perception/vsa-
 import { PDRLogger } from '../reasoning/level1-pdr/pdr-debug';
 
 // 🧠 BRANKAS TRAUMA TERISOLASI BERDASARKAN LENSA (HANYA DI RAM)
-export const ARCTraumaVault: Record<LensType, Float64Array[]> = {
+export const ARCTraumaVault: Record<LensType, Float32Array[]> = {
   'HOLISTIC': [],
   'IGNORE_COLOR': [],
   'IGNORE_POSITION': [],
@@ -30,9 +30,9 @@ export const ARCLogic = {
     ARCTraumaVault['TRANSFORM_MIRROR_Y'] = [];
     ARCTraumaVault['NORMALIZE_POSITION'] = [];
   },
-  extractRule: (inputGrid: number[][], outputGrid: number[][], lens: LensType): Float64Array => {
+  extractRule: (inputGrid: number[][], outputGrid: number[][], lens: LensType): Float32Array => {
     if (lens === 'COLOR_MAP') {
-        const rules: Float64Array[] = [];
+        const rules: Float32Array[] = [];
         const seen = new Set<string>();
         for (let y = 0; y < inputGrid.length; y++) {
             for (let x = 0; x < inputGrid[y].length; x++) {
@@ -58,12 +58,12 @@ export const ARCLogic = {
     return HoloFFT.bind(outputVec, HoloFFT.inverse(inputVec));
   },
 
-  extractConstantRule: (outputGrid: number[][], lens: LensType): Float64Array => {
+  extractConstantRule: (outputGrid: number[][], lens: LensType): Float32Array => {
     return VSAUtils.encodeGrid(outputGrid, lens);
   },
 
   // Membersihkan rule dari crosstalk noise dengan mencari komponen dominan di kamus
-  cleanUpRule: (noisyRule: Float64Array, lens: LensType): Float64Array => {
+  cleanUpRule: (noisyRule: Float32Array, lens: LensType): Float32Array => {
       // Hanya bersihkan untuk transformasi spasial murni saat ini
       if (lens === 'IGNORE_COLOR') {
           let bestSim = 0;
@@ -101,7 +101,7 @@ export const ARCLogic = {
   },
 
   // Audit trauma kini hanya mencari di brankas lensa yang sedang dipakai
-  isBadLogic: (currentRule: Float64Array, lens: LensType): boolean => {
+  isBadLogic: (currentRule: Float32Array, lens: LensType): boolean => {
     const vault = ARCTraumaVault[lens];
     for (const badRule of vault) {
       if (HoloFFT.similarity(currentRule, badRule) > 0.95) {
@@ -111,13 +111,13 @@ export const ARCLogic = {
     return false;
   },
 
-  applyRule: (inputGrid: number[][], ruleVec: Float64Array, lens: LensType): Float64Array => {
+  applyRule: (inputGrid: number[][], ruleVec: Float32Array, lens: LensType): Float32Array => {
     const inputVec = VSAUtils.encodeGrid(inputGrid, lens);
     return HoloFFT.bind(ruleVec, inputVec);
   },
 
   // Memanen trauma langsung ke brankas lensa spesifik
-  condenseTrauma: (newBadRule: Float64Array, lens: LensType) => {
+  condenseTrauma: (newBadRule: Float32Array, lens: LensType) => {
     const vault = ARCTraumaVault[lens];
     let absorbed = false;
     for (let i = 0; i < vault.length; i++) {
