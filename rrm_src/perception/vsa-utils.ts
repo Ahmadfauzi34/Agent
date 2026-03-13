@@ -109,9 +109,9 @@ export const VSAUtils = {
   },
 
   // 🧠 ENCODER SUPERPOSISI
-  encodeGrid: (grid: number[][], lens: LensType = 'HOLISTIC'): Float64Array => {
+  encodeGrid: (grid: number[][], lens: LensType = 'HOLISTIC'): Float32Array => {
     if (lens === 'COLOR_MAP') {
-        const pixelVecs: Float64Array[] = [];
+        const pixelVecs: Float32Array[] = [];
         for (let y = 0; y < grid.length; y++) {
             for (let x = 0; x < grid[y].length; x++) {
                 const colorVec = ARC_COLORS[grid[y][x]];
@@ -129,7 +129,7 @@ export const VSAUtils = {
     // Jika layar kosong, kembalikan vektor identitas/noise
     if (objects.length === 0) return HoloFFT.create();
 
-    const objectVectors: Float64Array[] = [];
+    const objectVectors: Float32Array[] = [];
 
     // Proses setiap objek secara terpisah menggunakan Lensa Mental
     for (const obj of objects) {

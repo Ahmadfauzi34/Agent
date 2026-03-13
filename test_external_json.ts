@@ -1,0 +1,39 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { PDRLogger, LogLevel } from './rrm_src/reasoning/level1-pdr/pdr-debug';
+import { RRM_Agent } from './rrm_src/RRM_Agent';
+
+const agent = new RRM_Agent();
+
+async function runExternalTask(filename: string) {
+    const filePath = path.join(process.cwd(), filename);
+    const rawData = fs.readFileSync(filePath, 'utf-8');
+    const parsedData = JSON.parse(rawData);
+
+    // ARC JSON format typically has "train" and "test" pairs
+    const task = {
+        name: filename,
+        train: parsedData.train.map((p: any) => ({ input: p.input, output: p.output })),
+        test: parsedData.test.map((p: any) => ({ input: p.input, output: p.output }))
+    };
+
+    PDRLogger.clearBuffer();
+    PDRLogger.setLevel(LogLevel.TRACE);
+
+    const log = (msg: string) => {
+        PDRLogger.log(msg);
+    };
+
+    log(`\n==================================================`);
+    log(`🧩 MENGERJAKAN EXTERNAL TASK: ${task.name} (VIA RRM ORCHESTRATOR)`);
+    log(`==================================================`);
+
+    await agent.solveTask(task, log);
+
+    // Print all log buffer
+    console.log(PDRLogger.getBuffer());
+}
+
+runExternalTask('b0c4d837.json').catch(err => {
+    console.error("Script execution failed:", err);
+});
