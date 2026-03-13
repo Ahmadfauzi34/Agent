@@ -1,14 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { PDRLogger, LogLevel } from './rrm_src/reasoning/level1-pdr/pdr-debug';
-import { solveLevel2_5 } from './rrm_src/reasoning/level-2-5-tensor/tensor-level';
-import { solveLevel1 } from './rrm_src/reasoning/level1-pdr/pdr-level';
-import { PDRSolver } from './rrm_src/reasoning/level1-pdr/pdr-solver';
-import { solveLevel2 } from './rrm_src/reasoning/level2-vsa/vsa-level';
-import { solveMultiStep } from './rrm_src/reasoning/level2-vsa/multi-step-level';
-import { solveLevel3 } from './rrm_src/reasoning/level3-algebra/coord-level';
-import { solveLevel4 } from './rrm_src/reasoning/level4-dynamics/physics-level';
-import { ARCLogic } from './rrm_src/memory';
+import { RRM_Agent } from './rrm_src/RRM_Agent';
+
+const agent = new RRM_Agent();
 
 async function runExternalTask(filename: string, logDir: string) {
     const filePath = path.join(process.cwd(), filename);
@@ -30,40 +25,10 @@ async function runExternalTask(filename: string, logDir: string) {
     };
 
     log(`\n==================================================`);
-    log(`🧩 MENGERJAKAN EXTERNAL TASK: ${task.name}`);
+    log(`🧩 MENGERJAKAN EXTERNAL TASK: ${task.name} (VIA RRM ORCHESTRATOR)`);
     log(`==================================================`);
 
-    const pdrSolver = new PDRSolver();
-    ARCLogic.resetTraumaVault();
-
-    let isTaskSolved = false;
-    let partialRules: any = {};
-    let level3Rule: any = null;
-
-    isTaskSolved = isTaskSolved || solveLevel1(task, pdrSolver, log);
-    isTaskSolved = isTaskSolved || solveLevel2_5(task, log);
-
-    isTaskSolved = isTaskSolved || (() => {
-        const level2Result = solveLevel2(task, log);
-        partialRules = level2Result.partialRules;
-        return level2Result.taskSolved;
-    })();
-
-    isTaskSolved = isTaskSolved || (Object.keys(partialRules).length > 0 && solveMultiStep(task, partialRules, log));
-
-    isTaskSolved = isTaskSolved || await (async () => {
-        const level3Result = await solveLevel3(task, log);
-        level3Rule = level3Result.rule;
-        return level3Result.solved;
-    })();
-
-    isTaskSolved = isTaskSolved || solveLevel4(task, log, level3Rule);
-
-    const resultsMessage = [
-        "\n💀 GAGAL TOTAL: Agen kehabisan sudut pandang dan mesin logika menyerah pada soal ini.",
-        "\n✅ SUKSES: Solusi ditemukan melalui konvergensi penalaran kognitif agen."
-    ];
-    log(resultsMessage[Number(isTaskSolved)] as string);
+    const isTaskSolved = await agent.solveTask(task, log);
 
     // Log the output
     const buffer = PDRLogger.getBuffer();
