@@ -1,9 +1,10 @@
-import { UniversalManifold, EntitySegmenter } from './perception';
+import { UniversalManifold, EntitySegmenter, HologramDecoder } from './perception';
 import { TopologicalAligner, WaveDynamics, HamiltonianPruner } from './reasoning';
 import { HolographicManifold, LogicSeedBank } from './memory';
 import { Task } from './shared';
 import { PDRLogger, LogLevel } from './reasoning/level1-pdr/pdr-debug';
 import { CognitiveEntity } from './core/CognitiveEntity';
+import { TensorVector, GLOBAL_DIMENSION } from './core/config';
 
 /**
  * 🤖 THE RECURSIVE REASONING MACHINE (Fase 5: Sang Orkestrator)
@@ -16,19 +17,28 @@ export class RRM_Agent {
     private aligner = new TopologicalAligner();
     private waveDynamics = new WaveDynamics();
     private pruner = new HamiltonianPruner();
+    private decoder: HologramDecoder;
     private seedBank: LogicSeedBank;
 
     constructor() {
         const memoryManifold = new HolographicManifold();
         this.seedBank = new LogicSeedBank(memoryManifold);
+        this.decoder = new HologramDecoder(this.perceiver);
         PDRLogger.setLevel(LogLevel.INFO);
     }
 
     /**
-     * Memproses satu teka-teki penuh (ARC / NLP) murni berdasarkan sinyal spektral.
-     * @returns Boolean true jika solusi tervalidasi dengan entropi 0, false jika gagal.
+     * Muat panen ingatan massal (JSON) ke dalam VSA Seed Bank sebelum mengerjakan task.
      */
-    public async solveTask(task: Task, log: (msg: string) => void): Promise<boolean> {
+    public loadHarvestedMemories(jsonArray: any[]): void {
+        this.seedBank.loadHarvestedSeeds(jsonArray);
+    }
+
+    /**
+     * Memproses satu teka-teki penuh (ARC / NLP) murni berdasarkan sinyal spektral.
+     * @returns Output grid/sequence hasil collapse tensor, atau null jika gagal.
+     */
+    public async solveTask(task: Task, log: (msg: string) => void): Promise<number[][] | number[] | null> {
         log(`\n🌌 RRM QUANTUM CYCLE: ${task.name || 'Unknown_Anomaly'}`);
 
         // 1. =======================================================
@@ -66,9 +76,18 @@ export class RRM_Agent {
 
             for (const match of alignments) {
                 if (match.deltaTensor && match.similarity > 0.7) {
-                    // Menyuntikkan spektrum perubahan (Holographic Law) ke dalam Medan Pruner
-                    const ruleId = `LAW_TRAIN_${i}_${match.source.id}`;
-                    this.pruner.injectHypothesis(ruleId, match.deltaTensor, 1.0, 0.1);
+                    // Coba kenali DeltaTensor ini dengan memori yang pernah dipanen sebelumnya (Resonance Search)
+                    const knownMemory = this.seedBank.findBestMatch(match.deltaTensor);
+
+                    if (knownMemory && knownMemory.coherence > 0.85) {
+                        // Jika memori dikenali kuat (Crosstalk/Coherence > 85%), gunakan Hukum Asli yang ortogonal
+                        log(`      [Resonance] Pergerakan dikenali sebagai: ${knownMemory.name} (Kemiripan: ${(knownMemory.coherence * 100).toFixed(2)}%)`);
+                        this.pruner.injectHypothesis(knownMemory.name, knownMemory.phasor, 1.0, 0.05);
+                    } else {
+                        // Jika fenomena ini benar-benar baru, suntikkan sebagai hipotesis mentah yang lebih rapuh (decay rate lebih tinggi)
+                        const ruleId = `LAW_NEW_TRAIN_${i}_${match.source.id}`;
+                        this.pruner.injectHypothesis(ruleId, match.deltaTensor, 1.0, 0.3);
+                    }
 
                     // Menciptakan Quantum Entanglement (Jika 2 objek berubah dengan cara yang mirip)
                     // TODO: Entanglement Logic bisa diperdalam
@@ -102,7 +121,7 @@ export class RRM_Agent {
         log(statusMessages[Number(rulesCount > 0)]!);
 
         // Jika tidak ada rule yang selamat, agen menyerah.
-        if (rulesCount === 0) return false;
+        if (rulesCount === 0) return null;
 
         // 4. =======================================================
         // 🌌 THE COLLAPSE PHASE
@@ -117,11 +136,32 @@ export class RRM_Agent {
             this.waveDynamics.applyWaveGravity(testEntity, attractors, []);
         }
 
-        // Verifikasi Pseudo-Abstract (Karena kita belum merender matriks float32 kembali ke integer pixel 2D secara murni)
-        // Kita menggunakan korelasi entropi VSA. Semakin murni tensor akhirnya, semakin valid.
-        // Simulasi ini mengembalikan status sukses (karena if-else boolean mapping)
-        const isCollapsed = true;
+        // Mengambil ukuran asli test grid (Jika 2D) untuk re-render
+        // Kita gunakan logika agnostik untuk resolusi (mencari max X dan Y dari input asli)
+        const testInput = task.test[0]!.input;
+        const is2D = Array.isArray(testInput[0]);
 
-        return isCollapsed;
+        if (is2D) {
+            const grid = testInput as number[][];
+            const height = grid.length;
+            const width = grid[0]?.length || 0;
+
+            // Membundle (Superposisi) seluruh entitas tes menjadi satu Tensor Semesta
+            const universeTensor = new Float32Array(GLOBAL_DIMENSION);
+            for (const entity of testEntities) {
+                for (let d = 0; d < GLOBAL_DIMENSION; d++) {
+                    universeTensor[d] += entity.tensor[d]!;
+                }
+            }
+
+            // Menerapkan Runtuhan Gelombang Kuantum (Quantum Collapse)
+            const collapsedGrid = this.decoder.collapseToGrid(universeTensor, width, height, 0.4);
+
+            log(`   ✅ REALITAS TERBENTUK: Grid (${width}x${height}) dirender ulang dari superposisi kuantum secara branchless.`);
+            return collapsedGrid;
+        } else {
+            // Placeholder untuk token 1D jika diperlukan
+            return testInput;
+        }
     }
 }

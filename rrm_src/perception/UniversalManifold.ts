@@ -84,8 +84,9 @@ export class UniversalManifold {
     /**
      * Merakit satu "Partikel Kesadaran" (Pixel/Token) menjadi Superposisi Kuantum.
      * Tensor = Bind( X^relX, Bind(Y^relY, COLOR^token) )
+     * Dipanggil oleh encoder (saat observasi) maupun oleh decoder (saat membuat sinar probe).
      */
-    private buildPixelTensor(relX: number, relY: number, token: number): TensorVector {
+    public buildPixelTensor(relX: number, relY: number, token: number): TensorVector {
         const xTensor = this.encodeCoordinate(this.X_AXIS_SEED, relX);
         const yTensor = this.encodeCoordinate(this.Y_AXIS_SEED, relY);
         const colorTensor = this.encodeCoordinate(this.COLOR_SEED, token);
