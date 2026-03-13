@@ -56,16 +56,20 @@ export interface TensorSolution {
     target_seed: number;
 }
 
+import { FWHTContext } from '../../core/fwht';
+
 // ==========================================
 // 🌌 VECTOR SYMBOLIC ARCHITECTURE (VSA) CORE
 // ==========================================
 class VSACore {
-    private readonly D = 64; // Dimensi Hypervector (64 untuk efisiensi JSON, idealnya 10000)
-    private codebook: Map<string, number[]> = new Map();
+    private readonly D = 64; // Harus pangkat 2 untuk FWHT (misal: 64, 256, 1024)
+    private codebook: Map<string, Int32Array> = new Map();
     private seed: number;
+    private fwht: FWHTContext;
 
     constructor(seed: number) {
         this.seed = seed;
+        this.fwht = new FWHTContext(this.D * 4); // Alokasi pool dinamis
     }
 
     // Pseudo-Random Number Generator deterministik
@@ -75,41 +79,65 @@ class VSACore {
     }
 
     // Menghasilkan Hypervector Bipolar acak (+1 / -1)
-    private generateRandomHV(): number[] {
-        return Array.from({ length: this.D }, () => this.random() > 0.5 ? 1 : -1);
+    private generateRandomHV(): Int32Array {
+        const arr = new Int32Array(this.D);
+        for (let i = 0; i < this.D; i++) {
+            arr[i] = this.random() > 0.5 ? 1 : -1;
+        }
+        return arr;
     }
 
     // Mengambil atau membuat Hypervector dasar dari Codebook
-    public getBaseHV(key: string): number[] {
+    public getBaseHV(key: string): Int32Array {
         if (!this.codebook.has(key)) {
             this.codebook.set(key, this.generateRandomHV());
         }
         return this.codebook.get(key)!;
     }
 
-    // BIND (XOR / Element-wise multiplication)
-    public bind(v1: number[], v2: number[]): number[] {
-        return v1.map((val, i) => val * v2[i]!);
+    // BIND (XOR Element-wise untuk stabilitas matematis Bipolar VSA)
+    // Walaupun FWHT dyadic tersedia, untuk bipolar murni ({-1, 1}), XOR jauh lebih stabil
+    // agar binding orthogonal (V1 * V2) bisa di-unbind sempurna dengan inverse (V2 * V1^-1).
+    public bind(v1: Int32Array, v2: Int32Array): Int32Array {
+        const result = new Int32Array(this.D);
+        for (let i = 0; i < this.D; i++) {
+            result[i] = v1[i]! * v2[i]!;
+        }
+        return result;
     }
 
     // BUNDLE (Superposition / Element-wise addition + thresholding)
-    public bundle(vectors: number[][]): number[] {
-        if (vectors.length === 0) return Array(this.D).fill(1);
-        const sum = Array(this.D).fill(0);
-        vectors.forEach(v => {
-            v.forEach((val, i) => sum[i] += val);
-        });
+    public bundle(vectors: Int32Array[]): Int32Array {
+        const res = new Int32Array(this.D);
+        if (vectors.length === 0) {
+            res.fill(1);
+            return res;
+        }
+
+        for (let i = 0; i < vectors.length; i++) {
+            for (let d = 0; d < this.D; d++) {
+                res[d] += vectors[i]![d]!;
+            }
+        }
+
         // Thresholding kembali ke Bipolar (+1 / -1)
-        return sum.map(val => val >= 0 ? 1 : -1);
+        for (let d = 0; d < this.D; d++) {
+            res[d] = res[d]! >= 0 ? 1 : -1;
+        }
+        return res;
     }
 
-    // INVERT (Dalam Bipolar VSA, Invert adalah dirinya sendiri karena 1*1=1, -1*-1=1)
-    public invert(v: number[]): number[] {
-        return [...v]; 
+    // INVERT: Di dalam FWHT Bipolar Holography, Invert bukan dirinya sendiri.
+    // Melainkan Inverse Matrix. Untuk penyederhanaan pada dyadic riil,
+    // jika vektor adalah bipolar ortogonal, inverse hampir sama dengan transpose/time-reverse.
+    // Pada implementasi ini, kita gunakan vektor original sebagai proxy inverse aproksimasi cepat
+    // (self-inverse property dari Hadamard basis).
+    public invert(v: Int32Array): Int32Array {
+        return new Int32Array(v);
     }
 
     // Encode Agent State menjadi Hypervector
-    public encodeAgent(agent: WaveAgent): number[] {
+    public encodeAgent(agent: WaveAgent): Int32Array {
         const tokenHV = this.getBaseHV(`TOKEN_${agent.token}`);
         const massHV = this.getBaseHV(`MASS_${Math.round(agent.mass)}`);
         // Kuantisasi posisi relatif ke 10 grid area untuk stabilitas VSA
@@ -120,13 +148,49 @@ class VSACore {
     }
 
     // Konversi HV ke String Padat untuk JSON
-    public hvToString(v: number[]): string {
-        return v.map(val => val === 1 ? '+' : '-').join('');
+    public hvToString(v: Int32Array): string {
+        return Array.from(v).map(val => val === 1 ? '+' : '-').join('');
     }
 
     // Konversi String Padat ke HV
-    public stringToHv(s: string): number[] {
-        return s.split('').map(char => char === '+' ? 1 : -1);
+    public stringToHv(s: string): Int32Array {
+        const arr = new Int32Array(this.D);
+        for (let i = 0; i < s.length; i++) {
+            arr[i] = s[i] === '+' ? 1 : -1;
+        }
+        return arr;
+    }
+
+    // Menghitung Cosine Similarity bebas if-else (kembali 0-1)
+    public similarity(v1: Int32Array, v2: Int32Array): number {
+        const sum = v1.reduce((acc, val, i) => acc + (val * v2[i]!), 0);
+        return (sum / this.D + 1) / 2; // Normalize dari [-1, 1] ke [0, 1]
+    }
+
+    // Mencari kunci terdekat dari codebook (Decoding Memory)
+    public queryCodebook(queryHV: Int32Array, prefix: string): string {
+        let bestKey = "";
+        let bestSim = -1;
+
+        for (const [key, hv] of this.codebook.entries()) {
+            if (key.startsWith(prefix)) {
+                const sim = this.similarity(queryHV, hv);
+                const isBetter = Number(sim > bestSim);
+                bestSim = isBetter * sim + (1 - isBetter) * bestSim;
+
+                // Workaround if-else string assignment
+                if (isBetter) bestKey = key;
+            }
+        }
+        return bestKey;
+    }
+
+    // Encoder Absolut (Baru: untuk memetakan koordinat riil ke memori agent saat diprediksi)
+    public encodeDelta(dx: number, dy: number): Int32Array {
+        const dxHV = this.getBaseHV(`DELTA_X_${Math.round(dx)}`);
+        const dyHV = this.getBaseHV(`DELTA_Y_${Math.round(dy)}`);
+        // Harus di-bundle (Superposition) agar masing-masing sumbu (dx, dy) bisa di-query terpisah
+        return this.bundle([dxHV, dyHV]);
     }
 }
 
@@ -212,32 +276,47 @@ export class ARCTensorEngine {
         
         const inputAgents = this.findAllAgents(inputGrid);
         
+        // Inisialisasi VSA Core untuk decode memori saat testing jika belum ada
+        if (!this.vsa) {
+             const deterministicSeed = 80000;
+             this.vsa = new VSACore(deterministicSeed);
+        }
+
         inputAgents.forEach(agent => {
-            // Find the best matching rule. 
-            // In a true holographic system, we'd bind the agent's HV with the Universal Law HV to get the expected output HV.
-            // For now, we match by token and relative position (or just token for simplicity).
             const matchingRules = rules.filter(r => r.target_token === agent.token);
             
             if (matchingRules.length === 0) {
-                // No rule found, just copy the agent (STANDING_WAVE)
                 this.renderAgent(outputGrid, agent, 0, 0);
                 return;
             }
             
-            // Pick the most common rule for this token, or average them.
-            // For simplicity, pick the first matching rule.
             const rule = matchingRules[0]!;
             
             if (rule.op === "DESTRUCTIVE_INTERFERENCE") {
-                // Agent is annihilated, do not render
                 return;
             }
             
-            // Apply transformation
-            const dx = Math.round(rule.params.vector_x_abs);
-            const dy = Math.round(rule.params.vector_y_abs);
+            // === VSA HOLOGRAPHIC PREDICTION ===
+            // 1. Encode state agent tes saat ini
+            const currentHV = this.vsa.encodeAgent(agent);
+
+            // 2. Baca hukum universal dari memori
+            const lawHV = this.vsa.stringToHv(rule.holographic_law);
+
+            // 3. Unbind (Invert current + Bind Law) untuk mengekstrak ekspektasi Delta (dx, dy)
+            const expectedDeltaHV = this.vsa.bind(lawHV, this.vsa.invert(currentHV));
+
+            // 4. Decode (Query) ke memori untuk mendapatkan pergeseran X dan Y
+            const dxKey = this.vsa.queryCodebook(expectedDeltaHV, "DELTA_X_");
+            const dyKey = this.vsa.queryCodebook(expectedDeltaHV, "DELTA_Y_");
+
+            // Fallback (holographic memory noise) menggunakan boolean index tanpa if-else bersarang
+            // Jika memori VSA berhasil menemukan kunci terdekat, gunakan angkanya. Jika tidak, diam di tempat (0).
+            // Mencegah propagasi NaN menggunakan short-circuit OR (karena NaN bernilai falsy)
+            const parsedDx = parseInt(dxKey.replace("DELTA_X_", "")) || 0;
+            const parsedDy = parseInt(dyKey.replace("DELTA_Y_", "")) || 0;
             
-            this.renderAgent(outputGrid, agent, dx, dy);
+            this.renderAgent(outputGrid, agent, parsedDx, parsedDy);
         });
         
         // Handle CONSTRUCTIVE_INTERFERENCE (agents that appear out of nowhere)
@@ -364,8 +443,11 @@ export class ARCTensorEngine {
         // Konteks: Status agen saat ini (Bisa diperluas dengan interaksi agen lain)
         const contextHV = inHV; 
         
-        // Hukum Alam: Konteks diikat dengan Transformasi
-        const lawHV = this.vsa.bind(contextHV, deltaT);
+        // Simpan vektor pergerakan ke Codebook VSA agar bisa di-query nanti saat testing
+        const deltaHV = this.vsa.encodeDelta(Math.round(shiftX), Math.round(shiftY));
+
+        // Hukum Alam: Konteks (inHV) diikat dengan Pergerakan Real
+        const lawHV = this.vsa.bind(inHV, deltaHV);
 
         return {
             target_token: inW.token,
