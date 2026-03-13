@@ -1,9 +1,10 @@
-import { UniversalManifold, EntitySegmenter } from './perception';
+import { UniversalManifold, EntitySegmenter, HologramDecoder } from './perception';
 import { TopologicalAligner, WaveDynamics, HamiltonianPruner } from './reasoning';
 import { HolographicManifold, LogicSeedBank } from './memory';
 import { Task } from './shared';
 import { PDRLogger, LogLevel } from './reasoning/level1-pdr/pdr-debug';
 import { CognitiveEntity } from './core/CognitiveEntity';
+import { TensorVector, GLOBAL_DIMENSION } from './core/config';
 
 /**
  * 🤖 THE RECURSIVE REASONING MACHINE (Fase 5: Sang Orkestrator)
@@ -16,11 +17,13 @@ export class RRM_Agent {
     private aligner = new TopologicalAligner();
     private waveDynamics = new WaveDynamics();
     private pruner = new HamiltonianPruner();
+    private decoder: HologramDecoder;
     private seedBank: LogicSeedBank;
 
     constructor() {
         const memoryManifold = new HolographicManifold();
         this.seedBank = new LogicSeedBank(memoryManifold);
+        this.decoder = new HologramDecoder(this.perceiver);
         PDRLogger.setLevel(LogLevel.INFO);
     }
 
@@ -127,10 +130,18 @@ export class RRM_Agent {
             const height = grid.length;
             const width = grid[0]?.length || 0;
 
-            const collapsedEntities = testEntities.map(e => e.tensor);
-            const collapsedGrid = this.perceiver.collapseEntitiesToGrid(collapsedEntities, width, height);
+            // Membundle (Superposisi) seluruh entitas tes menjadi satu Tensor Semesta
+            const universeTensor = new Float32Array(GLOBAL_DIMENSION);
+            for (const entity of testEntities) {
+                for (let d = 0; d < GLOBAL_DIMENSION; d++) {
+                    universeTensor[d] += entity.tensor[d]!;
+                }
+            }
 
-            log(`   ✅ REALITAS TERBENTUK: Grid (${width}x${height}) dirender ulang dari superposisi kuantum.`);
+            // Menerapkan Runtuhan Gelombang Kuantum (Quantum Collapse)
+            const collapsedGrid = this.decoder.collapseToGrid(universeTensor, width, height, 0.4);
+
+            log(`   ✅ REALITAS TERBENTUK: Grid (${width}x${height}) dirender ulang dari superposisi kuantum secara branchless.`);
             return collapsedGrid;
         } else {
             // Placeholder untuk token 1D jika diperlukan
