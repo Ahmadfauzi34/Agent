@@ -198,27 +198,15 @@ export class ARCTensorEngine {
         
         // Kalkulasi ukuran grid berdasarkan deteksi anomali pada aturan Tensor
         // Operasi dengan perubahan spatial ekstrim (OPTICAL_INTERFERENCE) dapat memicu penskalaan global
-        let outHeight = height;
-        let outWidth = width;
-        let globalScalingFactor = 1;
+        // Tanpa instruksi if-else
+        const globalScalingFactor = rules.reduce((maxScale, r) => {
+            const isScaleOp = Number(r.op === "OPTICAL_INTERFERENCE" || r.op === "COMPLEX_WAVEFORM");
+            const ampScale = Math.round(Math.sqrt(r.params.amplification)) * isScaleOp;
+            return Math.max(maxScale, ampScale);
+        }, 1);
 
-        rules.forEach(r => {
-            if (r.op === "OPTICAL_INTERFERENCE" || r.op === "COMPLEX_WAVEFORM") {
-                const amplification = r.params.amplification;
-                if (amplification > 2) {
-                    // Asumsi heuristik: matriks membesar sesuai akar pangkat dari pembesaran massa/dimensi (skala 2D)
-                    const scaleEstimate = Math.round(Math.sqrt(amplification));
-                    if (scaleEstimate > globalScalingFactor) {
-                        globalScalingFactor = scaleEstimate;
-                    }
-                }
-            }
-        });
-
-        if (globalScalingFactor > 1) {
-             outHeight = height * globalScalingFactor;
-             outWidth = width * globalScalingFactor;
-        }
+        const outHeight = height * globalScalingFactor;
+        const outWidth = width * globalScalingFactor;
 
         const outputGrid = Array.from({ length: outHeight }, () => Array(outWidth).fill(0));
         
