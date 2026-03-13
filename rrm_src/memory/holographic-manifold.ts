@@ -76,4 +76,35 @@ export class HolographicManifold {
 
         return phasor;
     }
+
+    /**
+     * 🌀 TENSOR CONJUGATION (Rotasi dan Refleksi Spektrum)
+     */
+    public generateRotationOperator(degrees: number): Float32Array {
+        const operator = new Float32Array(COMPLEX_DIMENSION);
+        const seedBase = 4000 + degrees;
+        let s = seedBase;
+        for (let d = 0; d < COMPLEX_DIMENSION; d += 2) {
+            s = (s * 16807) % 2147483647;
+            const rand = (s - 1) / 2147483646;
+            const phase = rand * Math.PI * 2;
+            operator[d] = Math.cos(phase);
+            operator[d+1] = Math.sin(phase);
+        }
+        return operator;
+    }
+
+    public generateMirrorOperator(axis: 'X' | 'Y'): Float32Array {
+        const operator = new Float32Array(COMPLEX_DIMENSION);
+        const seedBase = axis === 'X' ? 5001 : 5002;
+        let s = seedBase;
+        for (let d = 0; d < COMPLEX_DIMENSION; d += 2) {
+            s = (s * 16807) % 2147483647;
+            const rand = (s - 1) / 2147483646;
+            const phase = rand * Math.PI * 2;
+            operator[d] = Math.cos(phase);
+            operator[d+1] = Math.sin(phase);
+        }
+        return operator;
+    }
 }
