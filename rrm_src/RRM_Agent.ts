@@ -72,6 +72,33 @@ export class RRM_Agent {
         // Membaca pergerakan dari seluruh pengalaman training
         for (let i = 0; i < trainStates.length; i++) {
             const state = trainStates[i]!;
+
+            // 2A. DETEKSI ENTANGLEMENT MULTI-AGENT (Spatial & Semantic Overlap)
+            // Tanpa if-else spasial, kita mengukur kesamaan murni antar entitas di ruang tensor
+            for (let a = 0; a < state.in.length; a++) {
+                for (let b = a + 1; b < state.in.length; b++) {
+                    const entA = state.in[a]!;
+                    const entB = state.in[b]!;
+
+                    // Cosine Similarity Tensor
+                    let dot = 0, magA = 0, magB = 0;
+                    for (let d = 0; d < GLOBAL_DIMENSION; d++) {
+                        dot += entA.tensor[d]! * entB.tensor[d]!;
+                        magA += entA.tensor[d]! * entA.tensor[d]!;
+                        magB += entB.tensor[d]! * entB.tensor[d]!;
+                    }
+                    const sim = dot / Math.sqrt((magA * magB) || 1);
+
+                    // Gating Kuantum: Jika similarity > 0.85, terikat.
+                    // (Kita gunakan simple if di sini untuk control flow registrasi map)
+                    if (sim > 0.85) {
+                        this.waveDynamics.createEntanglement(entA.id, entB.id);
+                        this.waveDynamics.createEntanglement(entB.id, entA.id); // Mutual entanglement
+                    }
+                }
+            }
+
+            // 2B. HUNGARIAN MATCHING & HUKUM FISIKA
             const alignments = this.aligner.align(state.in, state.out);
 
             for (const match of alignments) {
@@ -88,9 +115,6 @@ export class RRM_Agent {
                         const ruleId = `LAW_NEW_TRAIN_${i}_${match.source.id}`;
                         this.pruner.injectHypothesis(ruleId, match.deltaTensor, 1.0, 0.3);
                     }
-
-                    // Menciptakan Quantum Entanglement (Jika 2 objek berubah dengan cara yang mirip)
-                    // TODO: Entanglement Logic bisa diperdalam
                 }
             }
         }
@@ -129,11 +153,18 @@ export class RRM_Agent {
         // =======================================================
         log(`   [4] COLLAPSE: Mengaplikasikan Axiom ke realitas Test...`);
 
+        // Mapping id -> entity untuk rujukan instan Entanglement
+        const testEntitiesMap = new Map<string, CognitiveEntity>();
+        testEntities.forEach(e => testEntitiesMap.set(e.id, e));
+
         // Terapkan medan Wave Gravity ke Test Entities
         for (const testEntity of testEntities) {
             // Tarik tensor test menggunakan sisa-sisa aturan yang selamat
             const attractors = survivingRules.map(r => r.tensor_rule);
             this.waveDynamics.applyWaveGravity(testEntity, attractors, []);
+
+            // Picu efek domino: Jika agen ini berubah, yang terikat dengannya dipaksa ikut berubah
+            this.waveDynamics.triggerCollapse(testEntity, testEntitiesMap);
         }
 
         // Mengambil ukuran asli test grid (Jika 2D) untuk re-render
