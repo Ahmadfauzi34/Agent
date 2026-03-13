@@ -71532,4 +71532,11 @@
           },
           {
             "target_agent_id": "5_15",
-            "f
+            "distance_delta": 0
+          }
+        ],
+        "holographic_law": "+-"
+      }
+    ]
+  }
+]

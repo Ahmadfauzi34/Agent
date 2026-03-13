@@ -23,6 +23,47 @@ export class LogicSeedBank {
     }
 
     /**
+     * Mengimpor Holographic Laws (Bipolar Hypervectors) dari JSON hasil panen (Harvested Seeds).
+     * Mengkonversinya menjadi Float32Array agar selaras dengan TensorVector.
+     * @param jsonData Objek JSON dari `all_harvested_arc_seeds.json`
+     */
+    public loadHarvestedSeeds(jsonData: any[]): void {
+        let loadedCount = 0;
+        for (const task of jsonData) {
+            if (!task.rules) continue;
+
+            for (const rule of task.rules) {
+                if (!rule.holographic_law || typeof rule.holographic_law !== 'string') continue;
+
+                // Konversi string bipolar (+ dan -) menjadi Float32Array TensorVector
+                const lawString: string = rule.holographic_law;
+
+                // Jika string lebih pendek dari GLOBAL_DIMENSION, kita ulang polanya (hologram tile)
+                // Jika lebih panjang, kita potong.
+                const phasor = new Float32Array(GLOBAL_DIMENSION);
+                const lawLength = lawString.length;
+
+                for (let i = 0; i < GLOBAL_DIMENSION; i++) {
+                    const char = lawString[i % lawLength];
+                    phasor[i] = char === '+' ? 1.0 : -1.0;
+                }
+
+                // Normalisasi agar memiliki Magnitudo = 1.0 (Unit Vector)
+                this.normalizeComplexPhasorInPlace(phasor);
+
+                const opName = rule.op || "UNKNOWN_OP";
+                const ruleName = `HARVEST_${task.task_id}_${opName}_T${rule.target_token}_${loadedCount}`;
+
+                // Gunakan fungsi registrasi, pastikan Seed unik
+                const newSeed = this.nextCustomSeed++;
+                this.registerSkill(ruleName, newSeed, phasor);
+                loadedCount++;
+            }
+        }
+        console.log(`[LogicSeedBank] Berhasil memanen ${loadedCount} Holographic Laws dari memori leluhur (JSON).`);
+    }
+
+    /**
      * 🏛️ THE AXIOMS (Skill Bawaan / Insting Dasar)
      * Mendaftarkan logika-logika fundamental alam semesta ARC berdasarkan Level Kognitif.
      * Untuk jangka panjang, ini adalah fondasi AGI yang terstruktur.

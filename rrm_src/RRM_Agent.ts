@@ -28,6 +28,13 @@ export class RRM_Agent {
     }
 
     /**
+     * Muat panen ingatan massal (JSON) ke dalam VSA Seed Bank sebelum mengerjakan task.
+     */
+    public loadHarvestedMemories(jsonArray: any[]): void {
+        this.seedBank.loadHarvestedSeeds(jsonArray);
+    }
+
+    /**
      * Memproses satu teka-teki penuh (ARC / NLP) murni berdasarkan sinyal spektral.
      * @returns Output grid/sequence hasil collapse tensor, atau null jika gagal.
      */
@@ -69,9 +76,18 @@ export class RRM_Agent {
 
             for (const match of alignments) {
                 if (match.deltaTensor && match.similarity > 0.7) {
-                    // Menyuntikkan spektrum perubahan (Holographic Law) ke dalam Medan Pruner
-                    const ruleId = `LAW_TRAIN_${i}_${match.source.id}`;
-                    this.pruner.injectHypothesis(ruleId, match.deltaTensor, 1.0, 0.1);
+                    // Coba kenali DeltaTensor ini dengan memori yang pernah dipanen sebelumnya (Resonance Search)
+                    const knownMemory = this.seedBank.findBestMatch(match.deltaTensor);
+
+                    if (knownMemory && knownMemory.coherence > 0.85) {
+                        // Jika memori dikenali kuat (Crosstalk/Coherence > 85%), gunakan Hukum Asli yang ortogonal
+                        log(`      [Resonance] Pergerakan dikenali sebagai: ${knownMemory.name} (Kemiripan: ${(knownMemory.coherence * 100).toFixed(2)}%)`);
+                        this.pruner.injectHypothesis(knownMemory.name, knownMemory.phasor, 1.0, 0.05);
+                    } else {
+                        // Jika fenomena ini benar-benar baru, suntikkan sebagai hipotesis mentah yang lebih rapuh (decay rate lebih tinggi)
+                        const ruleId = `LAW_NEW_TRAIN_${i}_${match.source.id}`;
+                        this.pruner.injectHypothesis(ruleId, match.deltaTensor, 1.0, 0.3);
+                    }
 
                     // Menciptakan Quantum Entanglement (Jika 2 objek berubah dengan cara yang mirip)
                     // TODO: Entanglement Logic bisa diperdalam

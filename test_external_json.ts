@@ -24,6 +24,13 @@ async function runExternalTask(filename: string) {
         PDRLogger.log(msg);
     };
 
+    // Load harvested memory from JSON before starting
+    const memoryPath = path.join(process.cwd(), 'all_harvested_arc_seeds.json');
+    if (fs.existsSync(memoryPath)) {
+        const harvestedData = JSON.parse(fs.readFileSync(memoryPath, 'utf-8'));
+        agent.loadHarvestedMemories(harvestedData);
+    }
+
     log(`\n==================================================`);
     log(`🧩 MENGERJAKAN EXTERNAL TASK: ${task.name} (VIA RRM ORCHESTRATOR)`);
     log(`==================================================`);
