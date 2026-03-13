@@ -72,30 +72,46 @@ export class LogicSeedBank {
     // [ LEVEL 3 ] GEOMETRIC TRANSFORM (Rotasi, Refleksi, Simetri)
     // ========================================================================
     private initLevel3_GeometricTransform() {
-        // TODO JANGKA PANJANG:
-        // Rotasi dan Refleksi dalam ruang Holografik membutuhkan "Permutasi Spektrum"
-        // atau "Phase Conjugation". Ini bukan sekadar pergeseran fase (shiftPhase),
-        // melainkan membalik urutan frekuensi (k -> N-k) atau menukar sumbu X dan Y.
-        // 
-        // Contoh Konseptual:
-        // const phasorRot90 = this.manifold.generateRotationOperator(90);
-        // this.registerSkill("L3_ROTATE_90", 3090, phasorRot90);
+        // Rotasi 90, 180, 270
+        const rot90 = this.manifold.generateRotationOperator(90);
+        this.registerSkill("L3_ROTATE_90", 3090, rot90);
+
+        const rot180 = this.manifold.generateRotationOperator(180);
+        this.registerSkill("L3_ROTATE_180", 3180, rot180);
+
+        const rot270 = this.manifold.generateRotationOperator(270);
+        this.registerSkill("L3_ROTATE_270", 3270, rot270);
+
+        // Mirror X & Y
+        const mirrorX = this.manifold.generateMirrorOperator('X');
+        this.registerSkill("L3_MIRROR_X", 3501, mirrorX);
+
+        const mirrorY = this.manifold.generateMirrorOperator('Y');
+        this.registerSkill("L3_MIRROR_Y", 3502, mirrorY);
     }
 
     // ========================================================================
     // [ LEVEL 4 ] PHYSICS DYNAMICS (Gravitasi, Magnetisme, Interaksi)
     // ========================================================================
     private initLevel4_PhysicsDynamics() {
-        // TODO JANGKA PANJANG:
-        // Fisika adalah "Translasi Bersyarat" (Conditional Translation).
-        // Misalnya: "Geser ke bawah (dy=+1) SAMPAI menabrak warna X".
-        // Dalam Tensor Calculus, ini direpresentasikan sebagai "Phase Gating" atau
-        // "Attractor Basin" di mana gelombang akan berhenti bergeser saat mencapai
-        // resonansi tertentu dengan lingkungan sekitarnya.
-        //
-        // Contoh Konseptual:
-        // const phasorGravity = this.manifold.generateAttractorOperator(DIRECTION_DOWN);
-        // this.registerSkill("L4_GRAVITY_DOWN", 4001, phasorGravity);
+        // Mendaftarkan 4 arah fundamental gaya tarik gravitasi/magnet.
+        // Konsep ini akan mengikat ke `PhasorAttractorNetwork` di `PhysicsLevel` nantinya.
+        const seedBaseGrav = 4000;
+
+        // Memakai pseudo-operator acak (karena Attractor nanti berjalan iteratif)
+        // sebagai penanda / marker untuk Seed Bank.
+        for(let i=1; i<=4; i++) {
+             const operator = new Float32Array(COMPLEX_DIMENSION);
+             let s = seedBaseGrav + i;
+             for (let d = 0; d < COMPLEX_DIMENSION; d += 2) {
+                 s = (s * 16807) % 2147483647;
+                 const phase = ((s - 1) / 2147483646) * Math.PI * 2;
+                 operator[d] = Math.cos(phase);
+                 operator[d+1] = Math.sin(phase);
+             }
+             const dirs = ["UP", "DOWN", "LEFT", "RIGHT"];
+             this.registerSkill(`L4_GRAVITY_${dirs[i-1]}`, seedBaseGrav + i, operator);
+        }
     }
 
     /**
@@ -110,12 +126,50 @@ export class LogicSeedBank {
      * Menyimpan Logika Baru hasil belajar dari soal ARC (A Posteriori).
      */
     public learnNewLogic(name: string, rawPhasor: Float32Array): number {
+        // Cek cache sebelum buat baru (Dynamic Seed Caching)
+        const match = this.findBestMatch(rawPhasor);
+        if (match && match.coherence > 0.95) {
+            // Re-use seed yang sudah ada yang memiliki kemiripan lebih dari 95%
+            return match.seed;
+        }
+
         const newSeed = this.nextCustomSeed++;
         // Normalisasi phasor sebelum disimpan agar menjadi gelombang murni
         const purePhasor = new Float32Array(rawPhasor);
         this.normalizeComplexPhasorInPlace(purePhasor);
         
         this.registerSkill(name, newSeed, purePhasor);
+        return newSeed;
+    }
+
+
+    /**
+     * 🧬 SEED MACRO COMPOSITION (Aljabar Seed)
+     * Menggabungkan dua Seed tunggal menjadi satu "Seed Makro" dengan mengalikan
+     * gelombang Phasor (Tensor Multiplication).
+     * Memungkinkan O(1) untuk kombinasi gerakan & perubahan warna sekaligus.
+     */
+    public createMacroSeed(seedA: number, seedB: number, macroName: string): number {
+        const phasorA = this.phasorCache.get(seedA);
+        const phasorB = this.phasorCache.get(seedB);
+
+        if (!phasorA || !phasorB) return -1;
+
+        const macroPhasor = new Float32Array(COMPLEX_DIMENSION);
+
+        // Tensor Multiplication (Complex Multiply)
+        for (let i = 0; i < COMPLEX_DIMENSION; i += 2) {
+            const rA = phasorA[i], iA = phasorA[i+1];
+            const rB = phasorB[i], iB = phasorB[i+1];
+
+            macroPhasor[i]   = (rA * rB) - (iA * iB); // Real
+            macroPhasor[i+1] = (rA * iB) + (iA * rB); // Imaginary
+        }
+
+        this.normalizeComplexPhasorInPlace(macroPhasor);
+
+        const newSeed = this.nextCustomSeed++;
+        this.registerSkill(macroName, newSeed, macroPhasor);
         return newSeed;
     }
 
