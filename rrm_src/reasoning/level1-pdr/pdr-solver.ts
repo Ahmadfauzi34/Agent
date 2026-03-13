@@ -1,6 +1,15 @@
-import { YStreamPrimal, ZStreamDual, ObjectSegmenter, ARCObject } from '../../perception';
+import { YStreamPrimal, ZStreamDual } from '../../perception';
 import { PDRLogger, LogLevel } from './pdr-debug';
 import { InteractionSolver } from '../level4-dynamics/interaction-solver';
+
+// Mendefinisikan tipe mock sederhana untuk Legacy PDR Solver karena ObjectSegmenter lama telah dihapus
+// Untuk jangka panjang (Fase RRM), modul Level 1 ini akan ditinggalkan seluruhnya,
+// namun sementara kita jaga tipe standarnya agar kompilasi aman.
+type ARCObject = any;
+
+const ObjectSegmenter = {
+    segment: (grid: any): ARCObject[] => []
+};
 
 // Tipe Data Grid ARC
 type Grid = number[][];
