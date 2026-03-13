@@ -7,7 +7,7 @@ const LENSES: LensType[] = ['HOLISTIC', 'IGNORE_COLOR', 'IGNORE_POSITION', 'PURE
 
 export interface PartialRule {
     type: 'transform' | 'constant';
-    vector: Float32Array;
+    vector: Float64Array;
 }
 
 export function solveLevel2(task: Task, log: (msg: string) => void): { taskSolved: boolean, partialRules: Record<string, PartialRule> } {
@@ -18,8 +18,8 @@ export function solveLevel2(task: Task, log: (msg: string) => void): { taskSolve
     for (const currentLens of LENSES) {
         log(`\n🔭 Menguji Sudut Pandang: [${currentLens}]`);
         
-        const extractedTransformRules: Float32Array[] = [];
-        const extractedConstantRules: Float32Array[] = [];
+        const extractedTransformRules: Float64Array[] = [];
+        const extractedConstantRules: Float64Array[] = [];
         let isTraumatized = false;
 
         for (let i = 0; i < task.train.length; i++) {
@@ -68,7 +68,7 @@ export function solveLevel2(task: Task, log: (msg: string) => void): { taskSolve
             
             let bestSimilarity = 0;
             let bestRuleType: 'transform' | 'constant' = 'transform';
-            let bestRules: Float32Array[] = [];
+            let bestRules: Float64Array[] = [];
             
             if (transformSimilarity >= constantSimilarity) {
                 bestSimilarity = transformSimilarity;

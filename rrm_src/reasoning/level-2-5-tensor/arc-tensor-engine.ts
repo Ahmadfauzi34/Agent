@@ -10,7 +10,6 @@ export type TensorOp =
     | "CONSTRUCTIVE_INTERFERENCE"
     | "DESTRUCTIVE_INTERFERENCE"
     | "COMPLEX_WAVEFORM"
-    | "OPTICAL_INTERFERENCE"
     | "UNKNOWN";
 
 export type ForceType = "ATTRACTION" | "REPULSION" | "NEUTRAL" | "COLLISION";
@@ -21,7 +20,7 @@ export interface AgentInteraction {
     distance_delta: number;
 }
 
-export interface WaveAgent {
+export interface WavePacket {
     agent_id: string;
     token: number;
     island_id: number;
@@ -56,20 +55,16 @@ export interface TensorSolution {
     target_seed: number;
 }
 
-import { FWHTContext } from '../../core/fwht';
-
 // ==========================================
 // 🌌 VECTOR SYMBOLIC ARCHITECTURE (VSA) CORE
 // ==========================================
 class VSACore {
-    private readonly D = 64; // Harus pangkat 2 untuk FWHT (misal: 64, 256, 1024)
-    private codebook: Map<string, Int32Array> = new Map();
+    private readonly D = 64; // Dimensi Hypervector (64 untuk efisiensi JSON, idealnya 10000)
+    private codebook: Map<string, number[]> = new Map();
     private seed: number;
-    private fwht: FWHTContext;
 
     constructor(seed: number) {
         this.seed = seed;
-        this.fwht = new FWHTContext(this.D * 4); // Alokasi pool dinamis
     }
 
     // Pseudo-Random Number Generator deterministik
@@ -79,65 +74,41 @@ class VSACore {
     }
 
     // Menghasilkan Hypervector Bipolar acak (+1 / -1)
-    private generateRandomHV(): Int32Array {
-        const arr = new Int32Array(this.D);
-        for (let i = 0; i < this.D; i++) {
-            arr[i] = this.random() > 0.5 ? 1 : -1;
-        }
-        return arr;
+    private generateRandomHV(): number[] {
+        return Array.from({ length: this.D }, () => this.random() > 0.5 ? 1 : -1);
     }
 
     // Mengambil atau membuat Hypervector dasar dari Codebook
-    public getBaseHV(key: string): Int32Array {
+    public getBaseHV(key: string): number[] {
         if (!this.codebook.has(key)) {
             this.codebook.set(key, this.generateRandomHV());
         }
         return this.codebook.get(key)!;
     }
 
-    // BIND (XOR Element-wise untuk stabilitas matematis Bipolar VSA)
-    // Walaupun FWHT dyadic tersedia, untuk bipolar murni ({-1, 1}), XOR jauh lebih stabil
-    // agar binding orthogonal (V1 * V2) bisa di-unbind sempurna dengan inverse (V2 * V1^-1).
-    public bind(v1: Int32Array, v2: Int32Array): Int32Array {
-        const result = new Int32Array(this.D);
-        for (let i = 0; i < this.D; i++) {
-            result[i] = v1[i]! * v2[i]!;
-        }
-        return result;
+    // BIND (XOR / Element-wise multiplication)
+    public bind(v1: number[], v2: number[]): number[] {
+        return v1.map((val, i) => val * v2[i]!);
     }
 
     // BUNDLE (Superposition / Element-wise addition + thresholding)
-    public bundle(vectors: Int32Array[]): Int32Array {
-        const res = new Int32Array(this.D);
-        if (vectors.length === 0) {
-            res.fill(1);
-            return res;
-        }
-
-        for (let i = 0; i < vectors.length; i++) {
-            for (let d = 0; d < this.D; d++) {
-                res[d] += vectors[i]![d]!;
-            }
-        }
-
+    public bundle(vectors: number[][]): number[] {
+        if (vectors.length === 0) return Array(this.D).fill(1);
+        const sum = Array(this.D).fill(0);
+        vectors.forEach(v => {
+            v.forEach((val, i) => sum[i] += val);
+        });
         // Thresholding kembali ke Bipolar (+1 / -1)
-        for (let d = 0; d < this.D; d++) {
-            res[d] = res[d]! >= 0 ? 1 : -1;
-        }
-        return res;
+        return sum.map(val => val >= 0 ? 1 : -1);
     }
 
-    // INVERT: Di dalam FWHT Bipolar Holography, Invert bukan dirinya sendiri.
-    // Melainkan Inverse Matrix. Untuk penyederhanaan pada dyadic riil,
-    // jika vektor adalah bipolar ortogonal, inverse hampir sama dengan transpose/time-reverse.
-    // Pada implementasi ini, kita gunakan vektor original sebagai proxy inverse aproksimasi cepat
-    // (self-inverse property dari Hadamard basis).
-    public invert(v: Int32Array): Int32Array {
-        return new Int32Array(v);
+    // INVERT (Dalam Bipolar VSA, Invert adalah dirinya sendiri karena 1*1=1, -1*-1=1)
+    public invert(v: number[]): number[] {
+        return [...v];
     }
 
     // Encode Agent State menjadi Hypervector
-    public encodeAgent(agent: WaveAgent): Int32Array {
+    public encodeAgent(agent: WavePacket): number[] {
         const tokenHV = this.getBaseHV(`TOKEN_${agent.token}`);
         const massHV = this.getBaseHV(`MASS_${Math.round(agent.mass)}`);
         // Kuantisasi posisi relatif ke 10 grid area untuk stabilitas VSA
@@ -148,49 +119,13 @@ class VSACore {
     }
 
     // Konversi HV ke String Padat untuk JSON
-    public hvToString(v: Int32Array): string {
-        return Array.from(v).map(val => val === 1 ? '+' : '-').join('');
+    public hvToString(v: number[]): string {
+        return v.map(val => val === 1 ? '+' : '-').join('');
     }
 
     // Konversi String Padat ke HV
-    public stringToHv(s: string): Int32Array {
-        const arr = new Int32Array(this.D);
-        for (let i = 0; i < s.length; i++) {
-            arr[i] = s[i] === '+' ? 1 : -1;
-        }
-        return arr;
-    }
-
-    // Menghitung Cosine Similarity bebas if-else (kembali 0-1)
-    public similarity(v1: Int32Array, v2: Int32Array): number {
-        const sum = v1.reduce((acc, val, i) => acc + (val * v2[i]!), 0);
-        return (sum / this.D + 1) / 2; // Normalize dari [-1, 1] ke [0, 1]
-    }
-
-    // Mencari kunci terdekat dari codebook (Decoding Memory)
-    public queryCodebook(queryHV: Int32Array, prefix: string): string {
-        let bestKey = "";
-        let bestSim = -1;
-
-        for (const [key, hv] of this.codebook.entries()) {
-            if (key.startsWith(prefix)) {
-                const sim = this.similarity(queryHV, hv);
-                const isBetter = Number(sim > bestSim);
-                bestSim = isBetter * sim + (1 - isBetter) * bestSim;
-
-                // Workaround if-else string assignment
-                if (isBetter) bestKey = key;
-            }
-        }
-        return bestKey;
-    }
-
-    // Encoder Absolut (Baru: untuk memetakan koordinat riil ke memori agent saat diprediksi)
-    public encodeDelta(dx: number, dy: number): Int32Array {
-        const dxHV = this.getBaseHV(`DELTA_X_${Math.round(dx)}`);
-        const dyHV = this.getBaseHV(`DELTA_Y_${Math.round(dy)}`);
-        // Harus di-bundle (Superposition) agar masing-masing sumbu (dx, dy) bisa di-query terpisah
-        return this.bundle([dxHV, dyHV]);
+    public stringToHv(s: string): number[] {
+        return s.split('').map(char => char === '+' ? 1 : -1);
     }
 }
 
@@ -208,7 +143,7 @@ export class ARCTensorEngine {
             const inputAgents = this.findAllAgents(pair.input);
             let outputAgents = this.findAllAgents(pair.output);
 
-            const survivingAgents: { inAgent: WaveAgent, outAgent: WaveAgent }[] = [];
+            const survivingAgents: { inAgent: WavePacket, outAgent: WavePacket }[] = [];
             const pairRules: TensorRule[] = [];
 
             inputAgents.forEach((inWave) => {
@@ -260,63 +195,38 @@ export class ARCTensorEngine {
         const height = inputGrid.length;
         const width = inputGrid[0]?.length || 0;
         
-        // Kalkulasi ukuran grid berdasarkan deteksi anomali pada aturan Tensor
-        // Operasi dengan perubahan spatial ekstrim (OPTICAL_INTERFERENCE) dapat memicu penskalaan global
-        // Tanpa instruksi if-else
-        const globalScalingFactor = rules.reduce((maxScale, r) => {
-            const isScaleOp = Number(r.op === "OPTICAL_INTERFERENCE" || r.op === "COMPLEX_WAVEFORM");
-            const ampScale = Math.round(Math.sqrt(r.params.amplification)) * isScaleOp;
-            return Math.max(maxScale, ampScale);
-        }, 1);
-
-        const outHeight = height * globalScalingFactor;
-        const outWidth = width * globalScalingFactor;
-
-        const outputGrid = Array.from({ length: outHeight }, () => Array(outWidth).fill(0));
+        // We need to determine the output grid size. For now, assume it's the same as input.
+        // A more advanced engine would predict the output size based on rules.
+        const outputGrid = Array.from({ length: height }, () => Array(width).fill(0));
         
         const inputAgents = this.findAllAgents(inputGrid);
         
-        // Inisialisasi VSA Core untuk decode memori saat testing jika belum ada
-        if (!this.vsa) {
-             const deterministicSeed = 80000;
-             this.vsa = new VSACore(deterministicSeed);
-        }
-
         inputAgents.forEach(agent => {
+            // Find the best matching rule.
+            // In a true holographic system, we'd bind the agent's HV with the Universal Law HV to get the expected output HV.
+            // For now, we match by token and relative position (or just token for simplicity).
             const matchingRules = rules.filter(r => r.target_token === agent.token);
             
             if (matchingRules.length === 0) {
+                // No rule found, just copy the agent (STANDING_WAVE)
                 this.renderAgent(outputGrid, agent, 0, 0);
                 return;
             }
             
+            // Pick the most common rule for this token, or average them.
+            // For simplicity, pick the first matching rule.
             const rule = matchingRules[0]!;
             
             if (rule.op === "DESTRUCTIVE_INTERFERENCE") {
+                // Agent is annihilated, do not render
                 return;
             }
             
-            // === VSA HOLOGRAPHIC PREDICTION ===
-            // 1. Encode state agent tes saat ini
-            const currentHV = this.vsa.encodeAgent(agent);
-
-            // 2. Baca hukum universal dari memori
-            const lawHV = this.vsa.stringToHv(rule.holographic_law);
-
-            // 3. Unbind (Invert current + Bind Law) untuk mengekstrak ekspektasi Delta (dx, dy)
-            const expectedDeltaHV = this.vsa.bind(lawHV, this.vsa.invert(currentHV));
-
-            // 4. Decode (Query) ke memori untuk mendapatkan pergeseran X dan Y
-            const dxKey = this.vsa.queryCodebook(expectedDeltaHV, "DELTA_X_");
-            const dyKey = this.vsa.queryCodebook(expectedDeltaHV, "DELTA_Y_");
-
-            // Fallback (holographic memory noise) menggunakan boolean index tanpa if-else bersarang
-            // Jika memori VSA berhasil menemukan kunci terdekat, gunakan angkanya. Jika tidak, diam di tempat (0).
-            // Mencegah propagasi NaN menggunakan short-circuit OR (karena NaN bernilai falsy)
-            const parsedDx = parseInt(dxKey.replace("DELTA_X_", "")) || 0;
-            const parsedDy = parseInt(dyKey.replace("DELTA_Y_", "")) || 0;
+            // Apply transformation
+            const dx = Math.round(rule.params.vector_x_abs);
+            const dy = Math.round(rule.params.vector_y_abs);
             
-            this.renderAgent(outputGrid, agent, parsedDx, parsedDy);
+            this.renderAgent(outputGrid, agent, dx, dy);
         });
         
         // Handle CONSTRUCTIVE_INTERFERENCE (agents that appear out of nowhere)
@@ -326,7 +236,7 @@ export class ARCTensorEngine {
         return outputGrid;
     }
 
-    private renderAgent(grid: number[][], agent: WaveAgent, dx: number, dy: number) {
+    private renderAgent(grid: number[][], agent: WavePacket, dx: number, dy: number) {
         const height = grid.length;
         const width = grid[0]?.length || 0;
         
@@ -347,7 +257,7 @@ export class ARCTensorEngine {
     // 🌌 MULTI-AGENT DYNAMICS & VSA
     // ==========================================
 
-    private calculateInterAgentForces(survivors: { inAgent: WaveAgent, outAgent: WaveAgent }[]): Record<string, AgentInteraction[]> {
+    private calculateInterAgentForces(survivors: { inAgent: WavePacket, outAgent: WavePacket }[]): Record<string, AgentInteraction[]> {
         const interactionsMap: Record<string, AgentInteraction[]> = {};
         survivors.forEach(a => interactionsMap[a.inAgent.agent_id] = []);
 
@@ -390,48 +300,20 @@ export class ARCTensorEngine {
         return interactionsMap;
     }
 
-    private extractRule(inW: WaveAgent, outW: WaveAgent): TensorRule {
+    private extractRule(inW: WavePacket, outW: WavePacket): TensorRule {
         const shiftX = outW.abs_center.x - inW.abs_center.x;
         const shiftY = outW.abs_center.y - inW.abs_center.y;
         const shiftXRel = outW.rel_center.x - inW.rel_center.x;
         const shiftYRel = outW.rel_center.y - inW.rel_center.y;
         const massDelta = outW.mass - inW.mass;
 
-        // Implementasi logika OPTICAL_INTERFERENCE:
-        // Saat agen berubah dalam fasa posisi maupun massa dan juga mengalami perluasan spatial.
-        const opArray: TensorOp[] = [
-            "STANDING_WAVE",
-            "PHASE_SHIFT",
-            "DESTRUCTIVE_INTERFERENCE",
-            "CONSTRUCTIVE_INTERFERENCE",
-            "COMPLEX_WAVEFORM",
-            "OPTICAL_INTERFERENCE"
-        ];
-
+        let op: TensorOp = "STANDING_WAVE";
         const isShifted = Math.abs(shiftX) > 0.1 || Math.abs(shiftY) > 0.1;
         const isMassChanged = Math.abs(massDelta) > 0.1;
-        const isSpatialChanged = Math.abs(outW.spread - inW.spread) > 0.1;
 
-        // Tensor kalkulasi indeks secara linier menggunakan basis bitmask pangkat 2 (1, 2, 4)
-        const opIndex = Number(isShifted) * 1 + Number(isMassChanged) * 2 + Number(isSpatialChanged) * 4;
-
-        // Operasi fallback tanpa kondisional menggunakan array
-        const interferenceOps: TensorOp[] = ["DESTRUCTIVE_INTERFERENCE", "CONSTRUCTIVE_INTERFERENCE"];
-        const interferenceOp = interferenceOps[Number(massDelta > 0)]!;
-
-        // Pemetaan state ke Operator secara unik (0-7)
-        const opMap: Record<number, TensorOp> = {
-            0: "STANDING_WAVE",             // 000: No Shift, No Mass, No Spatial
-            1: "PHASE_SHIFT",               // 001: Shift, No Mass, No Spatial
-            2: interferenceOp,              // 010: No Shift, Mass, No Spatial
-            3: "COMPLEX_WAVEFORM",          // 011: Shift, Mass, No Spatial
-            4: interferenceOp,              // 100: No Shift, No Mass (tetapi massDelta > 0?), Spatial -> Konseptual Interference
-            5: "OPTICAL_INTERFERENCE",      // 101: Shift, No Mass, Spatial
-            6: interferenceOp,              // 110: No Shift, Mass, Spatial
-            7: "OPTICAL_INTERFERENCE"       // 111: Shift, Mass, Spatial
-        };
-
-        const op: TensorOp = opMap[opIndex] || "STANDING_WAVE";
+        if (!isMassChanged && isShifted) op = "PHASE_SHIFT";
+        else if (isMassChanged && !isShifted) op = massDelta > 0 ? "CONSTRUCTIVE_INTERFERENCE" : "DESTRUCTIVE_INTERFERENCE";
+        else if (isShifted && isMassChanged) op = "COMPLEX_WAVEFORM";
 
         // --- VSA: HOLOGRAPHIC LAW EXTRACTION ---
         const inHV = this.vsa.encodeAgent(inW);
@@ -443,11 +325,8 @@ export class ARCTensorEngine {
         // Konteks: Status agen saat ini (Bisa diperluas dengan interaksi agen lain)
         const contextHV = inHV; 
         
-        // Simpan vektor pergerakan ke Codebook VSA agar bisa di-query nanti saat testing
-        const deltaHV = this.vsa.encodeDelta(Math.round(shiftX), Math.round(shiftY));
-
-        // Hukum Alam: Konteks (inHV) diikat dengan Pergerakan Real
-        const lawHV = this.vsa.bind(inHV, deltaHV);
+        // Hukum Alam: Konteks diikat dengan Transformasi
+        const lawHV = this.vsa.bind(contextHV, deltaT);
 
         return {
             target_token: inW.token,
@@ -467,7 +346,7 @@ export class ARCTensorEngine {
         };
     }
 
-    private createDestructiveRule(inW: WaveAgent): TensorRule {
+    private createDestructiveRule(inW: WavePacket): TensorRule {
         const inHV = this.vsa.encodeAgent(inW);
         const outHV = this.vsa.getBaseHV("STATE_ANNIHILATED");
         const deltaT = this.vsa.bind(outHV, this.vsa.invert(inHV));
@@ -484,7 +363,7 @@ export class ARCTensorEngine {
         };
     }
 
-    private createConstructiveRule(outW: WaveAgent): TensorRule {
+    private createConstructiveRule(outW: WavePacket): TensorRule {
         const inHV = this.vsa.getBaseHV("STATE_VOID");
         const outHV = this.vsa.encodeAgent(outW);
         const deltaT = this.vsa.bind(outHV, this.vsa.invert(inHV));
@@ -526,21 +405,11 @@ export class ARCTensorEngine {
             const count = group.length;
             const opList = group.map(g => g.op);
             
-            // Eliminasi block IF-ELSE untuk pemilihan operator pada tingkat konsensus
-            // Menggunakan bobot hierarki operator tensor
-            const opHierarchy: Record<TensorOp, number> = {
-                "OPTICAL_INTERFERENCE": 6,
-                "COMPLEX_WAVEFORM": 5,
-                "CONSTRUCTIVE_INTERFERENCE": 4,
-                "DESTRUCTIVE_INTERFERENCE": 3,
-                "PHASE_SHIFT": 2,
-                "STANDING_WAVE": 1,
-                "UNKNOWN": 0
-            };
-
-            const finalOp = opList.reduce((highest, current) =>
-                opHierarchy[current] > opHierarchy[highest] ? current : highest
-            , "STANDING_WAVE" as TensorOp);
+            let finalOp: TensorOp = "STANDING_WAVE";
+            if (opList.includes("COMPLEX_WAVEFORM")) finalOp = "COMPLEX_WAVEFORM";
+            else if (opList.includes("PHASE_SHIFT")) finalOp = "PHASE_SHIFT";
+            else if (opList.includes("CONSTRUCTIVE_INTERFERENCE")) finalOp = "CONSTRUCTIVE_INTERFERENCE";
+            else if (opList.includes("DESTRUCTIVE_INTERFERENCE")) finalOp = "DESTRUCTIVE_INTERFERENCE";
 
             const avg = group.reduce((acc, curr) => ({
                 vector_x_abs: acc.vector_x_abs + curr.params.vector_x_abs / count,
@@ -594,11 +463,11 @@ export class ARCTensorEngine {
     // 🧮 MATH UTILITIES
     // ==========================================
 
-    private findAllAgents(grid: number[][]): WaveAgent[] {
+    private findAllAgents(grid: number[][]): WavePacket[] {
         const height = grid.length;
         const width = grid[0]?.length || 0;
         const visited = Array.from({ length: height }, () => Array(width).fill(false));
-        const agents: WaveAgent[] =[];
+        const agents: WavePacket[] =[];
         const tokenCounter: Record<number, number> = {};
 
         for (let y = 0; y < height; y++) {
@@ -650,7 +519,7 @@ export class ARCTensorEngine {
         return mask;
     }
 
-    private calculateSimilarityScore(inW: WaveAgent, outW: WaveAgent): number {
+    private calculateSimilarityScore(inW: WavePacket, outW: WavePacket): number {
         const massDelta = Math.abs(inW.mass - outW.mass);
         const spreadDelta = Math.abs(inW.spread - outW.spread);
         const dist = Math.sqrt(
