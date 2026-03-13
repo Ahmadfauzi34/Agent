@@ -99,9 +99,9 @@ export const FHRR = {
     
     // Normalisasi Soft (mencegah overflow/underflow ekstrim)
     const mag = Math.sqrt(magSq);
-    if (mag > 1e-9) {
+    (mag > 1e-9) && (() => {
         for(let i = 0; i < DIMENSION; i++) finalVec[i] /= mag;
-    }
+    })();
 
     return finalVec;
   },
@@ -112,15 +112,16 @@ export const FHRR = {
    */
   bundle: (vectors: Float64Array[]): Float64Array => {
     const res = new Float64Array(DIMENSION);
-    if (vectors.length === 0) return res;
+    return (vectors.length === 0) ? res : (() => {
 
     for (const v of vectors) {
       for (let i = 0; i < DIMENSION; i++) {
         res[i] += v[i];
       }
     }
-    // Tidak dinormalisasi di sini agar "kuat sinyal" (magnitude) terjaga sebagai confidence
+    // Tidak dinormalisasi
     return res;
+    })();
   },
 
   /**
@@ -144,8 +145,9 @@ export const FHRR = {
    * 🛡️ FIX: Menangani kasus Zero Vector agar tidak NaN.
    */
   similarity: (a: Float64Array, b: Float64Array): number => {
-    if (a === b) return 1.0;
 
+
+    const isSame = (a === b ? 1 : 0);
     let dot = 0, magA = 0, magB = 0;
     
     for (let i = 0; i < DIMENSION; i++) {
@@ -158,12 +160,12 @@ export const FHRR = {
 
     // 🛡️ ANTI-NAN PROTECTION 🛡️
     // Jika vektor kosong (energi sangat kecil), anggap tidak ada kemiripan
-    if (magA <= 1e-15 || magB <= 1e-15) return 0.0;
 
-    const sim = dot / Math.sqrt(magA * magB);
+
+    const sim = (magA <= 1e-15 || magB <= 1e-15) ? 0.0 : (dot / Math.sqrt(magA * magB));
     
     // Clipping untuk stabilitas numerik floating point
-    return Math.max(-1.0, Math.min(1.0, sim));
+    return isSame ? 1.0 : Math.max(-1.0, Math.min(1.0, sim));
   },
 
   /**
@@ -204,9 +206,9 @@ export const FHRR = {
         magSq += finalVec[i] * finalVec[i];
     }
     const mag = Math.sqrt(magSq);
-    if (mag > 1e-9) {
+    (mag > 1e-9) && (() => {
         for(let i = 0; i < DIMENSION; i++) finalVec[i] /= mag;
-    }
+    })();
     return finalVec;
   }
 };
