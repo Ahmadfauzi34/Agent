@@ -39,44 +39,76 @@ export async function runARCAgent(): Promise<string> {
         log(`🧩 MENGERJAKAN: ${task.name}`);
         log(`==================================================`);
 
+        let taskSolved = false;
+
         // ---------------------------------------------------------
-        // 🌌 UNIVERSAL PIPELINE: QUANTUM TENSOR CALCULUS & OPTICAL INTERFERENCE
+        // 📐 LEVEL 1: PDR SOLVER (Symbolic Physics)
         // ---------------------------------------------------------
-        // Mengeksekusi semua level dengan logika boolean (OR-ing) berurutan
-        // agar menghindari struktur blok if-else, sehingga agen mengalir secara konseptual
+        taskSolved = solveLevel1(task, pdrSolver, log);
+        if (taskSolved) {
+            solvedCount++;
+            continue;
+        }
 
-        let isTaskSolved = false;
-        let partialRules: any = {};
-        let level3Rule: any = null;
+        // ---------------------------------------------------------
+        // 🌌 LEVEL 2.5: UNIVERSAL TENSOR SOLVER (Zero-Parameter Calculus)
+        // Diletakkan sebelum VSA murni karena jika ini berhasil,
+        // kita menghemat banyak komputasi pencarian rule.
+        // ---------------------------------------------------------
+        taskSolved = solveLevel2_5(task, log);
+        if (taskSolved) {
+            solvedCount++;
+            continue;
+        }
 
-        isTaskSolved = isTaskSolved || solveLevel1(task, pdrSolver, log);
-        isTaskSolved = isTaskSolved || solveLevel2_5(task, log);
+        // ---------------------------------------------------------
+        // 🔮 LEVEL 2: VSA / HOLOFFT (Lensa Mental & Trauma)
+        // ---------------------------------------------------------
+        const level2Result = solveLevel2(task, log);
+        taskSolved = level2Result.taskSolved;
+        const partialRules = level2Result.partialRules;
 
-        isTaskSolved = isTaskSolved || (() => {
-            const level2Result = solveLevel2(task, log);
-            partialRules = level2Result.partialRules;
-            return level2Result.taskSolved;
-        })();
+        if (taskSolved) {
+            solvedCount++;
+            continue;
+        }
 
-        isTaskSolved = isTaskSolved || (Object.keys(partialRules).length > 0 && solveMultiStep(task, partialRules, log));
+        // ---------------------------------------------------------
+        // 🧬 MULTI-STEP COMPOSITION (Sintesis dari partialRules Level 2)
+        // ---------------------------------------------------------
+        if (Object.keys(partialRules).length > 0) {
+            taskSolved = solveMultiStep(task, partialRules, log);
+            if (taskSolved) {
+                solvedCount++;
+                continue;
+            }
+        }
+
+        // ---------------------------------------------------------
+        // 🧮 LEVEL 3: COORDINATE SOLVER & GRS (Algebraic Synthesis)
+        // ---------------------------------------------------------
+        const level3Result = await solveLevel3(task, log);
+        taskSolved = level3Result.solved;
+        const level3Rule = level3Result.rule;
         
-        isTaskSolved = isTaskSolved || await (async () => {
-            const level3Result = await solveLevel3(task, log);
-            level3Rule = level3Result.rule;
-            return level3Result.solved;
-        })();
+        if (taskSolved) {
+            solvedCount++;
+            continue;
+        }
 
-        isTaskSolved = isTaskSolved || solveLevel4(task, log, level3Rule);
+        // ---------------------------------------------------------
+        // 🍎 LEVEL 4: PHYSICS SIMULATION (Cellular Automata)
+        // ---------------------------------------------------------
+        taskSolved = solveLevel4(task, log, level3Rule);
+        if (taskSolved) {
+            solvedCount++;
+            continue;
+        }
 
-        // Menjumlahkan dengan konversi Boolean->Number
-        solvedCount += Number(isTaskSolved);
-
-        // Pesan keluaran tanpa percabangan if
-        const resultsMessage = [
-            "\n💀 GAGAL TOTAL: Agen kehabisan sudut pandang dan mesin logika menyerah pada soal ini.",
-            "\n✅ SUKSES: Solusi ditemukan melalui konvergensi penalaran kognitif agen."
-        ];
-        log(resultsMessage[Number(isTaskSolved)] as string);
+        // 💀 FALLBACK JIKA SEMUA LEVEL GAGAL
+        if (!taskSolved) {
+            log(`\n💀 GAGAL TOTAL: Agen kehabisan sudut pandang dan mesin logika menyerah pada soal ini.`);
+        }
     }
 
     const endTime = performance.now();

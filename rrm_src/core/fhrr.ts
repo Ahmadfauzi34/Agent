@@ -17,7 +17,7 @@ export const FHRR = {
    * Vektor ini memiliki magnitudo 1.0 di domain frekuensi, 
    * sehingga tidak akan meledak/hilang saat di-bind berulang kali.
    */
-  create: (): Float32Array => {
+  create: (): Float64Array => {
     const cSpectrum = fft.createComplexArray();
 
     // DC (0) & Nyquist (N/2) harus Real
@@ -44,7 +44,7 @@ export const FHRR = {
     fft.inverseTransform(resArray, cSpectrum);
 
     // Ambil bagian Real saja (karena input kita riil) dan Normalisasi Spasial
-    const finalVec = new Float32Array(DIMENSION);
+    const finalVec = new Float64Array(DIMENSION);
     let magSq = 0;
     for(let i = 0; i < DIMENSION; i++) {
         finalVec[i] = resArray[i * 2]; 
@@ -62,7 +62,7 @@ export const FHRR = {
    * 2. BIND (Convolution): Mengikat dua konsep.
    * A * B (di domain waktu) <-> FFT(A) . FFT(B) (di domain frekuensi)
    */
-  bind: (a: Float32Array, b: Float32Array): Float32Array => {
+  bind: (a: Float64Array, b: Float64Array): Float64Array => {
     const cA = fft.createComplexArray();
     const cB = fft.createComplexArray();
     
@@ -89,7 +89,7 @@ export const FHRR = {
     const cOut = fft.createComplexArray();
     fft.inverseTransform(cOut, cRes);
     
-    const finalVec = new Float32Array(DIMENSION);
+    const finalVec = new Float64Array(DIMENSION);
     let magSq = 0;
     
     for(let i = 0; i < DIMENSION; i++) {
@@ -110,8 +110,8 @@ export const FHRR = {
    * 3. BUNDLE (Superposition): Menjumlahkan konsep.
    * Hasilnya mirip dengan kedua input.
    */
-  bundle: (vectors: Float32Array[]): Float32Array => {
-    const res = new Float32Array(DIMENSION);
+  bundle: (vectors: Float64Array[]): Float64Array => {
+    const res = new Float64Array(DIMENSION);
     if (vectors.length === 0) return res;
 
     for (const v of vectors) {
@@ -129,8 +129,8 @@ export const FHRR = {
    * Berguna untuk "Unbinding" (Melepas ikatan).
    * R = Y * X^-1
    */
-  inverse: (a: Float32Array): Float32Array => {
-    const res = new Float32Array(DIMENSION);
+  inverse: (a: Float64Array): Float64Array => {
+    const res = new Float64Array(DIMENSION);
     res[0] = a[0];
     // Membalik urutan elemen [1..N-1] -> [N-1..1]
     for (let i = 1; i < DIMENSION; i++) {
@@ -143,7 +143,7 @@ export const FHRR = {
    * 5. SIMILARITY (Cosine Similarity)
    * 🛡️ FIX: Menangani kasus Zero Vector agar tidak NaN.
    */
-  similarity: (a: Float32Array, b: Float32Array): number => {
+  similarity: (a: Float64Array, b: Float64Array): number => {
     if (a === b) return 1.0;
 
     let dot = 0, magA = 0, magB = 0;
@@ -171,7 +171,7 @@ export const FHRR = {
    * Memungkinkan pergerakan "setengah langkah" atau transformasi parsial.
    * V^0.5 = Akar kuadrat dari rotasi fase vektor.
    */
-  fractionalBind: (vec: Float32Array, power: number): Float32Array => {
+  fractionalBind: (vec: Float64Array, power: number): Float64Array => {
     const cA = fft.createComplexArray();
     fft.realTransform(cA, Array.from(vec));
 
@@ -197,7 +197,7 @@ export const FHRR = {
     const cOut = fft.createComplexArray();
     fft.inverseTransform(cOut, cRes);
     
-    const finalVec = new Float32Array(DIMENSION);
+    const finalVec = new Float64Array(DIMENSION);
     let magSq = 0;
     for(let i = 0; i < DIMENSION; i++) {
         finalVec[i] = cOut[i * 2];
