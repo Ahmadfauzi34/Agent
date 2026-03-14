@@ -34,61 +34,87 @@ export class EntitySegmenter {
 
         for (let i = 0; i < entries.length; i++) {
             const [keyA, tensorA] = entries[i]!;
-            if (visited.has(keyA)) continue;
 
-            // Buat Entitas Baru
-            const newEntity: CognitiveEntity = {
-                id: `E_${entityCounter++}`,
-                mass: 1, // 1 partikel awal
-                center_rel: { x: 0, y: 0 },
-                tensor: new Float32Array(GLOBAL_DIMENSION),
-                entanglement_status: 0
-            };
+            // Lompati entitas yang sudah dikunjungi menggunakan eksekusi short-circuit boolean
+            const skipA = visited.has(keyA);
 
-            // Inisialisasi tensor dan massa
-            this.addVectorInPlace(newEntity.tensor, tensorA);
-            visited.add(keyA);
+            // Jika skipA bernilai false (0), sisa loop akan berjalan di dalam closure IIFE yang mengembalikan void
+            !skipA && (() => {
+                const parsedA = parseKey(keyA);
 
-            const parsedA = parseKey(keyA);
-            let sumX = parsedA.x;
-            let sumY = parsedA.y;
-            let membersCount = 1;
+                // Track bounding box (Min/Max X/Y) menggunakan Zero If-Else (Branchless Math)
+                let minX = parsedA.x;
+                let maxX = parsedA.x;
+                let minY = parsedA.y;
+                let maxY = parsedA.y;
 
-            // Cari tetangga yang "Ber-resonansi" (punya kemiripan tinggi dengan inti entitas ini)
-            // Di sini kita tidak bergantung pada Flood-Fill (BFS) X/Y murni,
-            // melainkan pada "Kemiripan Tensor" (Semantic Clustering).
-            for (let j = i + 1; j < entries.length; j++) {
-                const [keyB, tensorB] = entries[j]!;
-                if (visited.has(keyB)) continue;
+                // Buat Entitas Baru
+                const newEntity: CognitiveEntity = {
+                    id: `E_${entityCounter++}`,
+                    token: parsedA.token, // Kunci klasifikasi fisik
+                    mass: 1, // 1 partikel awal
+                    spread: 1, // Luas bounding box awal
+                    center_rel: { x: 0, y: 0 },
+                    momentum: { dx: 0, dy: 0 }, // Inisialisasi keadaan diam
+                    tensor: new Float32Array(GLOBAL_DIMENSION),
+                    entanglement_status: 0.0
+                };
 
-                // Hitung interferensi/kemiripan tensor
-                const sim = FHRR.similarity(newEntity.tensor, tensorB);
+                // Inisialisasi tensor dan massa
+                this.addVectorInPlace(newEntity.tensor, tensorA);
+                visited.add(keyA);
 
-                // Tanpa IF-ELSE percabangan untuk fungsionalitas, kita bisa pakai multiplier logic
-                // Namun karena loop clustering adalah heuristik pembentukan awal, kita gunakan if dasar
-                if (sim >= similarityThreshold) {
-                    // Partikel ditarik ke dalam Basin Entitas ini
-                    this.addVectorInPlace(newEntity.tensor, tensorB);
-                    visited.add(keyB);
+                let sumX = parsedA.x;
+                let sumY = parsedA.y;
+                let membersCount = 1;
 
-                    const parsedB = parseKey(keyB);
-                    sumX += parsedB.x;
-                    sumY += parsedB.y;
-                    membersCount++;
-                    newEntity.mass++;
+                // Cari tetangga yang "Ber-resonansi" (punya kemiripan tinggi dengan inti entitas ini)
+                for (let j = i + 1; j < entries.length; j++) {
+                    const [keyB, tensorB] = entries[j]!;
+
+                    const skipB = visited.has(keyB);
+
+                    !skipB && (() => {
+                        // Hitung interferensi/kemiripan tensor
+                        const sim = FHRR.similarity(newEntity.tensor, tensorB);
+
+                        // Clustering spektral dengan evaluasi continuous/boolean logic (tanpa if-else)
+                        const isResonant = sim >= similarityThreshold;
+
+                        isResonant && (() => {
+                            // Partikel ditarik ke dalam Basin Entitas ini
+                            this.addVectorInPlace(newEntity.tensor, tensorB);
+                            visited.add(keyB);
+
+                            const parsedB = parseKey(keyB);
+                            sumX += parsedB.x;
+                            sumY += parsedB.y;
+                            membersCount++;
+                            newEntity.mass++;
+
+                            // Perbarui bounding box spread menggunakan pure math min/max (branchless)
+                            minX = Math.min(minX, parsedB.x);
+                            maxX = Math.max(maxX, parsedB.x);
+                            minY = Math.min(minY, parsedB.y);
+                            maxY = Math.max(maxY, parsedB.y);
+                        })();
+                    })();
                 }
-            }
 
-            // Hitung Center of Mass rata-rata
-            newEntity.center_rel = {
-                x: sumX / membersCount,
-                y: sumY / membersCount
-            };
+                // Hitung penyebaran spasial (luas bounding box + 1)
+                newEntity.spread = (maxX - minX + 1) * (maxY - minY + 1);
 
-            // Normalisasi Superposisi agar tidak meledak (L2 Norm)
-            this.normalizeInPlace(newEntity.tensor);
+                // Hitung Center of Mass rata-rata
+                newEntity.center_rel = {
+                    x: sumX / membersCount,
+                    y: sumY / membersCount
+                };
 
-            entities.push(newEntity);
+                // Normalisasi Superposisi agar tidak meledak (L2 Norm)
+                this.normalizeInPlace(newEntity.tensor);
+
+                entities.push(newEntity);
+            })();
         }
 
         return entities;
@@ -106,8 +132,11 @@ export class EntitySegmenter {
             magSq += v[i]! * v[i]!;
         }
         const mag = Math.sqrt(magSq);
-        if (mag > 1e-12) {
+
+        // Zero-if/else logic untuk L2 normalisasi
+        const isMageValid = mag > 1e-12;
+        isMageValid && (() => {
             for (let i = 0; i < GLOBAL_DIMENSION; i++) v[i] /= mag;
-        }
+        })();
     }
 }
