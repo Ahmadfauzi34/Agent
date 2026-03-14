@@ -175,18 +175,9 @@ export class RRM_Agent {
             const height = grid.length;
             const width = grid[0]?.length || 0;
 
-            // Membundle (Superposisi) seluruh entitas tes menjadi satu Tensor Semesta
-            const universeTensor = new Float32Array(GLOBAL_DIMENSION);
-            for (let e = 0; e < testManifold.activeCount; e++) {
-                if (testManifold.masses[e] === 0.0) continue;
-                const tensor = testManifold.getTensor(e);
-                for (let d = 0; d < GLOBAL_DIMENSION; d++) {
-                    universeTensor[d] += tensor[d]!;
-                }
-            }
-
             // Menerapkan Runtuhan Gelombang Kuantum (Quantum Collapse)
-            const collapsedGrid = this.decoder.collapseToGrid(universeTensor, width, height, 0.4);
+            // Memproyeksikan EntityManifold yang sudah berevolusi (Evolve) kembali ke grid piksel
+            const collapsedGrid = this.decoder.collapseToGrid(testManifold, width, height, 0.35); // Threshold diturunkan sedikit untuk menoleransi entropi
 
             log(`   ✅ REALITAS TERBENTUK: Grid (${width}x${height}) dirender ulang dari superposisi kuantum secara branchless ECS.`);
             return collapsedGrid;
