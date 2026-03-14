@@ -1,37 +1,44 @@
-import { CognitiveEntity } from '../core/CognitiveEntity.js';
-import { TensorVector, GLOBAL_DIMENSION } from '../core/config.js';
+import { EntityManifold } from '../core/EntityManifold.js';
+import { TensorVector, GLOBAL_DIMENSION, MAX_ENTITIES } from '../core/config.js';
 import { EntanglementOptimizer } from './EntanglementOptimizer.js';
 
 /**
  * 🌊 WAVE DYNAMICS (Fase 4)
- * Menangani navigasi dan kausalitas (Entanglement) antar CognitiveEntities.
- * Menggunakan Hebbian Learning Matrix, Zero If-Else arsitektur, menghilangkan Map manual.
+ * OOP-Free Hebbian Learning Matrix & Huygens-Fresnel Navigation.
  */
 export class WaveDynamics {
-    private entanglementMatrix: Float32Array[] = [];
-    private entitiesCache: CognitiveEntity[] = [];
+    private entanglementMatrix: Float32Array[];
+    private manifoldRef: EntityManifold | null = null;
 
-    /**
-     * Mendaftarkan seluruh agen/entitas dan menginisialisasi Matriks Entanglement
-     */
-    public initializeEntities(entities: CognitiveEntity[]): void {
-        this.entitiesCache = entities;
-        const numEntities = entities.length;
-
-        // Buat N x N Float32Array untuk quantum coupling branchless tracking
-        this.entanglementMatrix = new Array(numEntities);
-        for (let i = 0; i < numEntities; i++) {
-            this.entanglementMatrix[i] = new Float32Array(numEntities).fill(0.0);
-            this.entanglementMatrix[i]![i] = 1.0; // Self-entangled = 1.0
+    constructor() {
+        // Alokasi memori dinamis dihindari. Pre-allocated N x N float matrix (Hukum 4)
+        this.entanglementMatrix = new Array(MAX_ENTITIES);
+        for (let i = 0; i < MAX_ENTITIES; i++) {
+            this.entanglementMatrix[i] = new Float32Array(MAX_ENTITIES).fill(0.0);
+            this.entanglementMatrix[i]![i] = 1.0; // Self-entangled
         }
     }
 
     /**
-     * Menjalankan Hebbian Learning: Otomatis mencari dan menyambungkan
-     * "Neurons that fire together" tanpa if-else.
+     * Mendaftarkan reference ke EntityManifold (SoA).
+     */
+    public initializeEntities(manifold: EntityManifold): void {
+        this.manifoldRef = manifold;
+        const count = manifold.activeCount;
+
+        // Reset matrix only for active boundaries
+        for (let i = 0; i < count; i++) {
+            this.entanglementMatrix[i]!.fill(0.0, 0, count);
+            this.entanglementMatrix[i]![i] = 1.0;
+        }
+    }
+
+    /**
+     * Menjalankan Hebbian Learning di atas Structure of Arrays.
      */
     public evolveEntanglement(learningRate: number = 0.1): void {
-        EntanglementOptimizer.optimize(this.entitiesCache, this.entanglementMatrix, learningRate);
+        if (!this.manifoldRef) return;
+        EntanglementOptimizer.optimize(this.manifoldRef, this.entanglementMatrix, learningRate);
     }
 
     /**
@@ -68,7 +75,10 @@ export class WaveDynamics {
      * WAVE GRAVITY DRIVE (Huygens-Fresnel Navigation)
      * Mengkalkulasi pergerakan agen berdasarkan atraktor dan repulsor tensor di sekitarnya.
      */
-    public applyWaveGravity(agent: CognitiveEntity, attractors: TensorVector[], repulsors: TensorVector[]): void {
+    public applyWaveGravity(agentIndex: number, attractors: TensorVector[], repulsors: TensorVector[]): void {
+        if (!this.manifoldRef) return;
+        const agentTensor = this.manifoldRef.getTensor(agentIndex);
+
         const totalAttractor = new Float32Array(GLOBAL_DIMENSION).fill(0);
         for (const attr of attractors) {
             for (let i = 0; i < GLOBAL_DIMENSION; i++) totalAttractor[i] += attr[i]!;
@@ -80,36 +90,38 @@ export class WaveDynamics {
         }
 
         // Terapkan medan ke tensor entitas
-        this.contrastiveUpdateInPlace(agent.tensor, totalRepulsor, totalAttractor, 0.8);
+        this.contrastiveUpdateInPlace(agentTensor, totalRepulsor, totalAttractor, 0.8);
     }
 
     /**
      * TRIGGER COLLAPSE
      * Meruntuhkan gelombang informasi ke agen-agen yang saling terikat (Entangled).
-     * Jika A berubah, B terpengaruh SEBANDING dengan bobot entanglement-nya.
+     * Memproses pointer SoA secara linier cache-friendly.
      */
     public triggerCollapse(sourceIndex: number): void {
-        const sourceAgent = this.entitiesCache[sourceIndex];
-        const numEntities = this.entitiesCache.length;
+        if (!this.manifoldRef) return;
+        const numEntities = this.manifoldRef.activeCount;
 
-        // V8 Optimized Control Flow
-        if (!sourceAgent || this.entanglementMatrix.length !== numEntities) return;
+        const sourceTensor = this.manifoldRef.getTensor(sourceIndex);
 
         for (let targetIndex = 0; targetIndex < numEntities; targetIndex++) {
-            // V8 Optimized Control Flow (Skip self)
-            if (targetIndex === sourceIndex) continue;
+            // V8 Optimized Control Flow (Skip self or ghost entities)
+            if (targetIndex === sourceIndex || this.manifoldRef.masses[targetIndex] === 0.0) continue;
 
-            const targetAgent = this.entitiesCache[targetIndex]!;
+            const targetTensor = this.manifoldRef.getTensor(targetIndex);
             const entanglementWeight = this.entanglementMatrix[sourceIndex]![targetIndex]!;
 
-            // Partial collapse berdasarkan coupling (0.0 to 1.0) menggunakan Math Branchless sejati
+            // Partial collapse berdasarkan coupling (0.0 to 1.0) menggunakan Math Branchless
             for (let i = 0; i < GLOBAL_DIMENSION; i++) {
                 // Interpolasi linear murni: W * Source + (1-W) * Target
-                targetAgent.tensor[i] = (entanglementWeight * sourceAgent.tensor[i]!) + ((1.0 - entanglementWeight) * targetAgent.tensor[i]!);
+                targetTensor[i] = (entanglementWeight * sourceTensor[i]!) + ((1.0 - entanglementWeight) * targetTensor[i]!);
             }
 
-            // Mark entanglement status as combined weight (Math Branchless)
-            targetAgent.entanglement_status = Math.max(targetAgent.entanglement_status, entanglementWeight);
+            // Perbarui properti entanglement di array flat
+            this.manifoldRef.entanglementStatus[targetIndex] = Math.max(
+                this.manifoldRef.entanglementStatus[targetIndex]!,
+                entanglementWeight
+            );
         }
     }
 }

@@ -4,13 +4,13 @@ import { GlobalBlackboard } from './reasoning/GlobalBlackboard.js';
 import { HolographicManifold, LogicSeedBank } from './memory/index.js';
 import { Task } from './shared/index.js';
 import { PDRLogger, LogLevel } from './reasoning/level1-pdr/pdr-debug.js';
-import { CognitiveEntity } from './core/CognitiveEntity.js';
+import { EntityManifold } from './core/EntityManifold.js';
 import { TensorVector, GLOBAL_DIMENSION } from './core/config.js';
 
 /**
  * 🤖 THE RECURSIVE REASONING MACHINE (Fase 5: Sang Orkestrator)
- * Siklus termodinamika murni yang menggantikan seluruh pendekatan heuristik kaku (If-Else Level).
- * Menggunakan Loop: PERCEIVE -> RESONATE -> EVOLVE -> COLLAPSE
+ * Siklus termodinamika murni yang menggantikan seluruh pendekatan heuristik kaku.
+ * Menggunakan Loop ECS: PERCEIVE -> RESONATE -> EVOLVE -> COLLAPSE
  */
 export class RRM_Agent {
     private perceiver = new UniversalManifold();
@@ -45,25 +45,29 @@ export class RRM_Agent {
 
         // 1. =======================================================
         // 👁️ THE PERCEIVE PHASE
-        // Meratakan dimensi fisik menjadi entitas agnostik
+        // Meratakan dimensi fisik menjadi entitas ECS (EntityManifold)
         // =======================================================
-        log(`   [1] PERCEIVE: Memindai semesta ke dalam Cognitive Entities...`);
-        const trainStates: { in: CognitiveEntity[], out: CognitiveEntity[] }[] = [];
+        log(`   [1] PERCEIVE: Memindai semesta ke dalam Entity Manifolds (SoA)...`);
+        const trainStates: { in: EntityManifold, out: EntityManifold }[] = [];
 
         for (const pair of task.train) {
             const inStream = this.perceiver.encodeAgnosticInput(pair.input);
             const outStream = this.perceiver.encodeAgnosticInput(pair.output);
 
-            // Segmentasi berdasarkan kemiripan vektor (bukan geometri spasial)
-            const inEntities = this.segmenter.segmentStream(inStream, 0.85);
-            const outEntities = this.segmenter.segmentStream(outStream, 0.85);
+            const inManifold = new EntityManifold();
+            const outManifold = new EntityManifold();
 
-            trainStates.push({ in: inEntities, out: outEntities });
+            // Segmentasi otomatis memasukkan data ke buffer ECS linier
+            this.segmenter.segmentStream(inStream, inManifold, 0.85);
+            this.segmenter.segmentStream(outStream, outManifold, 0.85);
+
+            trainStates.push({ in: inManifold, out: outManifold });
         }
 
-        // Test state (Kita hanya bisa melihat inputnya)
+        // Test state
         const testStream = this.perceiver.encodeAgnosticInput(task.test[0]!.input);
-        const testEntities = this.segmenter.segmentStream(testStream, 0.85);
+        const testManifold = new EntityManifold();
+        this.segmenter.segmentStream(testStream, testManifold, 0.85);
 
         // 2. =======================================================
         // 🎼 THE RESONATE PHASE
@@ -82,29 +86,25 @@ export class RRM_Agent {
             this.waveDynamics.evolveEntanglement(0.2);
 
             // 2B. KESADARAN KOLEKTIF (Superposisi state seluruh entitas)
-            // Semua agen menyatukan pikirannya ke GlobalBlackboard
-            const agentTensors = state.in.map(e => e.tensor);
+            const agentTensors: TensorVector[] = [];
+            for (let e = 0; e < state.in.activeCount; e++) {
+                if (state.in.masses[e]! > 0) agentTensors.push(state.in.getTensor(e));
+            }
             this.blackboard.synchronize(agentTensors);
 
             // 2C. HUNGARIAN MATCHING & HUKUM FISIKA
             const alignments = this.aligner.align(state.in, state.out);
 
             for (const match of alignments) {
-                // Melonggarkan Threshold agar pergerakan ekstrem bisa terekam
-                // Menurunkan batas keyakinan dari 0.7 ke 0.4
                 if (match.deltaTensor && match.similarity > 0.4) {
-                    // Coba kenali DeltaTensor ini dengan memori yang pernah dipanen sebelumnya (Resonance Search)
                     const knownMemory = this.seedBank.findBestMatch(match.deltaTensor);
 
-                    // Melonggarkan Memory Matching dari 0.85 ke 0.75
                     if (knownMemory && knownMemory.coherence > 0.75) {
-                        // Jika memori dikenali kuat, gunakan Hukum Asli yang ortogonal
                         log(`      [Resonance] Pergerakan dikenali sebagai: ${knownMemory.name} (Kemiripan: ${(knownMemory.coherence * 100).toFixed(2)}%)`);
-                        this.pruner.injectHypothesis(knownMemory.name, knownMemory.phasor, 1.0, 0.01); // Menurunkan decay dari 0.05 ke 0.01 agar tidak cepat mati
+                        this.pruner.injectHypothesis(knownMemory.name, knownMemory.phasor, 1.0, 0.01);
                     } else {
-                        // Jika fenomena ini benar-benar baru, suntikkan sebagai hipotesis mentah yang lebih rapuh
-                        const ruleId = `LAW_NEW_TRAIN_${i}_${match.source.id}`;
-                        this.pruner.injectHypothesis(ruleId, match.deltaTensor, 1.0, 0.1); // Menurunkan decay dari 0.3 ke 0.1
+                        const ruleId = `LAW_NEW_TRAIN_${i}_E${match.sourceIndex}`;
+                        this.pruner.injectHypothesis(ruleId, match.deltaTensor, 1.0, 0.1);
                     }
                 }
             }
@@ -141,31 +141,32 @@ export class RRM_Agent {
         // =======================================================
         log(`   [4] COLLAPSE: Mengaplikasikan Axiom ke realitas Test...`);
 
-        // Terapkan medan Wave Gravity ke Test Entities
-        this.waveDynamics.initializeEntities(testEntities);
+        // Terapkan medan Wave Gravity ke EntityManifold (Test)
+        this.waveDynamics.initializeEntities(testManifold);
         this.waveDynamics.evolveEntanglement(0.2); // Sinkronisasi state awal tes
 
         // Contextualize dengan memori kolektif yang sudah dibangun saat training
         const collectiveState = this.blackboard.readCollectiveState();
 
-        for (let i = 0; i < testEntities.length; i++) {
-            const testEntity = testEntities[i]!;
+        for (let i = 0; i < testManifold.activeCount; i++) {
+            if (testManifold.masses[i] === 0.0) continue;
+
+            const tensor = testManifold.getTensor(i);
 
             // Sadarkan agen akan state kolektif
-            const contextualizedTensor = this.blackboard.contextualizeAgent(testEntity.tensor);
+            const contextualizedTensor = this.blackboard.contextualizeAgent(tensor);
 
             // Tarik tensor test menggunakan sisa-sisa aturan yang selamat dan memori kolektif
             const attractors = survivingRules.map(r => r.tensor_rule);
             attractors.push(contextualizedTensor); // Atraktor tambahan dari consciousness
 
-            this.waveDynamics.applyWaveGravity(testEntity, attractors, []);
+            this.waveDynamics.applyWaveGravity(i, attractors, []);
 
-            // Picu efek domino: Jika agen ini berubah, agen yang terikat ikut terpengaruh proporsional (branchless)
+            // Picu efek domino: Jika agen ini berubah, agen yang terikat ikut terpengaruh proporsional
             this.waveDynamics.triggerCollapse(i);
         }
 
         // Mengambil ukuran asli test grid (Jika 2D) untuk re-render
-        // Kita gunakan logika agnostik untuk resolusi (mencari max X dan Y dari input asli)
         const testInput = task.test[0]!.input;
         const is2D = Array.isArray(testInput[0]);
 
@@ -176,19 +177,20 @@ export class RRM_Agent {
 
             // Membundle (Superposisi) seluruh entitas tes menjadi satu Tensor Semesta
             const universeTensor = new Float32Array(GLOBAL_DIMENSION);
-            for (const entity of testEntities) {
+            for (let e = 0; e < testManifold.activeCount; e++) {
+                if (testManifold.masses[e] === 0.0) continue;
+                const tensor = testManifold.getTensor(e);
                 for (let d = 0; d < GLOBAL_DIMENSION; d++) {
-                    universeTensor[d] += entity.tensor[d]!;
+                    universeTensor[d] += tensor[d]!;
                 }
             }
 
             // Menerapkan Runtuhan Gelombang Kuantum (Quantum Collapse)
             const collapsedGrid = this.decoder.collapseToGrid(universeTensor, width, height, 0.4);
 
-            log(`   ✅ REALITAS TERBENTUK: Grid (${width}x${height}) dirender ulang dari superposisi kuantum secara branchless.`);
+            log(`   ✅ REALITAS TERBENTUK: Grid (${width}x${height}) dirender ulang dari superposisi kuantum secara branchless ECS.`);
             return collapsedGrid;
         } else {
-            // Placeholder untuk token 1D jika diperlukan
             return testInput;
         }
     }

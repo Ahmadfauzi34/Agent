@@ -12,3 +12,9 @@ export const COMPLEX_DIMENSION = GLOBAL_DIMENSION * 2; // Untuk Phasor (Real + I
  * mekanisme disipatif (decaying trauma) secara elegan sesuai hukum termodinamika.
  */
 export type TensorVector = Float32Array;
+
+/**
+ * BATAS POPULASI ENTITAS (Mencegah Alokasi Dinamis RAM / Dosa 4)
+ * Menetapkan ukuran pra-alokasi (Pre-allocation) matriks ECS.
+ */
+export const MAX_ENTITIES = 500;
