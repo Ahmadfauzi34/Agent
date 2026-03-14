@@ -57,25 +57,37 @@ export class AxiomGenerator {
 
     /**
      * Membangkitkan Axiom Refleksi / Cermin (Symmetry).
-     * Dalam VSA FHRR, inversi fasa (Inverse) membalikkan koordinat.
-     * Jika X diinversi, ia merefleksikan posisi terhadap titik asal.
+     * 100% Branchless dan Mempertahankan Identitas Warna (Tidak menciptakan Anti-Materi).
      *
-     * @param axis 'X' atau 'Y'
-     * @param entityTensor Vektor entitas yang akan dicerminkan
-     * @returns Tensor hasil refleksi (Bukan delta, melainkan state akhir)
+     * @param entityTensor Vektor entitas saat ini
+     * @param currentRelX Posisi X relatif saat ini (0.0 - 1.0)
+     * @param currentRelY Posisi Y relatif saat ini (0.0 - 1.0)
+     * @param isMirrorX 1.0 jika cermin X, 0.0 jika tidak
+     * @param isMirrorY 1.0 jika cermin Y, 0.0 jika tidak
+     * @param xAxisSeed Vektor benih untuk dimensi X
+     * @param yAxisSeed Vektor benih untuk dimensi Y
+     * @returns State Tensor Akhir paska-refleksi
      */
     public static applyReflection(
-        axis: 'X' | 'Y',
         entityTensor: TensorVector,
+        currentRelX: number,
+        currentRelY: number,
+        isMirrorX: number, // Gunakan number untuk Branchless Gating
+        isMirrorY: number, // Gunakan number untuk Branchless Gating
         xAxisSeed: TensorVector,
         yAxisSeed: TensorVector
     ): TensorVector {
-        // PERHATIAN: Rotasi dan Refleksi sejati dalam Fractional Binding sangat kompleks
-        // karena memerlukan unbinding koordinat spesifik dan mengikatnya kembali dengan negatifnya (-x).
-        // Sebagai Aproksimasi Kuantum (Phase Shift Inverse):
-        // Kita terapkan inversi spektral yang membalikkan seluruh gelombang.
 
-        // Untuk saat ini, kita kembalikan Inverse penuh sebagai bentuk "Mirror Absolute"
-        return FHRR.inverse(entityTensor);
+        // Jarak pergeseran cermin: Jika x=0.8, cerminnya 0.2. Delta = -0.6.
+        // Jika isMirrorX = 0, deltaX dikalikan 0 (Tidak ada pergeseran).
+        const deltaX = (1.0 - 2.0 * currentRelX) * isMirrorX;
+        const deltaY = (1.0 - 2.0 * currentRelY) * isMirrorY;
+
+        // Bangkitkan Operator Translasi Murni untuk mengeksekusi Cermin
+        const mirrorOperator = this.generateTranslationAxiom(deltaX, deltaY, xAxisSeed, yAxisSeed);
+
+        // Terapkan Cermin ke Entitas (Binding)
+        // Warna dan sumbu yang tidak dicerminkan akan utuh 100%
+        return FHRR.bind(entityTensor, mirrorOperator);
     }
 }
