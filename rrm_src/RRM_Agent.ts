@@ -96,20 +96,18 @@ export class RRM_Agent {
             const alignments = this.aligner.align(state.in, state.out);
 
             for (const match of alignments) {
-                // Menurunkan threshold sedikit lebih rendah lagi karena imajinasi cermin
-                // bisa menghasilkan similarity yang sangat fuzzy pada awalnya.
-                if (match.deltaTensor && match.similarity > 0.3) {
+                // Ekstraksi Delta sangat kompleks sekarang (Translasi + Cermin).
+                // Similarity bisa anjlok karena noise superposisi. Tangkap semua > 0.1.
+                if (match.deltaTensor && match.similarity > 0.1) {
                     const knownMemory = this.seedBank.findBestMatch(match.deltaTensor);
 
-                    if (knownMemory && knownMemory.coherence > 0.75) {
+                    if (knownMemory && knownMemory.coherence > 0.6) {
                         log(`      [Resonance] Pergerakan dikenali sebagai: ${knownMemory.name} (Axiom Geometri: ${match.axiomType}) (Kemiripan: ${(knownMemory.coherence * 100).toFixed(2)}%)`);
-                        this.pruner.injectHypothesis(knownMemory.name, knownMemory.phasor, 1.0, 0.01);
+                        this.pruner.injectHypothesis(knownMemory.name, knownMemory.phasor, 1.0, 0.001);
                     } else {
-                        // Memasukkan nama axiomType (seperti MIRROR_X) ke dalam id agar tidak dilupakan
                         const ruleId = `LAW_NEW_TRAIN_${i}_E${match.sourceIndex}_[${match.axiomType}]`;
-                        // Memberikan daya tahan (decay rate rendah 0.05) untuk hipotesis baru
-                        // karena probe kuantum sudah memastikan geometri mentahnya benar.
-                        this.pruner.injectHypothesis(ruleId, match.deltaTensor, 1.0, 0.05);
+                        // Decay rate super rendah karena Axiom sudah dipra-validasi oleh Centroid & Mirror Probes
+                        this.pruner.injectHypothesis(ruleId, match.deltaTensor, 1.0, 0.005);
                     }
                 }
             }
@@ -123,8 +121,8 @@ export class RRM_Agent {
 
         const MAX_STEPS = 10;
         for (let step = 1; step <= MAX_STEPS; step++) {
-            // Melonggarkan aliran waktu untuk membiarkan hipotesis refleksi berkembang (0.2)
-            this.pruner.evolveTime(0.2);
+            // Melonggarkan aliran waktu (0.1) karena Delta kita sekarang sangat kaya (translasi + cermin)
+            this.pruner.evolveTime(0.1);
         }
 
         const survivingRules = this.pruner.getSurvivingRules();

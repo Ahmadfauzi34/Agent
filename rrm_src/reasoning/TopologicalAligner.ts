@@ -45,32 +45,12 @@ export class TopologicalAligner {
             let bestTargetIdx = -1;
             let bestSim = -1.0;
             let bestAxiomType = "IDENTITY";
+            let bestWinningProbe: TensorVector | null = null;
 
             const srcTensor = sourceManifold.getTensor(sIdx);
             const srcMass = sourceManifold.masses[sIdx]!;
             const srcRelX = sourceManifold.centersX[sIdx]!;
             const srcRelY = sourceManifold.centersY[sIdx]!;
-
-            // 🌟 4 IMAJINASI KOGNITIF (Phase Space Probes)
-            const probeIdentity = srcTensor;
-
-            const probeMirrorX = AxiomGenerator.applyReflection(
-                srcTensor, srcRelX, srcRelY,
-                1.0, 0.0,
-                this.perceiver.X_AXIS_SEED, this.perceiver.Y_AXIS_SEED
-            );
-
-            const probeMirrorY = AxiomGenerator.applyReflection(
-                srcTensor, srcRelX, srcRelY,
-                0.0, 1.0,
-                this.perceiver.X_AXIS_SEED, this.perceiver.Y_AXIS_SEED
-            );
-
-            const probeMirrorXY = AxiomGenerator.applyReflection(
-                srcTensor, srcRelX, srcRelY,
-                1.0, 1.0,
-                this.perceiver.X_AXIS_SEED, this.perceiver.Y_AXIS_SEED
-            );
 
             for (let tIdx = 0; tIdx < targetManifold.activeCount; tIdx++) {
                 const tgtMass = targetManifold.masses[tIdx]!;
@@ -79,6 +59,45 @@ export class TopologicalAligner {
                 if (usedTargets.has(tIdx) || tgtMass === 0.0) continue;
 
                 const tgtTensor = targetManifold.getTensor(tIdx);
+                const tgtRelX = targetManifold.centersX[tIdx]!;
+                const tgtRelY = targetManifold.centersY[tIdx]!;
+
+                // 🌟 TAHAP 1: PREDICTIVE CENTROID ALIGNMENT
+                // Hitung Delta Posisi Spasial Relatif
+                const dx = tgtRelX - srcRelX;
+                const dy = tgtRelY - srcRelY;
+
+                // Bangkitkan Axiom Translasi Spasial Murni
+                const translationAxiom = AxiomGenerator.generateTranslationAxiom(
+                    dx, dy,
+                    this.perceiver.X_AXIS_SEED, this.perceiver.Y_AXIS_SEED
+                );
+
+                // Terapkan translasi ke Source (Memposisikan Source di atas Target)
+                const alignedSrcTensor = FHRR.bind(srcTensor, translationAxiom);
+
+                // 🌟 TAHAP 2: 4 IMAJINASI GEOMETRI (Phase Space Probes)
+                // Karena kita sudah memindahkan Source ke lokasi Target, kita menggunakan
+                // koordinat Target (tgtRelX, tgtRelY) sebagai poros pencerminan.
+                const probeIdentity = alignedSrcTensor;
+
+                const probeMirrorX = AxiomGenerator.applyReflection(
+                    alignedSrcTensor, tgtRelX, tgtRelY,
+                    1.0, 0.0,
+                    this.perceiver.X_AXIS_SEED, this.perceiver.Y_AXIS_SEED
+                );
+
+                const probeMirrorY = AxiomGenerator.applyReflection(
+                    alignedSrcTensor, tgtRelX, tgtRelY,
+                    0.0, 1.0,
+                    this.perceiver.X_AXIS_SEED, this.perceiver.Y_AXIS_SEED
+                );
+
+                const probeMirrorXY = AxiomGenerator.applyReflection(
+                    alignedSrcTensor, tgtRelX, tgtRelY,
+                    1.0, 1.0,
+                    this.perceiver.X_AXIS_SEED, this.perceiver.Y_AXIS_SEED
+                );
 
                 // Mengukur 4 Kemungkinan Paralel
                 const simId = FHRR.similarity(probeIdentity, tgtTensor);
@@ -98,28 +117,35 @@ export class TopologicalAligner {
                     bestSim = combinedScore;
                     bestTargetIdx = tIdx;
 
-                    // Legal Control Flow (Pencatatan Axiom untuk Semantic Log)
-                    if (maxSim === simId) bestAxiomType = "IDENTITY";
-                    else if (maxSim === simMx) bestAxiomType = "MIRROR_X";
-                    else if (maxSim === simMy) bestAxiomType = "MIRROR_Y";
-                    else bestAxiomType = "MIRROR_XY";
+                    // Legal Control Flow (Pencatatan Axiom untuk Semantic Log & Ekstraksi Delta Akhir)
+                    if (maxSim === simId) {
+                        bestAxiomType = `TRANSLATE_${dx.toFixed(2)}_${dy.toFixed(2)}`;
+                        bestWinningProbe = probeIdentity;
+                    } else if (maxSim === simMx) {
+                        bestAxiomType = `MIRROR_X+TRANS_${dx.toFixed(2)}_${dy.toFixed(2)}`;
+                        bestWinningProbe = probeMirrorX;
+                    } else if (maxSim === simMy) {
+                        bestAxiomType = `MIRROR_Y+TRANS_${dx.toFixed(2)}_${dy.toFixed(2)}`;
+                        bestWinningProbe = probeMirrorY;
+                    } else {
+                        bestAxiomType = `MIRROR_XY+TRANS_${dx.toFixed(2)}_${dy.toFixed(2)}`;
+                        bestWinningProbe = probeMirrorXY;
+                    }
                 }
             }
 
             let delta: TensorVector | null = null;
 
-            if (bestTargetIdx !== -1) {
+            if (bestTargetIdx !== -1 && bestWinningProbe) {
                 usedTargets.add(bestTargetIdx);
                 const tgtTensor = targetManifold.getTensor(bestTargetIdx);
 
-                // Delta (Hukum Pergerakan) harus dihitung berdasarkan "Imajinasi" yang menang
-                // agar sisa Delta-nya hanyalah Translasi Murni atau Perubahan Warna.
-                let winningProbe = probeIdentity;
-                if (bestAxiomType === "MIRROR_X") winningProbe = probeMirrorX;
-                else if (bestAxiomType === "MIRROR_Y") winningProbe = probeMirrorY;
-                else if (bestAxiomType === "MIRROR_XY") winningProbe = probeMirrorXY;
-
-                delta = FHRR.bind(tgtTensor, FHRR.inverse(winningProbe));
+                // Delta (Hukum Perubahan Inti) dihitung terhadap raw Source (Kalkulus Kausalitas Absolut).
+                // Mengapa bukan bestWinningProbe? Karena bestWinningProbe sudah mencakup Translasi+Geometri.
+                // Jika kita mengurangi Target dengan bestWinningProbe, sisa Deltanya cuma (Color Change).
+                // Kita ingin Semantic Rule ini merekam TOTAL PERUBAHAN (Shape + Color + Pos).
+                // Translasi Axiom sudah menyelaraskan skor Resonance, kini ekstrak Delta totalnya:
+                delta = FHRR.bind(tgtTensor, FHRR.inverse(srcTensor));
             }
 
             matches.push({
