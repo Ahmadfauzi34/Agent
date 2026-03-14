@@ -1,5 +1,5 @@
-import { CognitiveEntity } from '../core/CognitiveEntity';
-import { VSACore } from '../memory/VSACore';
+import { CognitiveEntity } from '../core/CognitiveEntity.js';
+import { FHRR } from '../core/fhrr.js';
 
 /**
  * ============================================================================
@@ -29,9 +29,9 @@ export class EntanglementOptimizer {
             for (let j = 0; j < numEntities; j++) {
                 const entB = entities[j]!;
                 
-                // 1. Ukur Resonansi (Coherence: -1.0 to 1.0)
+                // 1. Ukur Resonansi (Coherence: -1.0 to 1.0) via FHRR Cosine Similarity
                 // Seberapa selaras pikiran Agen A dan Agen B?
-                const coherence = VSACore.measureCoherence(entA.state_vector, entB.state_vector);
+                const coherence = FHRR.similarity(entA.tensor, entB.tensor);
                 
                 // 2. Update Keterikatan (Hebbian Learning)
                 const currentE = entanglementMatrix[i]![j]!;
