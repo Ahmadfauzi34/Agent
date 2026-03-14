@@ -1,90 +1,87 @@
-import { TensorVector, GLOBAL_DIMENSION } from '../core/config';
-import { UniversalManifold } from './UniversalManifold';
+import { TensorVector, GLOBAL_DIMENSION } from '../core/config.js';
+import { EntityManifold } from '../core/EntityManifold.js';
+import { UniversalManifold } from './UniversalManifold.js';
 
 /**
  * ============================================================================
  * HOLOGRAM DECODER (The Quantum Observer)
  * ============================================================================
- * Mengubah Medan Gelombang Kuantum (Tensor) kembali menjadi Realitas
- * Diskrit (Grid Piksel) melalui pengukuran resonansi.
+ * Mengubah Medan Gelombang Kuantum (EntityManifold) kembali menjadi Realitas
+ * Diskrit (Grid Piksel) melalui pengukuran resonansi individu per-entitas.
  */
 export class HologramDecoder {
-    private manifold: UniversalManifold;
+    private manifoldPerceiver: UniversalManifold;
 
-    constructor(manifold: UniversalManifold) {
-        this.manifold = manifold;
+    constructor(manifoldPerceiver: UniversalManifold) {
+        this.manifoldPerceiver = manifoldPerceiver;
     }
 
     /**
      * 🌊 THE COLLAPSE FUNCTION 🌊
-     * Memproyeksikan Tensor (Hologram Universe) ke dalam Grid 2D.
-     * Secara murni menggunakan interferensi optik dan gating matematis tanpa If-Else.
-     *
-     * @param universeTensor Total penjumlahan (Superposisi) dari semua memori/entitas
-     * @param width Lebar kanvas target
-     * @param height Tinggi kanvas target
-     * @param threshold Ambang batas interferensi konstruktif agar sinyal diakui sebagai warna
+     * Memproyeksikan EntityManifold ke dalam Grid 2D.
+     * Menggunakan ECS/SoA architecture dan probe iterasi cerdas tanpa If-Else.
      */
     public collapseToGrid(
-        universeTensor: TensorVector,
+        manifold: EntityManifold,
         width: number,
         height: number,
-        threshold: number = 0.5
+        threshold: number = 0.5 // Diturunkan agar toleran terhadap decoherence
     ): number[][] {
         // Inisialisasi grid kosong
         const grid: number[][] = Array.from({ length: height }, () => Array(width).fill(0));
 
-        // Buat matriks 1D untuk menampung intensitas (koherensi) dari setiap tebakan warna
-        const colorIntensities = new Float32Array(width * height * 10); // W x H x 10 Spektrum Warna
+        // Karena kita menggunakan EntityManifold, kita akan "menembakkan" probe spasial
+        // ke MASING-MASING entitas aktif, bukan ke 1 universeTensor raksasa yang rentan crosstalk.
+        const numEntities = manifold.activeCount;
 
-        // --- 1. MEMBUAT PROBE SUPERPOSISI (Probe semua piksel & warna sekaligus) ---
-        // Menciptakan "Sinar Laser" (Probe Phasor) untuk setiap kemungkinan kombinasi spasial dan warna
-        for (let c = 1; c < 10; c++) { // Mulai dari warna 1 (Abaikan 0/background)
+        for (let e = 0; e < numEntities; e++) {
+            // V8 Optimized Control Flow (Abaikan entitas mati/vakum)
+            if (manifold.masses[e] === 0.0) continue;
+
+            const eTensor = manifold.getTensor(e);
+
+            // Kita sudah tau token aslinya dari manifold (kecuali jika hukum termodinamika mengubah warna,
+            // untuk iterasi ini kita asumsikan warna stabil dan posisi/bentuk yang berubah).
+            const token = manifold.tokens[e]!;
+
+            // Limit penyebaran probe berdasarkan spread awal entitas agar efisien (O(N) rendering lokal)
+            // Akar kuadrat spread memberi kita radius radius pencarian spasial kasar
+            const radius = Math.ceil(Math.sqrt(manifold.spreads[e]!)) + 1;
+
+            // Titik tengah awal entitas (Sebagai patokan pencarian)
+            const centerX = Math.floor(manifold.centersX[e]! * (width - 1));
+            const centerY = Math.floor(manifold.centersY[e]! * (height - 1));
+
+            const startX = Math.max(0, centerX - radius);
+            const endX = Math.min(width - 1, centerX + radius);
+            const startY = Math.max(0, centerY - radius);
+            const endY = Math.min(height - 1, centerY + radius);
+
+            // Tembakkan probe di seluruh grid (Mencari jika entitas teleportasi jauh)
+            // Meskipun radius lokal bisa dihitung, karena ini superposisi yang mengalami WaveGravity,
+            // posisinya bisa bergeser ke ujung grid.
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
                     const relX = x / Math.max(1, width - 1);
                     const relY = y / Math.max(1, height - 1);
 
-                    // Bangkitkan Sinar Probe
-                    const probePhasor = this.manifold.buildPixelTensor(relX, relY, c);
+                    // Bangkitkan Sinar Probe (Hanya mencari kecocokan posisi, abaikan token karena token nempel di manifold)
+                    const probePhasor = this.manifoldPerceiver.buildPixelTensor(relX, relY, token);
 
-                    // --- 2. PENGUKURAN RESONANSI (Dot Product / Holographic Interference) ---
-                    // Mengukur seberapa mirip tebakan posisi dan warna ini dengan semesta asli
+                    // PENGUKURAN RESONANSI (Dot Product / Holographic Interference)
                     let coherence = 0.0;
                     for (let d = 0; d < GLOBAL_DIMENSION; d++) {
-                        coherence += universeTensor[d]! * probePhasor[d]!;
+                        coherence += eTensor[d]! * probePhasor[d]!;
                     }
 
-                    const index = (y * width + x) * 10 + c;
+                    // Threshold disesuaikan dengan Dot Product dari tensor termodinamika.
+                    // Karena telah mengalami banyak phase shift (decay, gravity), dot product mungkin kecil.
+                    // Kita berikan threshold absolut yang lebih rendah.
+                    const isConstructive = Number(coherence > 0.1);
 
-                    // Kita asumsikan vektor telah dinormalisasi secara L2, namun bisa diskalakan
-                    colorIntensities[index] = coherence / GLOBAL_DIMENSION;
+                    // Branchless Overwrite
+                    grid[y]![x] = (grid[y]![x]! * (1 - isConstructive)) + (token * isConstructive);
                 }
-            }
-        }
-
-        // --- 3. PROSES PEMILIHAN PEMENANG (Winner-Takes-All, 100% Branchless) ---
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                let maxIntensity = threshold; // Jika semua warna < threshold, pemenangnya 0 (hitam)
-                let winningColor = 0;
-
-                for (let c = 1; c < 10; c++) {
-                    const index = (y * width + x) * 10 + c;
-                    const intensity = colorIntensities[index]!;
-
-                    // GATING MATEMATIS (Zero If-Else Branching):
-                    // Number(intensity > maxIntensity) akan menghasilkan 1 atau 0.
-                    const isNewWinner = Number(intensity > maxIntensity);
-
-                    // Update Pemenang:
-                    // Jika isNewWinner=1:  (winningColor * 0) + (c * 1) = c
-                    // Jika isNewWinner=0:  (winningColor * 1) + (c * 0) = winningColor
-                    winningColor = (winningColor * (1 - isNewWinner)) + (c * isNewWinner);
-                    maxIntensity = (maxIntensity * (1 - isNewWinner)) + (intensity * isNewWinner);
-                }
-
-                grid[y]![x] = winningColor;
             }
         }
 
