@@ -35,86 +35,80 @@ export class EntitySegmenter {
         for (let i = 0; i < entries.length; i++) {
             const [keyA, tensorA] = entries[i]!;
 
-            // Lompati entitas yang sudah dikunjungi menggunakan eksekusi short-circuit boolean
-            const skipA = visited.has(keyA);
+            // ✅ GUNAKAN CONTINUE (V8 Optimized Control Flow)
+            if (visited.has(keyA)) continue;
 
-            // Jika skipA bernilai false (0), sisa loop akan berjalan di dalam closure IIFE yang mengembalikan void
-            !skipA && (() => {
-                const parsedA = parseKey(keyA);
+            const parsedA = parseKey(keyA);
 
-                // Track bounding box (Min/Max X/Y) menggunakan Zero If-Else (Branchless Math)
-                let minX = parsedA.x;
-                let maxX = parsedA.x;
-                let minY = parsedA.y;
-                let maxY = parsedA.y;
+            // Track bounding box (Min/Max X/Y) menggunakan Zero If-Else (Math Branchless sejati)
+            let minX = parsedA.x;
+            let maxX = parsedA.x;
+            let minY = parsedA.y;
+            let maxY = parsedA.y;
 
-                // Buat Entitas Baru
-                const newEntity: CognitiveEntity = {
-                    id: `E_${entityCounter++}`,
-                    token: parsedA.token, // Kunci klasifikasi fisik
-                    mass: 1, // 1 partikel awal
-                    spread: 1, // Luas bounding box awal
-                    center_rel: { x: 0, y: 0 },
-                    momentum: { dx: 0, dy: 0 }, // Inisialisasi keadaan diam
-                    tensor: new Float32Array(GLOBAL_DIMENSION),
-                    entanglement_status: 0.0
-                };
+            // Buat Entitas Baru
+            const newEntity: CognitiveEntity = {
+                id: `E_${entityCounter++}`,
+                token: parsedA.token, // Kunci klasifikasi fisik
+                mass: 1, // 1 partikel awal
+                spread: 1, // Luas bounding box awal
+                center_rel: { x: 0, y: 0 },
+                momentum: { dx: 0, dy: 0 }, // Inisialisasi keadaan diam
+                tensor: new Float32Array(GLOBAL_DIMENSION),
+                entanglement_status: 0.0 // Skalar kontinu (Siap untuk Hebbian Matrix)
+            };
 
-                // Inisialisasi tensor dan massa
-                this.addVectorInPlace(newEntity.tensor, tensorA);
-                visited.add(keyA);
+            // Inisialisasi tensor dan massa
+            this.addVectorInPlace(newEntity.tensor, tensorA);
+            visited.add(keyA);
 
-                let sumX = parsedA.x;
-                let sumY = parsedA.y;
-                let membersCount = 1;
+            let sumX = parsedA.x;
+            let sumY = parsedA.y;
+            let membersCount = 1;
 
-                // Cari tetangga yang "Ber-resonansi" (punya kemiripan tinggi dengan inti entitas ini)
-                for (let j = i + 1; j < entries.length; j++) {
-                    const [keyB, tensorB] = entries[j]!;
+            // Cari tetangga yang "Ber-resonansi" (punya kemiripan tinggi dengan inti entitas ini)
+            for (let j = i + 1; j < entries.length; j++) {
+                const [keyB, tensorB] = entries[j]!;
 
-                    const skipB = visited.has(keyB);
+                // ✅ GUNAKAN CONTINUE (V8 Optimized Control Flow)
+                if (visited.has(keyB)) continue;
 
-                    !skipB && (() => {
-                        // Hitung interferensi/kemiripan tensor
-                        const sim = FHRR.similarity(newEntity.tensor, tensorB);
+                // Hitung interferensi/kemiripan tensor
+                const sim = FHRR.similarity(newEntity.tensor, tensorB);
 
-                        // Clustering spektral dengan evaluasi continuous/boolean logic (tanpa if-else)
-                        const isResonant = sim >= similarityThreshold;
+                // ✅ GUNAKAN IF BIASE: Ini adalah Control Flow, bukan Tensor Math
+                if (sim >= similarityThreshold) {
+                    // Partikel ditarik ke dalam Basin Entitas ini
+                    this.addVectorInPlace(newEntity.tensor, tensorB);
+                    visited.add(keyB);
 
-                        isResonant && (() => {
-                            // Partikel ditarik ke dalam Basin Entitas ini
-                            this.addVectorInPlace(newEntity.tensor, tensorB);
-                            visited.add(keyB);
+                    const parsedB = parseKey(keyB);
+                    sumX += parsedB.x;
+                    sumY += parsedB.y;
+                    membersCount++;
+                    newEntity.mass++;
 
-                            const parsedB = parseKey(keyB);
-                            sumX += parsedB.x;
-                            sumY += parsedB.y;
-                            membersCount++;
-                            newEntity.mass++;
-
-                            // Perbarui bounding box spread menggunakan pure math min/max (branchless)
-                            minX = Math.min(minX, parsedB.x);
-                            maxX = Math.max(maxX, parsedB.x);
-                            minY = Math.min(minY, parsedB.y);
-                            maxY = Math.max(maxY, parsedB.y);
-                        })();
-                    })();
+                    // Math Branchless untuk Spread (Sangat cepat di ALU)
+                    minX = Math.min(minX, parsedB.x);
+                    maxX = Math.max(maxX, parsedB.x);
+                    minY = Math.min(minY, parsedB.y);
+                    maxY = Math.max(maxY, parsedB.y);
                 }
+            }
 
-                // Hitung penyebaran spasial (luas bounding box + 1)
-                newEntity.spread = (maxX - minX + 1) * (maxY - minY + 1);
+            // Hitung penyebaran spasial (luas bounding box + 1)
+            newEntity.spread = (maxX - minX + 1) * (maxY - minY + 1);
 
-                // Hitung Center of Mass rata-rata
-                newEntity.center_rel = {
-                    x: sumX / membersCount,
-                    y: sumY / membersCount
-                };
+            // Hitung Center of Mass rata-rata
+            newEntity.center_rel = {
+                x: sumX / membersCount,
+                y: sumY / membersCount
+            };
 
-                // Normalisasi Superposisi agar tidak meledak (L2 Norm)
-                this.normalizeInPlace(newEntity.tensor);
+            // L2 Normalization (Dengan Math Branchless Trick Epsilon)
+            this.normalizeInPlace(newEntity.tensor);
 
-                entities.push(newEntity);
-            })();
+            entities.push(newEntity);
         }
 
         return entities;
@@ -131,12 +125,12 @@ export class EntitySegmenter {
         for (let i = 0; i < GLOBAL_DIMENSION; i++) {
             magSq += v[i]! * v[i]!;
         }
-        const mag = Math.sqrt(magSq);
 
-        // Zero-if/else logic untuk L2 normalisasi
-        const isMageValid = mag > 1e-12;
-        isMageValid && (() => {
-            for (let i = 0; i < GLOBAL_DIMENSION; i++) v[i] /= mag;
-        })();
+        // Menggunakan EPSILON agar tidak perlu if (mag > 0)
+        // Ini adalah contoh Math Branchless sejati!
+        const invMag = 1.0 / (Math.sqrt(magSq) + 1e-15);
+        for (let i = 0; i < GLOBAL_DIMENSION; i++) {
+            v[i] *= invMag;
+        }
     }
 }

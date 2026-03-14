@@ -56,11 +56,12 @@ export class WaveDynamics {
         }
         const mag = Math.sqrt(magSq);
 
-        // Zero-if branchless evaluation
-        const isValidMag = mag > 1e-12;
-        isValidMag && (() => {
-            for (let i = 0; i < GLOBAL_DIMENSION; i++) agentTensor[i] /= mag;
-        })();
+        // Menggunakan EPSILON agar tidak perlu if (mag > 0)
+        // Ini adalah contoh Math Branchless sejati!
+        const invMag = 1.0 / (mag + 1e-15);
+        for (let i = 0; i < GLOBAL_DIMENSION; i++) {
+            agentTensor[i] *= invMag;
+        }
     }
 
     /**
@@ -91,28 +92,24 @@ export class WaveDynamics {
         const sourceAgent = this.entitiesCache[sourceIndex];
         const numEntities = this.entitiesCache.length;
 
-        // Zero if-else untuk safety check
-        const isValidSource = !!sourceAgent && this.entanglementMatrix.length === numEntities;
+        // V8 Optimized Control Flow
+        if (!sourceAgent || this.entanglementMatrix.length !== numEntities) return;
 
-        isValidSource && (() => {
-            for (let targetIndex = 0; targetIndex < numEntities; targetIndex++) {
-                // Skip self (branchless math logic)
-                const isNotSelf = targetIndex !== sourceIndex;
+        for (let targetIndex = 0; targetIndex < numEntities; targetIndex++) {
+            // V8 Optimized Control Flow (Skip self)
+            if (targetIndex === sourceIndex) continue;
 
-                isNotSelf && (() => {
-                    const targetAgent = this.entitiesCache[targetIndex]!;
-                    const entanglementWeight = this.entanglementMatrix[sourceIndex]![targetIndex]!;
+            const targetAgent = this.entitiesCache[targetIndex]!;
+            const entanglementWeight = this.entanglementMatrix[sourceIndex]![targetIndex]!;
 
-                    // Partial collapse berdasarkan coupling (0.0 to 1.0)
-                    for(let i=0; i<GLOBAL_DIMENSION; i++){
-                        // Interpolasi linear murni: W * Source + (1-W) * Target
-                        targetAgent.tensor[i] = (entanglementWeight * sourceAgent!.tensor[i]!) + ((1.0 - entanglementWeight) * targetAgent.tensor[i]!);
-                    }
-
-                    // Mark entanglement status as combined weight
-                    targetAgent.entanglement_status = Math.max(targetAgent.entanglement_status, entanglementWeight);
-                })();
+            // Partial collapse berdasarkan coupling (0.0 to 1.0) menggunakan Math Branchless sejati
+            for (let i = 0; i < GLOBAL_DIMENSION; i++) {
+                // Interpolasi linear murni: W * Source + (1-W) * Target
+                targetAgent.tensor[i] = (entanglementWeight * sourceAgent.tensor[i]!) + ((1.0 - entanglementWeight) * targetAgent.tensor[i]!);
             }
-        })();
+
+            // Mark entanglement status as combined weight (Math Branchless)
+            targetAgent.entanglement_status = Math.max(targetAgent.entanglement_status, entanglementWeight);
+        }
     }
 }

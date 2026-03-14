@@ -92,27 +92,21 @@ export class RRM_Agent {
             for (const match of alignments) {
                 // Melonggarkan Threshold agar pergerakan ekstrem bisa terekam
                 // Menurunkan batas keyakinan dari 0.7 ke 0.4
-                const isValidDelta = !!match.deltaTensor && match.similarity > 0.4;
-
-                isValidDelta && (() => {
+                if (match.deltaTensor && match.similarity > 0.4) {
                     // Coba kenali DeltaTensor ini dengan memori yang pernah dipanen sebelumnya (Resonance Search)
-                    const knownMemory = this.seedBank.findBestMatch(match.deltaTensor!);
+                    const knownMemory = this.seedBank.findBestMatch(match.deltaTensor);
 
                     // Melonggarkan Memory Matching dari 0.85 ke 0.75
-                    const isRecognized = !!knownMemory && knownMemory.coherence > 0.75;
-
-                    isRecognized && (() => {
+                    if (knownMemory && knownMemory.coherence > 0.75) {
                         // Jika memori dikenali kuat, gunakan Hukum Asli yang ortogonal
-                        log(`      [Resonance] Pergerakan dikenali sebagai: ${knownMemory!.name} (Kemiripan: ${(knownMemory!.coherence * 100).toFixed(2)}%)`);
-                        this.pruner.injectHypothesis(knownMemory!.name, knownMemory!.phasor, 1.0, 0.01); // Menurunkan decay dari 0.05 ke 0.01 agar tidak cepat mati
-                    })();
-
-                    (!isRecognized) && (() => {
+                        log(`      [Resonance] Pergerakan dikenali sebagai: ${knownMemory.name} (Kemiripan: ${(knownMemory.coherence * 100).toFixed(2)}%)`);
+                        this.pruner.injectHypothesis(knownMemory.name, knownMemory.phasor, 1.0, 0.01); // Menurunkan decay dari 0.05 ke 0.01 agar tidak cepat mati
+                    } else {
                         // Jika fenomena ini benar-benar baru, suntikkan sebagai hipotesis mentah yang lebih rapuh
                         const ruleId = `LAW_NEW_TRAIN_${i}_${match.source.id}`;
-                        this.pruner.injectHypothesis(ruleId, match.deltaTensor!, 1.0, 0.1); // Menurunkan decay dari 0.3 ke 0.1
-                    })();
-                })();
+                        this.pruner.injectHypothesis(ruleId, match.deltaTensor, 1.0, 0.1); // Menurunkan decay dari 0.3 ke 0.1
+                    }
+                }
             }
         }
 
@@ -138,72 +132,64 @@ export class RRM_Agent {
         ];
         log(statusMessages[Number(rulesCount > 0)]!);
 
-        // Array simulasi return untuk zero-if logic
-        let finalResult: number[][] | number[] | null = null;
-        const hasSurvivingRules = rulesCount > 0;
+        // V8 Optimized Control Flow
+        if (rulesCount === 0) return null;
 
         // 4. =======================================================
         // 🌌 THE COLLAPSE PHASE
         // Meruntuhkan probabilitas gelombang menjadi realitas absolut (Output Prediksi)
-        // Hanya dijalankan jika ada rules (hasSurvivingRules == true)
         // =======================================================
-        hasSurvivingRules && (() => {
-            log(`   [4] COLLAPSE: Mengaplikasikan Axiom ke realitas Test...`);
+        log(`   [4] COLLAPSE: Mengaplikasikan Axiom ke realitas Test...`);
 
-            // Terapkan medan Wave Gravity ke Test Entities
-            this.waveDynamics.initializeEntities(testEntities);
-            this.waveDynamics.evolveEntanglement(0.2); // Sinkronisasi state awal tes
+        // Terapkan medan Wave Gravity ke Test Entities
+        this.waveDynamics.initializeEntities(testEntities);
+        this.waveDynamics.evolveEntanglement(0.2); // Sinkronisasi state awal tes
 
-            // Contextualize dengan memori kolektif yang sudah dibangun saat training
-            const collectiveState = this.blackboard.readCollectiveState();
+        // Contextualize dengan memori kolektif yang sudah dibangun saat training
+        const collectiveState = this.blackboard.readCollectiveState();
 
-            for (let i = 0; i < testEntities.length; i++) {
-                const testEntity = testEntities[i]!;
+        for (let i = 0; i < testEntities.length; i++) {
+            const testEntity = testEntities[i]!;
 
-                // Sadarkan agen akan state kolektif
-                const contextualizedTensor = this.blackboard.contextualizeAgent(testEntity.tensor);
+            // Sadarkan agen akan state kolektif
+            const contextualizedTensor = this.blackboard.contextualizeAgent(testEntity.tensor);
 
-                // Tarik tensor test menggunakan sisa-sisa aturan yang selamat dan memori kolektif
-                const attractors = survivingRules.map(r => r.tensor_rule);
-                attractors.push(contextualizedTensor); // Atraktor tambahan dari consciousness
+            // Tarik tensor test menggunakan sisa-sisa aturan yang selamat dan memori kolektif
+            const attractors = survivingRules.map(r => r.tensor_rule);
+            attractors.push(contextualizedTensor); // Atraktor tambahan dari consciousness
 
-                this.waveDynamics.applyWaveGravity(testEntity, attractors, []);
+            this.waveDynamics.applyWaveGravity(testEntity, attractors, []);
 
-                // Picu efek domino: Jika agen ini berubah, agen yang terikat ikut terpengaruh proporsional (branchless)
-                this.waveDynamics.triggerCollapse(i);
+            // Picu efek domino: Jika agen ini berubah, agen yang terikat ikut terpengaruh proporsional (branchless)
+            this.waveDynamics.triggerCollapse(i);
+        }
+
+        // Mengambil ukuran asli test grid (Jika 2D) untuk re-render
+        // Kita gunakan logika agnostik untuk resolusi (mencari max X dan Y dari input asli)
+        const testInput = task.test[0]!.input;
+        const is2D = Array.isArray(testInput[0]);
+
+        if (is2D) {
+            const grid = testInput as number[][];
+            const height = grid.length;
+            const width = grid[0]?.length || 0;
+
+            // Membundle (Superposisi) seluruh entitas tes menjadi satu Tensor Semesta
+            const universeTensor = new Float32Array(GLOBAL_DIMENSION);
+            for (const entity of testEntities) {
+                for (let d = 0; d < GLOBAL_DIMENSION; d++) {
+                    universeTensor[d] += entity.tensor[d]!;
+                }
             }
 
-            // Mengambil ukuran asli test grid (Jika 2D) untuk re-render
-            // Kita gunakan logika agnostik untuk resolusi (mencari max X dan Y dari input asli)
-            const testInput = task.test[0]!.input;
-            const is2D = Array.isArray(testInput[0]);
+            // Menerapkan Runtuhan Gelombang Kuantum (Quantum Collapse)
+            const collapsedGrid = this.decoder.collapseToGrid(universeTensor, width, height, 0.4);
 
-            is2D && (() => {
-                const grid = testInput as number[][];
-                const height = grid.length;
-                const width = grid[0]?.length || 0;
-
-                // Membundle (Superposisi) seluruh entitas tes menjadi satu Tensor Semesta
-                const universeTensor = new Float32Array(GLOBAL_DIMENSION);
-                for (const entity of testEntities) {
-                    for (let d = 0; d < GLOBAL_DIMENSION; d++) {
-                        universeTensor[d] += entity.tensor[d]!;
-                    }
-                }
-
-                // Menerapkan Runtuhan Gelombang Kuantum (Quantum Collapse)
-                finalResult = this.decoder.collapseToGrid(universeTensor, width, height, 0.4);
-
-                log(`   ✅ REALITAS TERBENTUK: Grid (${width}x${height}) dirender ulang dari superposisi kuantum secara branchless.`);
-            })();
-
-            (!is2D) && (() => {
-                // Placeholder untuk token 1D jika diperlukan
-                finalResult = testInput;
-            })();
-        })();
-
-        // Resolve return menggunakan zero-if logic fallback
-        return finalResult;
+            log(`   ✅ REALITAS TERBENTUK: Grid (${width}x${height}) dirender ulang dari superposisi kuantum secara branchless.`);
+            return collapsedGrid;
+        } else {
+            // Placeholder untuk token 1D jika diperlukan
+            return testInput;
+        }
     }
 }
