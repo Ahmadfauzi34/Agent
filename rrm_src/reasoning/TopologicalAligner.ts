@@ -30,37 +30,49 @@ export class TopologicalAligner {
 
         for (const src of sortedSources) {
             let bestTarget: CognitiveEntity | null = null;
-            let bestSim = -1;
+            let bestSim = -1.0; // Izinkan kemiripan negatif ekstrem
 
             // Pencarian O(N^2) lokal untuk menemukan pasangan tensor yang paling beresonansi
             for (const tgt of targets) {
-                if (usedTargets.has(tgt.id)) continue;
+                const isUsed = usedTargets.has(tgt.id);
 
-                // Mengukur kesamaan "Jiwa" Entitas (Bentuk/Warna/Posisi Kuantum)
-                const sim = FHRR.similarity(src.tensor, tgt.tensor);
+                !isUsed && (() => {
+                    // Mengukur kesamaan "Jiwa" Entitas (Bentuk/Warna/Posisi Kuantum)
+                    // FHRR Similarity mungkin kecil karena pergerakan drastis, tapi kita asumsikan
+                    // entitas bisa berubah bentuk atau warna.
+                    const sim = FHRR.similarity(src.tensor, tgt.tensor);
 
-                // Algoritma greedy untuk matching: Tanpa if-else kompleks,
-                // kita hanya mengamankan yang sim-nya tertinggi.
-                const isBetter = sim > bestSim;
-                if (isBetter) {
-                    bestSim = sim;
-                    bestTarget = tgt;
-                }
+                    // Menambahkan Heuristik "Massa" (Entitas jarang mengubah ukurannya secara ekstrem)
+                    // Perbedaan massa (0.0 = beda jauh, 1.0 = sama persis)
+                    const massRatio = Math.min(src.mass, tgt.mass) / Math.max(src.mass, tgt.mass);
+
+                    // Skor campuran: 70% kemiripan jiwa (tensor), 30% konsistensi massa
+                    const combinedScore = (sim * 0.7) + (massRatio * 0.3);
+
+                    // Algoritma greedy untuk matching murni melalui assignment berbasis boolean logic
+                    const isBetter = combinedScore > bestSim;
+
+                    isBetter && (() => {
+                        bestSim = combinedScore; // Catat skor gabungannya
+                        bestTarget = tgt;
+                    })();
+                })();
             }
 
             let delta: TensorVector | null = null;
 
-            if (bestTarget) {
-                usedTargets.add(bestTarget.id);
+            // Pengecekan via double negasi (!!) memicu eksekusi closure
+            !!bestTarget && (() => {
+                usedTargets.add(bestTarget!.id);
                 // Unbinding untuk mencari TAHU "APA YANG TERJADI" (Hukum Perubahan)
                 // Delta = Target * Inverse(Source)
-                delta = FHRR.bind(bestTarget.tensor, FHRR.inverse(src.tensor));
-            }
+                delta = FHRR.bind(bestTarget!.tensor, FHRR.inverse(src.tensor));
+            })();
 
             matches.push({
                 source: src,
                 target: bestTarget,
-                similarity: bestSim,
+                similarity: bestSim, // Menyimpan skor keyakinan baru
                 deltaTensor: delta
             });
         }
