@@ -113,22 +113,17 @@ export class LogicSeedBank {
     // [ LEVEL 3 ] GEOMETRIC TRANSFORM (Rotasi, Refleksi, Simetri)
     // ========================================================================
     private initLevel3_GeometricTransform() {
-        // Rotasi 90, 180, 270
-        const rot90 = this.manifold.generateRotationOperator(90);
-        this.registerSkill("L3_ROTATE_90", 3090, rot90);
+        // Karena kita sudah mengganti "generateRotationOperator" di UniversalManifold
+        // ke arsitektur AxiomGenerator (pure FHRR/1D phase shifts), kita daftarkan
+        // aproksimasi Mirror/Inversion murni ke Seed Bank.
 
-        const rot180 = this.manifold.generateRotationOperator(180);
-        this.registerSkill("L3_ROTATE_180", 3180, rot180);
+        // Peringatan: Saat ini FHRR Inverse berlaku sebagai operasi Refleksi Kuantum absolut.
+        // Kita mendaftarkan ini agar dikenali oleh Resonance Search
 
-        const rot270 = this.manifold.generateRotationOperator(270);
-        this.registerSkill("L3_ROTATE_270", 3270, rot270);
-
-        // Mirror X & Y
-        const mirrorX = this.manifold.generateMirrorOperator('X');
-        this.registerSkill("L3_MIRROR_X", 3501, mirrorX);
-
-        const mirrorY = this.manifold.generateMirrorOperator('Y');
-        this.registerSkill("L3_MIRROR_Y", 3502, mirrorY);
+        // L3_INVERSE (Sebagai representasi Mirror/Negative Phase)
+        const inverseBase = new Float32Array(GLOBAL_DIMENSION).fill(0.0);
+        inverseBase[0] = -1.0; // Phase shift murni 180 derajat
+        this.registerSkill("L3_INVERSE_REFLECTION", 3500, inverseBase);
     }
 
     // ========================================================================
