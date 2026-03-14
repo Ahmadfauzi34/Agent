@@ -1,6 +1,6 @@
-import { TensorVector, GLOBAL_DIMENSION } from '../core/config';
-import { LogicSeedBank } from './logic-seed-bank';
-import { PDRLogger } from '../reasoning/level1-pdr/pdr-debug';
+import { TensorVector, GLOBAL_DIMENSION } from '../core/config.js';
+import { LogicSeedBank } from './logic-seed-bank.js';
+import { PDRLogger } from '../shared/logger.js';
 
 /**
  * 🛠️ MAINTENANCE ENGINE (The Quantum Annealer)

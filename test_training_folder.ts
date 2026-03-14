@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { PDRLogger, LogLevel } from './rrm_src/reasoning/level1-pdr/pdr-debug';
+import { PDRLogger, LogLevel } from './rrm_src/shared/logger';
 import { RRM_Agent } from './rrm_src/RRM_Agent';
 
 const agent = new RRM_Agent();

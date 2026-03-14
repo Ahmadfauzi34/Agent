@@ -127,4 +127,19 @@ export class EntityManifold {
         const invMag = 1.0 / (Math.sqrt(magSq) + 1e-15);
         for (let i = 0; i < GLOBAL_DIMENSION; i++) tensor[i] *= invMag;
     }
+
+    /**
+     * 🏎️ V8 Optimized Iterator untuk Entitas Aktif (Hukum 5 & L1 Cache)
+     * Hanya mengeksekusi callback jika massa entitas > 0 (bukan Vacuum State).
+     */
+    public forEachActive(
+        callback: (index: number, mass: number, relX: number, relY: number, token: number) => void
+    ): void {
+        for (let i = 0; i < this.activeCount; i++) {
+            const m = this.masses[i]!;
+            if (m > 0.0) {
+                callback(i, m, this.centersX[i]!, this.centersY[i]!, this.tokens[i]!);
+            }
+        }
+    }
 }

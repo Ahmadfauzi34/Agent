@@ -9,9 +9,9 @@ import { FHRR } from '../core/fhrr';
  */
 export class UniversalManifold {
     // Sumbu Spasial Dasar untuk VSA
-    private X_AXIS_SEED: TensorVector;
-    private Y_AXIS_SEED: TensorVector;
-    private COLOR_SEED: TensorVector; // Alias "Token Seed"
+    public readonly X_AXIS_SEED: TensorVector;
+    public readonly Y_AXIS_SEED: TensorVector;
+    public readonly COLOR_SEED: TensorVector; // Alias "Token Seed"
 
     constructor() {
         // Membuat seed ortogonal dasar (Holographic Axioms)

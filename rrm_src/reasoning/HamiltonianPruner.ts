@@ -1,5 +1,5 @@
 import { TensorVector, GLOBAL_DIMENSION } from '../core/config';
-import { PDRLogger } from './level1-pdr/pdr-debug';
+import { PDRLogger } from '../shared/logger.js';
 
 export interface Hypothesis {
     id: string;
@@ -77,6 +77,32 @@ export class HamiltonianPruner {
             for (let i = 0; i < GLOBAL_DIMENSION; i++) {
                 // Skala aman pencegahan overshooting
                 hyp.tensor_rule[i] = Math.max(-1, Math.min(1, hyp.tensor_rule[i]! * restoreFactor));
+            }
+        }
+    }
+
+    /**
+     * 💥 INTERFERENSI DESTRUKTIF (The Eraser)
+     * Diterapkan ketika suatu Axiom (Hukum) terbukti SALAH memprediksi
+     * pergerakan entitas di dimensi/pair selanjutnya (Cross-Validation).
+     */
+    public punishHypothesis(id: string, penaltyEnergy: number = 0.5): void {
+        const hyp = this.activeHypotheses.get(id);
+        if (hyp) {
+            // Hancurkan energinya secara brutal (Quantum Jump to 0)
+            hyp.energy -= penaltyEnergy;
+
+            // Operasi Disipatif Instan (Fading)
+            // Memastikan energi tidak negatif saat menghitung skala
+            const fadingFactor = Math.max(0.0, hyp.energy);
+            for (let i = 0; i < GLOBAL_DIMENSION; i++) {
+                hyp.tensor_rule[i] *= fadingFactor;
+            }
+
+            // Kematian Instan (Minimum Description Length Pruning)
+            if (hyp.energy < 0.05) {
+                this.activeHypotheses.delete(id);
+                PDRLogger.trace(`[HamiltonianPruner] ⚡ ERASED: Hipotesis '${id}' dimusnahkan secara paksa oleh Interferensi Destruktif.`);
             }
         }
     }
