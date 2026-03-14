@@ -1,22 +1,37 @@
-import { CognitiveEntity } from '../core/CognitiveEntity';
-import { TensorVector, GLOBAL_DIMENSION } from '../core/config';
+import { CognitiveEntity } from '../core/CognitiveEntity.js';
+import { TensorVector, GLOBAL_DIMENSION } from '../core/config.js';
+import { EntanglementOptimizer } from './EntanglementOptimizer.js';
 
 /**
  * 🌊 WAVE DYNAMICS (Fase 4)
  * Menangani navigasi dan kausalitas (Entanglement) antar CognitiveEntities.
- * Diadaptasi dari script lama `WavePacketSynchronizer` dengan standar VSA baru.
+ * Menggunakan Hebbian Learning Matrix, Zero If-Else arsitektur, menghilangkan Map manual.
  */
 export class WaveDynamics {
-    private entanglementLinks: Map<string, string[]> = new Map();
+    private entanglementMatrix: Float32Array[] = [];
+    private entitiesCache: CognitiveEntity[] = [];
 
     /**
-     * Membuat keterikatan kuantum (Quantum Entanglement) antar dua entitas.
+     * Mendaftarkan seluruh agen/entitas dan menginisialisasi Matriks Entanglement
      */
-    public createEntanglement(agentIdA: string, agentIdB: string): void {
-        if (!this.entanglementLinks.has(agentIdA)) {
-            this.entanglementLinks.set(agentIdA, []);
+    public initializeEntities(entities: CognitiveEntity[]): void {
+        this.entitiesCache = entities;
+        const numEntities = entities.length;
+
+        // Buat N x N Float32Array untuk quantum coupling branchless tracking
+        this.entanglementMatrix = new Array(numEntities);
+        for (let i = 0; i < numEntities; i++) {
+            this.entanglementMatrix[i] = new Float32Array(numEntities).fill(0.0);
+            this.entanglementMatrix[i]![i] = 1.0; // Self-entangled = 1.0
         }
-        this.entanglementLinks.get(agentIdA)!.push(agentIdB);
+    }
+
+    /**
+     * Menjalankan Hebbian Learning: Otomatis mencari dan menyambungkan
+     * "Neurons that fire together" tanpa if-else.
+     */
+    public evolveEntanglement(learningRate: number = 0.1): void {
+        EntanglementOptimizer.optimize(this.entitiesCache, this.entanglementMatrix, learningRate);
     }
 
     /**
@@ -40,9 +55,12 @@ export class WaveDynamics {
             magSq += agentTensor[i]! * agentTensor[i]!;
         }
         const mag = Math.sqrt(magSq);
-        if (mag > 1e-12) {
+
+        // Zero-if branchless evaluation
+        const isValidMag = mag > 1e-12;
+        isValidMag && (() => {
             for (let i = 0; i < GLOBAL_DIMENSION; i++) agentTensor[i] /= mag;
-        }
+        })();
     }
 
     /**
@@ -67,21 +85,34 @@ export class WaveDynamics {
     /**
      * TRIGGER COLLAPSE
      * Meruntuhkan gelombang informasi ke agen-agen yang saling terikat (Entangled).
-     * Jika A berubah, B juga dipaksa untuk ikut berubah secara instan (Spooky action at a distance).
+     * Jika A berubah, B terpengaruh SEBANDING dengan bobot entanglement-nya.
      */
-    public triggerCollapse(sourceAgent: CognitiveEntity, allAgents: Map<string, CognitiveEntity>): void {
-        const linkedAgents = this.entanglementLinks.get(sourceAgent.id);
-        if (!linkedAgents) return;
+    public triggerCollapse(sourceIndex: number): void {
+        const sourceAgent = this.entitiesCache[sourceIndex];
+        const numEntities = this.entitiesCache.length;
 
-        linkedAgents.forEach(targetId => {
-            const targetAgent = allAgents.get(targetId);
-            if (targetAgent) {
-                // Target menerima status memori (Tensor) dari Source
-                for(let i=0; i<GLOBAL_DIMENSION; i++){
-                     targetAgent.tensor[i] = sourceAgent.tensor[i]!;
-                }
-                targetAgent.entanglement_status = 1; // Mark as collapsed
+        // Zero if-else untuk safety check
+        const isValidSource = !!sourceAgent && this.entanglementMatrix.length === numEntities;
+
+        isValidSource && (() => {
+            for (let targetIndex = 0; targetIndex < numEntities; targetIndex++) {
+                // Skip self (branchless math logic)
+                const isNotSelf = targetIndex !== sourceIndex;
+
+                isNotSelf && (() => {
+                    const targetAgent = this.entitiesCache[targetIndex]!;
+                    const entanglementWeight = this.entanglementMatrix[sourceIndex]![targetIndex]!;
+
+                    // Partial collapse berdasarkan coupling (0.0 to 1.0)
+                    for(let i=0; i<GLOBAL_DIMENSION; i++){
+                        // Interpolasi linear murni: W * Source + (1-W) * Target
+                        targetAgent.tensor[i] = (entanglementWeight * sourceAgent!.tensor[i]!) + ((1.0 - entanglementWeight) * targetAgent.tensor[i]!);
+                    }
+
+                    // Mark entanglement status as combined weight
+                    targetAgent.entanglement_status = Math.max(targetAgent.entanglement_status, entanglementWeight);
+                })();
             }
-        });
+        })();
     }
 }

@@ -1,10 +1,11 @@
 import { UniversalManifold, EntitySegmenter, HologramDecoder } from './perception';
-import { TopologicalAligner, WaveDynamics, HamiltonianPruner } from './reasoning';
-import { HolographicManifold, LogicSeedBank } from './memory';
-import { Task } from './shared';
-import { PDRLogger, LogLevel } from './reasoning/level1-pdr/pdr-debug';
-import { CognitiveEntity } from './core/CognitiveEntity';
-import { TensorVector, GLOBAL_DIMENSION } from './core/config';
+import { TopologicalAligner, WaveDynamics, HamiltonianPruner } from './reasoning/index.js';
+import { GlobalBlackboard } from './reasoning/GlobalBlackboard.js';
+import { HolographicManifold, LogicSeedBank } from './memory/index.js';
+import { Task } from './shared/index.js';
+import { PDRLogger, LogLevel } from './reasoning/level1-pdr/pdr-debug.js';
+import { CognitiveEntity } from './core/CognitiveEntity.js';
+import { TensorVector, GLOBAL_DIMENSION } from './core/config.js';
 
 /**
  * 🤖 THE RECURSIVE REASONING MACHINE (Fase 5: Sang Orkestrator)
@@ -17,6 +18,7 @@ export class RRM_Agent {
     private aligner = new TopologicalAligner();
     private waveDynamics = new WaveDynamics();
     private pruner = new HamiltonianPruner();
+    private blackboard = new GlobalBlackboard();
     private decoder: HologramDecoder;
     private seedBank: LogicSeedBank;
 
@@ -73,32 +75,18 @@ export class RRM_Agent {
         for (let i = 0; i < trainStates.length; i++) {
             const state = trainStates[i]!;
 
-            // 2A. DETEKSI ENTANGLEMENT MULTI-AGENT (Spatial & Semantic Overlap)
-            // Tanpa if-else spasial, kita mengukur kesamaan murni antar entitas di ruang tensor
-            for (let a = 0; a < state.in.length; a++) {
-                for (let b = a + 1; b < state.in.length; b++) {
-                    const entA = state.in[a]!;
-                    const entB = state.in[b]!;
+            // 2A. DETEKSI ENTANGLEMENT MULTI-AGENT (Hebbian Learning Branchless)
+            this.waveDynamics.initializeEntities(state.in);
 
-                    // Cosine Similarity Tensor
-                    let dot = 0, magA = 0, magB = 0;
-                    for (let d = 0; d < GLOBAL_DIMENSION; d++) {
-                        dot += entA.tensor[d]! * entB.tensor[d]!;
-                        magA += entA.tensor[d]! * entA.tensor[d]!;
-                        magB += entB.tensor[d]! * entB.tensor[d]!;
-                    }
-                    const sim = dot / Math.sqrt((magA * magB) || 1);
+            // Evolve entanglement berdasarkan interaksi antar agen (Otomatis tanpa if-else)
+            this.waveDynamics.evolveEntanglement(0.2);
 
-                    // Gating Kuantum: Jika similarity > 0.85, terikat.
-                    // (Kita gunakan simple if di sini untuk control flow registrasi map)
-                    if (sim > 0.85) {
-                        this.waveDynamics.createEntanglement(entA.id, entB.id);
-                        this.waveDynamics.createEntanglement(entB.id, entA.id); // Mutual entanglement
-                    }
-                }
-            }
+            // 2B. KESADARAN KOLEKTIF (Superposisi state seluruh entitas)
+            // Semua agen menyatukan pikirannya ke GlobalBlackboard
+            const agentTensors = state.in.map(e => e.tensor);
+            this.blackboard.synchronize(agentTensors);
 
-            // 2B. HUNGARIAN MATCHING & HUKUM FISIKA
+            // 2C. HUNGARIAN MATCHING & HUKUM FISIKA
             const alignments = this.aligner.align(state.in, state.out);
 
             for (const match of alignments) {
@@ -153,18 +141,27 @@ export class RRM_Agent {
         // =======================================================
         log(`   [4] COLLAPSE: Mengaplikasikan Axiom ke realitas Test...`);
 
-        // Mapping id -> entity untuk rujukan instan Entanglement
-        const testEntitiesMap = new Map<string, CognitiveEntity>();
-        testEntities.forEach(e => testEntitiesMap.set(e.id, e));
-
         // Terapkan medan Wave Gravity ke Test Entities
-        for (const testEntity of testEntities) {
-            // Tarik tensor test menggunakan sisa-sisa aturan yang selamat
+        this.waveDynamics.initializeEntities(testEntities);
+        this.waveDynamics.evolveEntanglement(0.2); // Sinkronisasi state awal tes
+
+        // Contextualize dengan memori kolektif yang sudah dibangun saat training
+        const collectiveState = this.blackboard.readCollectiveState();
+
+        for (let i = 0; i < testEntities.length; i++) {
+            const testEntity = testEntities[i]!;
+
+            // Sadarkan agen akan state kolektif
+            const contextualizedTensor = this.blackboard.contextualizeAgent(testEntity.tensor);
+
+            // Tarik tensor test menggunakan sisa-sisa aturan yang selamat dan memori kolektif
             const attractors = survivingRules.map(r => r.tensor_rule);
+            attractors.push(contextualizedTensor); // Atraktor tambahan dari consciousness
+
             this.waveDynamics.applyWaveGravity(testEntity, attractors, []);
 
-            // Picu efek domino: Jika agen ini berubah, yang terikat dengannya dipaksa ikut berubah
-            this.waveDynamics.triggerCollapse(testEntity, testEntitiesMap);
+            // Picu efek domino: Jika agen ini berubah, agen yang terikat ikut terpengaruh proporsional (branchless)
+            this.waveDynamics.triggerCollapse(i);
         }
 
         // Mengambil ukuran asli test grid (Jika 2D) untuk re-render
