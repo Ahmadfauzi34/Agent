@@ -47,8 +47,8 @@ async function main() {
         fs.mkdirSync(logDir);
     }
 
-    const files = fs.readdirSync(trainingDir).filter(f => f.endsWith('.json'));
-    console.log(`Memulai batch processing untuk ${files.length} task di folder training...`);
+    const files = fs.readdirSync(trainingDir).filter(f => f.endsWith('.json')).slice(0, 30);
+    console.log(`Memulai batch processing untuk 30 task di folder training dengan Arsitektur ECS (Math Branchless)...`);
 
     let totalSolved = 0;
 
