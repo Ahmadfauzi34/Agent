@@ -36,15 +36,12 @@ export class GlobalBlackboard {
         for (let i = 0; i < GLOBAL_DIMENSION; i++) {
             magSq += this.collectiveState[i]! * this.collectiveState[i]!;
         }
-        const mag = Math.sqrt(magSq);
 
-        // Zero-if logic untuk memastikan tidak membagi dengan nol
-        const isValidMag = mag > 1e-12;
-        isValidMag && (() => {
-            for (let i = 0; i < GLOBAL_DIMENSION; i++) {
-                this.collectiveState[i] /= mag;
-            }
-        })();
+        // Math Branchless Normalization
+        const invMag = 1.0 / (Math.sqrt(magSq) + 1e-15);
+        for (let i = 0; i < GLOBAL_DIMENSION; i++) {
+            this.collectiveState[i] *= invMag;
+        }
     }
 
     /**
@@ -63,15 +60,15 @@ export class GlobalBlackboard {
         // Menggunakan binding sirkular FHRR untuk menggabungkan state individu dengan state kolektif
         const bound = FHRR.bind(agentState, this.collectiveState);
 
-        // Renormalisasi L2
+        // Renormalisasi L2 (Math Branchless)
         let magSq = 0;
-        for (let i = 0; i < GLOBAL_DIMENSION; i++) magSq += bound[i]! * bound[i]!;
-        const mag = Math.sqrt(magSq);
-
-        const isValidMag = mag > 1e-12;
-        isValidMag && (() => {
-            for (let i = 0; i < GLOBAL_DIMENSION; i++) bound[i] /= mag;
-        })();
+        for (let i = 0; i < GLOBAL_DIMENSION; i++) {
+            magSq += bound[i]! * bound[i]!;
+        }
+        const invMag = 1.0 / (Math.sqrt(magSq) + 1e-15);
+        for (let i = 0; i < GLOBAL_DIMENSION; i++) {
+            bound[i] *= invMag;
+        }
 
         return bound;
     }
