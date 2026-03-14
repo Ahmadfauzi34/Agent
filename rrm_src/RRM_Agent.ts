@@ -6,6 +6,7 @@ import { Task } from './shared/index.js';
 import { PDRLogger, LogLevel } from './shared/logger.js';
 import { EntityManifold } from './core/EntityManifold.js';
 import { TensorVector, GLOBAL_DIMENSION } from './core/config.js';
+import { FHRR } from './core/fhrr.js';
 
 /**
  * 🤖 THE RECURSIVE REASONING MACHINE (Fase 5: Sang Orkestrator)
@@ -114,16 +115,68 @@ export class RRM_Agent {
         }
 
         // 3. =======================================================
-        // 🔥 THE EVOLVE PHASE
-        // Menjalankan waktu. Aturan yang tidak konsisten akan meluruh (MDL Decay).
+        // 🔥 THE EVOLVE PHASE (Renormalization Group Flow / Cross-Validation)
+        // Membunuh hipotesis yang tidak konsisten secara universal.
         // =======================================================
-        log(`   [3] EVOLVE: Menjalankan termodinamika. Menyaring hipotesis paralel...`);
+        log(`   [3] EVOLVE: Menjalankan Termodinamika & Interferensi Destruktif (Cross-Validation)...`);
 
-        const MAX_STEPS = 10;
-        for (let step = 1; step <= MAX_STEPS; step++) {
-            // Melonggarkan aliran waktu (0.1) karena Delta kita sekarang sangat kaya (translasi + cermin)
-            this.pruner.evolveTime(0.1);
+        const activeRules = this.pruner.getSurvivingRules();
+
+        for (const rule of activeRules) {
+            let isUniversallyValid = true;
+
+            for (let i = 0; i < trainStates.length; i++) {
+                const state = trainStates[i]!;
+                let ruleMatchedInThisState = false;
+
+                // V8 Optimized Control Flow
+                state.in.forEachActive((inIdx, inMass, inRelX, inRelY, inToken) => {
+                    const inTensor = state.in.getTensor(inIdx);
+
+                    // Prediksi masa depan: Apa jadinya entitas ini jika dikenai Hukum ini?
+                    const predictedTensor = FHRR.bind(inTensor, rule.tensor_rule);
+
+                    let foundMatch = false;
+
+                    // Cek apakah prediksi ini NYATA ada di output manifold
+                    state.out.forEachActive((outIdx, outMass, outRelX, outRelY, outToken) => {
+                        if (foundMatch) return; // Skip if already matched
+
+                        const outTensor = state.out.getTensor(outIdx);
+                        const sim = FHRR.similarity(predictedTensor, outTensor);
+
+                        // Threshold resonansi dilonggarkan karena fasa seringkali noise
+                        // Cukup mencari jejak tipis dari prediksi
+                        if (sim > 0.1) {
+                            foundMatch = true;
+                        }
+                    });
+
+                    if (foundMatch) {
+                        ruleMatchedInThisState = true;
+                    }
+                });
+
+                // Sebuah axiom cukup dihitung valid jika ia berhasil memprediksi BAGAIMANA
+                // setidaknya SATU entitas bergerak dalam sebuah State (pair).
+                // Karena kita belum mengekstrak aturan per-tipe-warna secara sempurna.
+                if (!ruleMatchedInThisState && state.in.activeCount > 0) {
+                    isUniversallyValid = false;
+                    break;
+                }
+            }
+
+            if (isUniversallyValid) {
+                // Penguatan positif untuk Hukum Universal
+                this.pruner.reinforceHypothesis(rule.id, 0.5);
+            } else {
+                // 💥 THE ERASER: Hancurkan seketika (Interferensi Destruktif)
+                this.pruner.punishHypothesis(rule.id, 1.0); // Penalti maksimal
+            }
         }
+
+        // Tembakan peluruhan pasif terakhir untuk membersihkan sisa debu noise
+        this.pruner.evolveTime(0.1);
 
         const survivingRules = this.pruner.getSurvivingRules();
         const rulesCount = survivingRules.length;
