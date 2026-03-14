@@ -3,7 +3,7 @@ import { TopologicalAligner, WaveDynamics, HamiltonianPruner } from './reasoning
 import { GlobalBlackboard } from './reasoning/GlobalBlackboard.js';
 import { HolographicManifold, LogicSeedBank } from './memory/index.js';
 import { Task } from './shared/index.js';
-import { PDRLogger, LogLevel } from './reasoning/level1-pdr/pdr-debug.js';
+import { PDRLogger, LogLevel } from './shared/logger.js';
 import { EntityManifold } from './core/EntityManifold.js';
 import { TensorVector, GLOBAL_DIMENSION } from './core/config.js';
 

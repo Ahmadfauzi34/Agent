@@ -1,7 +1,7 @@
 import { HolographicManifold } from './rrm_src/memory/holographic-manifold';
 import { LogicSeedBank } from './rrm_src/memory/logic-seed-bank';
 import { MaintenanceEngine } from './rrm_src/memory/MaintenanceEngine';
-import { PDRLogger, LogLevel } from './rrm_src/reasoning/level1-pdr/pdr-debug';
+import { PDRLogger, LogLevel } from './rrm_src/shared/logger';
 
 function testMaintenanceEngine() {
     console.log("🛠️ Memulai Pengujian Quantum Annealer (Maintenance Engine)...");

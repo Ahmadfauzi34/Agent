@@ -1,5 +1,5 @@
 import { TensorVector, GLOBAL_DIMENSION } from '../core/config';
-import { PDRLogger } from './level1-pdr/pdr-debug';
+import { PDRLogger } from '../shared/logger.js';
 
 export interface Hypothesis {
     id: string;
