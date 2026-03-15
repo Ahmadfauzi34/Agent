@@ -51,89 +51,85 @@ export class MaintenanceEngine {
 
     /**
      * 🌀 QUANTUM ANNEALING (Termodinamika Kuantum & Gram-Schmidt)
-     * Mengadaptasi kode lama `runGlobalOrthogonalization` dengan pendinginan logaritmik
-     * untuk mencegah over-shoot / ledakan gradien.
+     * V8 Optimized SoA Array Traversal. Menyingkirkan Map dan dynamic keys.
      */
     public annealMemory(baseLearningRate: number = 0.5, epochs: number = 30): { beforeNoise: number, afterNoise: number } {
-        const entries = this.seedBank.getAllRegisteredPhasors();
-        const keys = Array.from(entries.keys());
+        const numSeeds = this.seedBank.activeCount;
+        if (numSeeds <= 1) return { beforeNoise: 0, afterNoise: 0 };
 
-        if (keys.length <= 1) return { beforeNoise: 0, afterNoise: 0 };
-        const ORTHOGONAL_TOLERANCE = 0.05; // Mengikuti standar batas kemiripan dari script lama
+        const ORTHOGONAL_TOLERANCE = 0.05;
 
-        // Hitung total noise sebelum anneal
+        // Hitung total noise sebelum anneal (L1 Cache Optimized)
         let totalNoiseBefore = 0;
         let pairsCount = 0;
 
-        for (let i = 0; i < keys.length; i++) {
-            for (let j = i + 1; j < keys.length; j++) {
-                const vA = entries.get(keys[i]!)!;
-                const vB = entries.get(keys[j]!)!;
+        for (let i = 0; i < numSeeds; i++) {
+            const vA = this.seedBank.getTensor(i);
+            for (let j = i + 1; j < numSeeds; j++) {
+                const vB = this.seedBank.getTensor(j);
                 totalNoiseBefore += Math.abs(this.dotProduct(vA, vB));
                 pairsCount++;
             }
         }
 
-        PDRLogger.info(`[MaintenanceEngine] 🔥 Memulai Pendinginan Termodinamika (Simulated Annealing) pada ${keys.length} Seed...`);
+        PDRLogger.info(`[MaintenanceEngine] 🔥 Memulai Pendinginan Termodinamika (Simulated Annealing) pada ${numSeeds} Seed...`);
         let isStable = false;
 
-        // Iterasi Evolusi Waktu (Iterative Relaxation Loop)
+        // Buffer Gaya Tolak Global (SoA style)
+        const repulsionFields = new Float32Array(numSeeds * GLOBAL_DIMENSION);
+
+        // Iterasi Evolusi Waktu
         for (let epoch = 0; epoch < epochs; epoch++) {
             let totalCollisions = 0;
-            const repulsionFields = new Map<number, Float32Array>();
+            repulsionFields.fill(0.0);
 
-            for (const key of keys) {
-                repulsionFields.set(key, new Float32Array(GLOBAL_DIMENSION).fill(0));
-            }
+            // A. Evaluasi N-Body Problem (O(N^2) tapi Cache-friendly)
+            for (let i = 0; i < numSeeds; i++) {
+                const vA = this.seedBank.getTensor(i);
+                const offsetA = i * GLOBAL_DIMENSION;
 
-            // A. Evaluasi N-Body Problem
-            for (let i = 0; i < keys.length; i++) {
-                const keyA = keys[i]!;
-                const vA = entries.get(keyA)!;
-                const repFieldA = repulsionFields.get(keyA)!;
-
-                for (let j = i + 1; j < keys.length; j++) {
-                    const keyB = keys[j]!;
-                    const vB = entries.get(keyB)!;
+                for (let j = i + 1; j < numSeeds; j++) {
+                    const vB = this.seedBank.getTensor(j);
+                    const offsetB = j * GLOBAL_DIMENSION;
 
                     const sim = this.dotProduct(vA, vB);
 
-                    // Melanggar Prinsip Eksklusi Pauli (Terlalu mirip)
+                    // Melanggar Prinsip Eksklusi Pauli
                     if (Math.abs(sim) > ORTHOGONAL_TOLERANCE) {
                         totalCollisions++;
-                        const repFieldB = repulsionFields.get(keyB)!;
                         // Tolakan sebanding dengan kemiripan
                         for (let d = 0; d < GLOBAL_DIMENSION; d++) {
-                            repFieldA[d] -= sim * vB[d]!;
-                            repFieldB[d] -= sim * vA[d]!;
+                            repulsionFields[offsetA + d] -= sim * vB[d]!;
+                            repulsionFields[offsetB + d] -= sim * vA[d]!;
                         }
                     }
                 }
             }
 
-            // B. Cek Keseimbangan Kuantum
+            // B. Cek Keseimbangan
             if (totalCollisions === 0) {
                 PDRLogger.info(`   ✅ Sistem mencapai Keseimbangan Kuantum di Epoch ${epoch}!`);
                 isStable = true;
                 break;
             }
 
-            // C. Terapkan Gaya Tolak (Quantum Backaction / Dissipation)
-            // Suhu menurun seiring waktu agar gradien meluruh halus (Termodinamika)
+            // C. Terapkan Gaya Tolak (Quantum Backaction)
             const temperature = baseLearningRate * Math.exp(-epoch / 5.0);
 
-            for (const key of keys) {
-                const vA = entries.get(key)!;
-                const repulsionGradient = repulsionFields.get(key)!;
+            for (let i = 0; i < numSeeds; i++) {
+                const vA = this.seedBank.getTensor(i);
+                const offsetA = i * GLOBAL_DIMENSION;
 
-                // Cek apakah ada energi tolakan menggunakan array reduce tanpa if
-                const hasEnergy = repulsionGradient.some(val => val !== 0);
+                let hasEnergy = false;
+                for(let d=0; d<GLOBAL_DIMENSION; d++){
+                    if(repulsionFields[offsetA + d] !== 0) hasEnergy = true;
+                }
 
                 if (hasEnergy) {
                     for (let d = 0; d < GLOBAL_DIMENSION; d++) {
-                        vA[d] += repulsionGradient[d]! * temperature;
+                        vA[d] += repulsionFields[offsetA + d]! * temperature;
                     }
-                    this.normalizeInPlace(vA);
+                    this.normalizeInPlace(vA); // Ini mengubah data asli di seedBank karena pass-by-reference subarray
                 }
             }
         }
@@ -144,10 +140,10 @@ export class MaintenanceEngine {
 
         // Hitung total noise sesudah anneal
         let totalNoiseAfter = 0;
-        for (let i = 0; i < keys.length; i++) {
-            for (let j = i + 1; j < keys.length; j++) {
-                const vA = entries.get(keys[i]!)!;
-                const vB = entries.get(keys[j]!)!;
+        for (let i = 0; i < numSeeds; i++) {
+            const vA = this.seedBank.getTensor(i);
+            for (let j = i + 1; j < numSeeds; j++) {
+                const vB = this.seedBank.getTensor(j);
                 totalNoiseAfter += Math.abs(this.dotProduct(vA, vB));
             }
         }

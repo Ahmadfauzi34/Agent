@@ -1,7 +1,7 @@
-import { UniversalManifold, EntitySegmenter, HologramDecoder } from './perception';
+import { UniversalManifold, EntitySegmenter, HologramDecoder } from './perception/index.js';
 import { TopologicalAligner, WaveDynamics, HamiltonianPruner } from './reasoning/index.js';
 import { GlobalBlackboard } from './reasoning/GlobalBlackboard.js';
-import { HolographicManifold, LogicSeedBank } from './memory/index.js';
+import { LogicSeedBank } from './memory/index.js';
 import { Task } from './shared/index.js';
 import { PDRLogger, LogLevel } from './shared/logger.js';
 import { EntityManifold } from './core/EntityManifold.js';
@@ -24,8 +24,7 @@ export class RRM_Agent {
     private seedBank: LogicSeedBank;
 
     constructor() {
-        const memoryManifold = new HolographicManifold();
-        this.seedBank = new LogicSeedBank(memoryManifold);
+        this.seedBank = new LogicSeedBank(this.perceiver);
         this.decoder = new HologramDecoder(this.perceiver);
         PDRLogger.setLevel(LogLevel.INFO);
     }
@@ -102,10 +101,13 @@ export class RRM_Agent {
                 if (match.deltaTensor && match.similarity > 0.1) {
                     const knownMemory = this.seedBank.findBestMatch(match.deltaTensor);
 
-                    if (knownMemory && knownMemory.coherence > 0.6) {
+                    // Jika coherence sangat kuat, reuse memori lama
+                    if (knownMemory && knownMemory.coherence > 0.75) {
                         log(`      [Resonance] Pergerakan dikenali sebagai: ${knownMemory.name} (Axiom Geometri: ${match.axiomType}) (Kemiripan: ${(knownMemory.coherence * 100).toFixed(2)}%)`);
                         this.pruner.injectHypothesis(knownMemory.name, knownMemory.phasor, 1.0, 0.001);
                     } else {
+                        // Jika tidak ada yang mirip > 75%, kita ciptakan hukum baru
+                        // (Mencegah false positive dari harvested seeds yang merusak Cross Validation)
                         const ruleId = `LAW_NEW_TRAIN_${i}_E${match.sourceIndex}_[${match.axiomType}]`;
                         // Decay rate super rendah karena Axiom sudah dipra-validasi oleh Centroid & Mirror Probes
                         this.pruner.injectHypothesis(ruleId, match.deltaTensor, 1.0, 0.005);
