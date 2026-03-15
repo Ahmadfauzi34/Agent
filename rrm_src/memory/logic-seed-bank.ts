@@ -1,31 +1,73 @@
-import { GLOBAL_DIMENSION, COMPLEX_DIMENSION } from '../core/config';
-import { PhasorGenerator } from '../core/generator';
-import { HolographicManifold } from './holographic-manifold';
+import { GLOBAL_DIMENSION, MAX_SEEDS, TensorVector } from '../core/config.js';
+import { FHRR } from '../core/fhrr.js';
+import { UniversalManifold } from '../perception/UniversalManifold.js';
 
 /**
  * 🌌 THE LOGIC SEED BANK 🌌
- * Tempat penyimpanan seluruh "Skill" dan "Logika" dalam bentuk Seed tunggal.
- * Menggantikan ribuan baris if-else dengan satu ruang vektor kontinu.
+ * Tempat penyimpanan seluruh "Skill" dan "Logika" dalam bentuk Tensor Kontinu.
+ * 100% Menggunakan Arsitektur SoA (Entity Component System style).
  */
 export class LogicSeedBank {
-    // Menyimpan pemetaan: Nama Logika -> Seed Number
-    private seedRegistry: Map<string, number> = new Map();
+    /** Total aksioma memori yang tersimpan */
+    public activeCount: number = 0;
+
+    // --- STRUKTUR MEMORI SOA (L1 CACHE OPTIMIZED) ---
+    /** Nama unik atau deskripsi rule/aksioma */
+    public ruleNames: string[];
+
+    /** ID Pendaftaran / Seed */
+    public ruleSeeds: Int32Array;
     
-    // Menyimpan gelombang murni (Phasor) dari setiap Seed untuk komputasi cepat
-    private phasorCache: Map<number, Float32Array> = new Map();
+    /**
+     * Tensor Buffer Raksasa: [MAX_SEEDS x GLOBAL_DIMENSION]
+     * Seluruh hukum alam semesta berjejer secara linier di RAM
+     */
+    public ruleTensors: Float32Array;
 
-    private manifold: HolographicManifold;
-    private nextCustomSeed: number = 100000; // Mulai dari angka besar untuk logika hasil belajar ARC
+    private perceiver: UniversalManifold;
+    private nextCustomSeed: number = 100000;
 
-    constructor(manifold: HolographicManifold) {
-        this.manifold = manifold;
+    constructor(perceiver: UniversalManifold) {
+        this.perceiver = perceiver;
+
+        // Alokasi Memori Murni (Pre-allocation)
+        this.ruleNames = new Array(MAX_SEEDS).fill("");
+        this.ruleSeeds = new Int32Array(MAX_SEEDS);
+        this.ruleTensors = new Float32Array(MAX_SEEDS * GLOBAL_DIMENSION);
+
         this.initializeAxioms();
     }
 
     /**
-     * Mengimpor Holographic Laws (Bipolar Hypervectors) dari JSON hasil panen (Harvested Seeds).
-     * Mengkonversinya menjadi Float32Array agar selaras dengan TensorVector.
-     * @param jsonData Objek JSON dari `all_harvested_arc_seeds.json`
+     * Mendaftarkan Skill baru ke dalam Memory Bank SoA.
+     */
+    public registerSkill(name: string, seed: number, tensor: TensorVector): void {
+        if (this.activeCount >= MAX_SEEDS) {
+            console.warn("[LogicSeedBank] Peringatan: Kapasitas memori penuh! (MAX_SEEDS tercapai).");
+            return;
+        }
+
+        const idx = this.activeCount;
+        this.ruleNames[idx] = name;
+        this.ruleSeeds[idx] = seed;
+
+        // Copy tensor ke dalam buffer linier
+        const offset = idx * GLOBAL_DIMENSION;
+        this.ruleTensors.set(tensor, offset);
+
+        this.activeCount++;
+    }
+
+    /**
+     * Helper untuk mengambil sub-array (pointer) ke satu tensor di dalam buffer.
+     */
+    public getTensor(index: number): TensorVector {
+        const offset = index * GLOBAL_DIMENSION;
+        return this.ruleTensors.subarray(offset, offset + GLOBAL_DIMENSION);
+    }
+
+    /**
+     * Mengimpor Hukum dari file JSON (Harvested Data)
      */
     public loadHarvestedSeeds(jsonData: any[]): void {
         let loadedCount = 0;
@@ -35,11 +77,7 @@ export class LogicSeedBank {
             for (const rule of task.rules) {
                 if (!rule.holographic_law || typeof rule.holographic_law !== 'string') continue;
 
-                // Konversi string bipolar (+ dan -) menjadi Float32Array TensorVector
                 const lawString: string = rule.holographic_law;
-
-                // Jika string lebih pendek dari GLOBAL_DIMENSION, kita ulang polanya (hologram tile)
-                // Jika lebih panjang, kita potong.
                 const phasor = new Float32Array(GLOBAL_DIMENSION);
                 const lawLength = lawString.length;
 
@@ -48,25 +86,22 @@ export class LogicSeedBank {
                     phasor[i] = char === '+' ? 1.0 : -1.0;
                 }
 
-                // Normalisasi agar memiliki Magnitudo = 1.0 (Unit Vector)
-                this.normalizeComplexPhasorInPlace(phasor);
+                // Normalisasi
+                this.normalizeL2InPlace(phasor);
 
                 const opName = rule.op || "UNKNOWN_OP";
                 const ruleName = `HARVEST_${task.task_id}_${opName}_T${rule.target_token}_${loadedCount}`;
 
-                // Gunakan fungsi registrasi, pastikan Seed unik
                 const newSeed = this.nextCustomSeed++;
                 this.registerSkill(ruleName, newSeed, phasor);
                 loadedCount++;
             }
         }
-        console.log(`[LogicSeedBank] Berhasil memanen ${loadedCount} Holographic Laws dari memori leluhur (JSON).`);
+        console.log(`[LogicSeedBank] Berhasil memanen ${loadedCount} Holographic Laws dari JSON.`);
     }
 
     /**
      * 🏛️ THE AXIOMS (Skill Bawaan / Insting Dasar)
-     * Mendaftarkan logika-logika fundamental alam semesta ARC berdasarkan Level Kognitif.
-     * Untuk jangka panjang, ini adalah fondasi AGI yang terstruktur.
      */
     private initializeAxioms() {
         this.initLevel1_SpatialTranslation();
@@ -79,19 +114,24 @@ export class LogicSeedBank {
     // [ LEVEL 1 ] SPATIAL TRANSLATION (Pergeseran Ruang)
     // ========================================================================
     private initLevel1_SpatialTranslation() {
-        // Kita mendaftarkan pergeseran dari -10 hingga +10 untuk X dan Y
-        for (let dx = -10; dx <= 10; dx++) {
-            for (let dy = -10; dy <= 10; dy++) {
-                if (dx === 0 && dy === 0) continue; // Skip identitas
+        // Karena VSA kita beroperasi dalam realm continuous 0.0 - 1.0,
+        // kita generate aksioma pergeseran mikro (seperti pixel grid relatif).
+        // Kita menggunakan UniversalManifold yang sudah murni Fractional FHRR.
+        // Simulasi Grid 10x10 sebagai insting dasar
+        const steps = [-0.5, -0.2, -0.1, 0.1, 0.2, 0.5];
+
+        for (const dx of steps) {
+            for (const dy of steps) {
+                const name = `L1_SHIFT_${dx.toFixed(1)}_${dy.toFixed(1)}`;
                 
-                const name = `L1_SHIFT_${dx}_${dy}`;
-                // Seed deterministik berdasarkan dx dan dy (Range: 1000 - 1999)
-                const seed = 1000 + (dx + 10) * 100 + (dy + 10); 
+                // Minta UniversalManifold membuat tensor koordinat
+                // Pergeseran adalah selisih Phase (Bukan piksel absolut)
+                const xShift = FHRR.fractionalBind(this.perceiver.X_AXIS_SEED, dx);
+                const yShift = FHRR.fractionalBind(this.perceiver.Y_AXIS_SEED, dy);
+                const phasor = FHRR.bind(xShift, yShift);
                 
-                // Generate Phasor menggunakan Tensor Calculus (Zero Array Lookup)
-                const phasor = this.manifold.encodePixel(0, dx, dy);
-                
-                this.registerSkill(name, seed, phasor);
+                this.normalizeL2InPlace(phasor);
+                this.registerSkill(name, this.nextCustomSeed++, phasor);
             }
         }
     }
@@ -102,9 +142,9 @@ export class LogicSeedBank {
     private initLevel2_ColorMapping() {
         for (let dc = 1; dc <= 9; dc++) {
             const name = `L2_COLOR_SHIFT_+${dc}`;
-            // Seed Range: 2000 - 2999
             const seed = 2000 + dc;
-            const phasor = this.manifold.encodePixel(dc, 0, 0);
+            const phasor = FHRR.fractionalBind(this.perceiver.COLOR_SEED, dc);
+            this.normalizeL2InPlace(phasor);
             this.registerSkill(name, seed, phasor);
         }
     }
@@ -113,198 +153,77 @@ export class LogicSeedBank {
     // [ LEVEL 3 ] GEOMETRIC TRANSFORM (Rotasi, Refleksi, Simetri)
     // ========================================================================
     private initLevel3_GeometricTransform() {
-        // Dalam arsitektur FHRR RRM, refleksi bukanlah operator konstan (seperti Inverse)
-        // karena inversi akan menghancurkan (me-negasikan) identitas warna.
-        // Refleksi sejati adalah operator Translasi yang dikalibrasi (1.0 - 2x).
-        // Oleh karena itu, kita tidak bisa menyimpan satu Seed konstan "Mirror" di bank ini.
-        // Cermin akan dihitung On-The-Fly oleh TopologicalAligner menggunakan AxiomGenerator.
+        // Berdasarkan Revisi Arsitektur, Refleksi dihitung On-The-Fly
+        // oleh TopologicalAligner menggunakan AxiomGenerator.
+        // Tidak ada lagi penciptaan 'Anti-Materi' Inverse di sini.
     }
 
     // ========================================================================
-    // [ LEVEL 4 ] PHYSICS DYNAMICS (Gravitasi, Magnetisme, Interaksi)
+    // [ LEVEL 4 ] PHYSICS DYNAMICS (Gravitasi, Magnetisme)
     // ========================================================================
     private initLevel4_PhysicsDynamics() {
-        // Mendaftarkan 4 arah fundamental gaya tarik gravitasi/magnet.
-        // Konsep ini akan mengikat ke `PhasorAttractorNetwork` di `PhysicsLevel` nantinya.
+        // Generate pseudo-random attractor vectors for pure directional noise
         const seedBaseGrav = 4000;
+        const dirs = ["UP", "DOWN", "LEFT", "RIGHT"];
 
-        // Memakai pseudo-operator acak (karena Attractor nanti berjalan iteratif)
-        // sebagai penanda / marker untuk Seed Bank.
-        for(let i=1; i<=4; i++) {
-             const operator = new Float32Array(COMPLEX_DIMENSION);
+        for(let i=0; i<4; i++) {
+             const operator = new Float32Array(GLOBAL_DIMENSION);
              let s = seedBaseGrav + i;
-             for (let d = 0; d < COMPLEX_DIMENSION; d += 2) {
+             for (let d = 0; d < GLOBAL_DIMENSION; d++) {
                  s = (s * 16807) % 2147483647;
-                 const phase = ((s - 1) / 2147483646) * Math.PI * 2;
-                 operator[d] = Math.cos(phase);
-                 operator[d+1] = Math.sin(phase);
+                 operator[d] = ((s - 1) / 2147483646) * 2.0 - 1.0;
              }
-             const dirs = ["UP", "DOWN", "LEFT", "RIGHT"];
-             this.registerSkill(`L4_GRAVITY_${dirs[i-1]}`, seedBaseGrav + i, operator);
+             this.normalizeL2InPlace(operator);
+             this.registerSkill(`L4_GRAVITY_${dirs[i]}`, seedBaseGrav + i, operator);
         }
-    }
-
-    /**
-     * Mendaftarkan Skill baru ke dalam Bank.
-     */
-    public registerSkill(name: string, seed: number, phasor: Float32Array) {
-        this.seedRegistry.set(name, seed);
-        this.phasorCache.set(seed, phasor);
-    }
-
-    /**
-     * Menyimpan Logika Baru hasil belajar dari soal ARC (A Posteriori).
-     */
-    public learnNewLogic(name: string, rawPhasor: Float32Array): number {
-        // Cek cache sebelum buat baru (Dynamic Seed Caching)
-        const match = this.findBestMatch(rawPhasor);
-        if (match && match.coherence > 0.95) {
-            // Re-use seed yang sudah ada yang memiliki kemiripan lebih dari 95%
-            return match.seed;
-        }
-
-        const newSeed = this.nextCustomSeed++;
-        // Normalisasi phasor sebelum disimpan agar menjadi gelombang murni
-        const purePhasor = new Float32Array(rawPhasor);
-        this.normalizeComplexPhasorInPlace(purePhasor);
-        
-        this.registerSkill(name, newSeed, purePhasor);
-        return newSeed;
-    }
-
-
-    /**
-     * 🧬 SEED MACRO COMPOSITION (Aljabar Seed)
-     * Menggabungkan dua Seed tunggal menjadi satu "Seed Makro" dengan mengalikan
-     * gelombang Phasor (Tensor Multiplication).
-     * Memungkinkan O(1) untuk kombinasi gerakan & perubahan warna sekaligus.
-     */
-    public createMacroSeed(seedA: number, seedB: number, macroName: string): number {
-        const phasorA = this.phasorCache.get(seedA);
-        const phasorB = this.phasorCache.get(seedB);
-
-        if (!phasorA || !phasorB) return -1;
-
-        const macroPhasor = new Float32Array(COMPLEX_DIMENSION);
-
-        // Tensor Multiplication (Complex Multiply)
-        for (let i = 0; i < COMPLEX_DIMENSION; i += 2) {
-            const rA = phasorA[i], iA = phasorA[i+1];
-            const rB = phasorB[i], iB = phasorB[i+1];
-
-            macroPhasor[i]   = (rA * rB) - (iA * iB); // Real
-            macroPhasor[i+1] = (rA * iB) + (iA * rB); // Imaginary
-        }
-
-        this.normalizeComplexPhasorInPlace(macroPhasor);
-
-        const newSeed = this.nextCustomSeed++;
-        this.registerSkill(macroName, newSeed, macroPhasor);
-        return newSeed;
     }
 
     /**
      * 🔍 RESONANCE SEARCH (Mencari Pencerahan)
-     * Mengukur seberapa mirip Logika Kasar (Raw Logic) dengan Skill yang sudah ada.
-     * Menggantikan if(isTranslation) else if(isRotation).
+     * V8 L1 Cache Optimized: Menyapu array Flat Float32 tanpa pointer hopping.
      */
-    public findBestMatch(rawLogicPhasor: Float32Array): { name: string, seed: number, coherence: number, phasor: Float32Array } | null {
-        let bestCoherence = -1;
-        let bestSeed = -1;
-        let bestName = "";
+    public findBestMatch(rawLogicPhasor: TensorVector): { name: string, seed: number, coherence: number, phasor: TensorVector } | null {
+        let bestCoherence = -1.0;
+        let bestIndex = -1;
 
         // Normalisasi input untuk pengukuran Cosine Similarity yang akurat
         const normalizedRaw = new Float32Array(rawLogicPhasor);
-        this.normalizeComplexPhasorInPlace(normalizedRaw);
+        this.normalizeL2InPlace(normalizedRaw);
 
-        for (const [name, seed] of this.seedRegistry.entries()) {
-            const skillPhasor = this.phasorCache.get(seed)!;
-            const coherence = this.complexDotProductMagSq(normalizedRaw, skillPhasor);
+        // V8 SIMD Loop
+        for (let i = 0; i < this.activeCount; i++) {
+            const skillPhasor = this.getTensor(i);
+            const coherence = FHRR.similarity(normalizedRaw, skillPhasor);
 
             if (coherence > bestCoherence) {
                 bestCoherence = coherence;
-                bestSeed = seed;
-                bestName = name;
+                bestIndex = i;
             }
         }
 
-        if (bestSeed !== -1) {
+        if (bestIndex !== -1) {
             return {
-                name: bestName,
-                seed: bestSeed,
+                name: this.ruleNames[bestIndex]!,
+                seed: this.ruleSeeds[bestIndex]!,
                 coherence: bestCoherence,
-                phasor: this.phasorCache.get(bestSeed)!
+                phasor: this.getTensor(bestIndex)
             };
         }
 
         return null;
     }
 
-    /**
-     * MENGAMBIL SELURUH REGISTER (Hanya untuk Maintenance/Annealing offline)
-     */
-    public getAllRegisteredPhasors(): Map<number, Float32Array> {
-        return this.phasorCache;
-    }
+    // --- UTILITIES MATEMATIKA KUANTUM BRANCHLESS ---
 
-    /**
-     * ⚡ KINEMATIKA TENSOR (Mengekstrak Kecepatan Dasar)
-     * Jika Seed adalah Translasi (misal: SHIFT_0_5), fungsi ini akan mengembalikan
-     * Phasor untuk kecepatan dasarnya (misal: SHIFT_0_1) agar bisa disimulasikan step-by-step.
-     */
-    public getUnitVelocityPhasor(seed: number): Float32Array | null {
-        // Cek apakah ini Seed Translasi Level 1 (Range: 1000 - 1999)
-        if (seed >= 1000 && seed < 2000) {
-            const encoded = seed - 1000;
-            const dx = Math.floor(encoded / 100) - 10;
-            const dy = (encoded % 100) - 10;
-
-            // Normalisasi vektor kecepatan (dx, dy) menjadi unit step (-1, 0, atau 1)
-            const stepX = dx === 0 ? 0 : Math.sign(dx);
-            const stepY = dy === 0 ? 0 : Math.sign(dy);
-
-            // Cari Seed untuk unit velocity ini
-            const unitSeed = 1000 + (stepX + 10) * 100 + (stepY + 10);
-            return this.phasorCache.get(unitSeed) || null;
+    private normalizeL2InPlace(v: TensorVector): void {
+        let magSq = 0;
+        for (let i = 0; i < GLOBAL_DIMENSION; i++) {
+            magSq += v[i]! * v[i]!;
         }
-        return null; // Bukan translasi, tidak punya unit velocity
-    }
 
-    /**
-     * Mengambil gelombang murni dari sebuah Seed.
-     */
-    public getPhasorBySeed(seed: number): Float32Array | undefined {
-        return this.phasorCache.get(seed);
-    }
-
-    // --- UTILITIES MATEMATIKA KUANTUM ---
-
-    private complexDotProductMagSq(a: Float32Array, b: Float32Array): number {
-        let sumReal = 0; let sumImag = 0;
-        for (let d = 0; d < COMPLEX_DIMENSION; d += 2) {
-            const ar = a[d], ai = a[d + 1];
-            const br = b[d], bi = b[d + 1];
-            sumReal += ar * br + ai * bi;
-            sumImag += ai * br - ar * bi;
-        }
-        return (sumReal * sumReal + sumImag * sumImag) / (GLOBAL_DIMENSION * GLOBAL_DIMENSION); 
-    }
-
-    private normalizeComplexPhasorInPlace(complexVec: Float32Array): void {
-        const len = complexVec.length;
-        for (let i = 0; i < len; i += 2) {
-            const r = complexVec[i];
-            const im = complexVec[i + 1];
-            const magSq = r * r + im * im;
-            
-            if (magSq > 1e-15) { 
-                const invMag = 1.0 / Math.sqrt(magSq); 
-                complexVec[i] *= invMag;
-                complexVec[i + 1] *= invMag;
-            } else {
-                complexVec[i] = 1.0;
-                complexVec[i + 1] = 0.0;
-            }
+        const invMag = 1.0 / (Math.sqrt(magSq) + 1e-15);
+        for (let i = 0; i < GLOBAL_DIMENSION; i++) {
+            v[i] *= invMag;
         }
     }
 }

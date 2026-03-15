@@ -1,23 +1,23 @@
-import { HolographicManifold } from './rrm_src/memory/holographic-manifold';
 import { LogicSeedBank } from './rrm_src/memory/logic-seed-bank';
 import { MaintenanceEngine } from './rrm_src/memory/MaintenanceEngine';
 import { PDRLogger, LogLevel } from './rrm_src/shared/logger';
+import { UniversalManifold } from './rrm_src/perception/UniversalManifold';
 
 function testMaintenanceEngine() {
     console.log("🛠️ Memulai Pengujian Quantum Annealer (Maintenance Engine)...");
     PDRLogger.setLevel(LogLevel.TRACE);
 
     // Inisialisasi Bank Memori
-    const manifold = new HolographicManifold();
-    const seedBank = new LogicSeedBank(manifold);
+    const perceiver = new UniversalManifold();
+    const seedBank = new LogicSeedBank(perceiver);
 
     // Inject custom test rules untuk membuat crosstalk disengaja
     console.log("1. Menginjeksi aturan memori kasar untuk simulasi crosstalk...");
     const rawPhasor1 = new Float32Array(8192).fill(0.5);
     const rawPhasor2 = new Float32Array(8192).fill(0.51); // Sangat mirip dengan 1, crosstalk tinggi
 
-    seedBank.learnNewLogic("TEST_DUMMY_1", rawPhasor1);
-    seedBank.learnNewLogic("TEST_DUMMY_2", rawPhasor2);
+    seedBank.registerSkill("TEST_DUMMY_1", 100, rawPhasor1);
+    seedBank.registerSkill("TEST_DUMMY_2", 101, rawPhasor2);
 
     // Inisialisasi Maintenance Engine
     const annealer = new MaintenanceEngine(seedBank);

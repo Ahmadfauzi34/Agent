@@ -4,7 +4,6 @@
  * Wajib Power of 2 (contoh: 1024, 2048, 4096, 8192, 16384) untuk FFT/FWHT.
  */
 export const GLOBAL_DIMENSION = 8192;
-export const COMPLEX_DIMENSION = GLOBAL_DIMENSION * 2; // Untuk Phasor (Real + Imaginary)
 
 /**
  * THE UNIFIED TENSOR DATATYPE (Fase 1)
@@ -18,3 +17,9 @@ export type TensorVector = Float32Array;
  * Menetapkan ukuran pra-alokasi (Pre-allocation) matriks ECS.
  */
 export const MAX_ENTITIES = 500;
+
+/**
+ * BATAS KAPASITAS MEMORI LOGIKA (Logic Seed Bank)
+ * Menetapkan ukuran pra-alokasi (Pre-allocation) matriks Seed (Hukum Kausalitas).
+ */
+export const MAX_SEEDS = 2000;

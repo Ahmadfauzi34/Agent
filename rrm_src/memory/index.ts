@@ -1,4 +1,3 @@
-export * from './holographic-manifold.js';
 export * from './logic-seed-bank.js';
 export * from './pattern-library.js';
 export * from './pattern-storage.js';
