@@ -7,15 +7,19 @@ import { EntanglementOptimizer } from './EntanglementOptimizer.js';
  * OOP-Free Hebbian Learning Matrix & Huygens-Fresnel Navigation.
  */
 export class WaveDynamics {
-    private entanglementMatrix: Float32Array[];
+    // 🏛️ HUKUM 8: Gunakan satu blok memori (N * N) agar L1 Cache tidak meleset
+    private entanglementMatrix: Float32Array;
     private manifoldRef: EntityManifold | null = null;
 
     constructor() {
-        // Alokasi memori dinamis dihindari. Pre-allocated N x N float matrix (Hukum 4)
-        this.entanglementMatrix = new Array(MAX_ENTITIES);
+        // Alokasi memori 1D kontigu berukuran N * N.
+        // Array of Objects / Array of TypedArrays dihindari sepenuhnya.
+        this.entanglementMatrix = new Float32Array(MAX_ENTITIES * MAX_ENTITIES).fill(0.0);
+
+        // Self-entanglement
         for (let i = 0; i < MAX_ENTITIES; i++) {
-            this.entanglementMatrix[i] = new Float32Array(MAX_ENTITIES).fill(0.0);
-            this.entanglementMatrix[i]![i] = 1.0; // Self-entangled
+            // Akses [i][i] menggunakan offset 1D
+            this.entanglementMatrix[i * MAX_ENTITIES + i] = 1.0;
         }
     }
 
@@ -28,8 +32,9 @@ export class WaveDynamics {
 
         // Reset matrix only for active boundaries
         for (let i = 0; i < count; i++) {
-            this.entanglementMatrix[i]!.fill(0.0, 0, count);
-            this.entanglementMatrix[i]![i] = 1.0;
+            const rowOffset = i * MAX_ENTITIES;
+            this.entanglementMatrix.fill(0.0, rowOffset, rowOffset + count);
+            this.entanglementMatrix[rowOffset + i] = 1.0;
         }
     }
 
@@ -96,20 +101,21 @@ export class WaveDynamics {
     /**
      * TRIGGER COLLAPSE
      * Meruntuhkan gelombang informasi ke agen-agen yang saling terikat (Entangled).
-     * Memproses pointer SoA secara linier cache-friendly.
+     * Memproses pointer SoA secara linier 1D L1 cache-friendly.
      */
     public triggerCollapse(sourceIndex: number): void {
         if (!this.manifoldRef) return;
         const numEntities = this.manifoldRef.activeCount;
 
         const sourceTensor = this.manifoldRef.getTensor(sourceIndex);
+        const sourceRowOffset = sourceIndex * MAX_ENTITIES;
 
         for (let targetIndex = 0; targetIndex < numEntities; targetIndex++) {
-            // V8 Optimized Control Flow (Skip self or ghost entities)
+            // V8 Optimized Control Flow (Skip self or ghost entities - The "Best of Both Worlds" Rule)
             if (targetIndex === sourceIndex || this.manifoldRef.masses[targetIndex] === 0.0) continue;
 
             const targetTensor = this.manifoldRef.getTensor(targetIndex);
-            const entanglementWeight = this.entanglementMatrix[sourceIndex]![targetIndex]!;
+            const entanglementWeight = this.entanglementMatrix[sourceRowOffset + targetIndex]!;
 
             // Partial collapse berdasarkan coupling (0.0 to 1.0) menggunakan Math Branchless
             for (let i = 0; i < GLOBAL_DIMENSION; i++) {

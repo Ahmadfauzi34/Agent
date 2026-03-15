@@ -170,10 +170,10 @@ export class RRM_Agent {
 
             if (isUniversallyValid) {
                 // Penguatan positif untuk Hukum Universal
-                this.pruner.reinforceHypothesis(rule.id, 0.5);
+                this.pruner.reinforceHypothesis(rule.index, 0.5);
             } else {
                 // 💥 THE ERASER: Hancurkan seketika (Interferensi Destruktif)
-                this.pruner.punishHypothesis(rule.id, 1.0); // Penalti maksimal
+                this.pruner.punishHypothesis(rule.index, 1.0); // Penalti maksimal
             }
         }
 

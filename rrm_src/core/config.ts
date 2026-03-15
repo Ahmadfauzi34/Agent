@@ -23,3 +23,9 @@ export const MAX_ENTITIES = 500;
  * Menetapkan ukuran pra-alokasi (Pre-allocation) matriks Seed (Hukum Kausalitas).
  */
 export const MAX_SEEDS = 2000;
+
+/**
+ * BATAS HIPOTESIS PARALEL (Hamiltonian Pruner)
+ * Menetapkan ukuran pra-alokasi untuk arena gladiator seleksi alam.
+ */
+export const MAX_HYPOTHESES = 1000;

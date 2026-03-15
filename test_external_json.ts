@@ -35,7 +35,9 @@ async function runExternalTask(filename: string) {
     log(`🧩 MENGERJAKAN EXTERNAL TASK: ${task.name} (VIA RRM ORCHESTRATOR)`);
     log(`==================================================`);
 
+    const startTime = performance.now();
     const result = await agent.solveTask(task, log);
+    const endTime = performance.now();
 
     // Print all log buffer
     console.log(PDRLogger.getBuffer());
@@ -48,6 +50,8 @@ async function runExternalTask(filename: string) {
     } else {
         console.log(`\n❌ AGEN MENYERAH. Entropi terlalu tinggi untuk meruntuhkan gelombang.`);
     }
+
+    console.log(`\n⏱️ WAKTU EKSEKUSI ORKESTRATOR: ${(endTime - startTime).toFixed(2)} ms.`);
 }
 
 runExternalTask('b0c4d837.json').catch(err => {

@@ -28,11 +28,14 @@ async function runExternalTask(filename: string, logDir: string) {
     log(`🧩 MENGERJAKAN EXTERNAL TASK: ${task.name} (VIA RRM ORCHESTRATOR)`);
     log(`==================================================`);
 
+    const startTime = performance.now();
     const isTaskSolved = await agent.solveTask(task, log);
+    const endTime = performance.now();
+    const duration = (endTime - startTime).toFixed(2);
 
     // Log the output
     const buffer = PDRLogger.getBuffer();
-    console.log(`Finished ${task.name} -> ${isTaskSolved ? "✅ SUKSES" : "💀 GAGAL"}`);
+    console.log(`Finished ${task.name} in ${duration}ms -> ${isTaskSolved ? "✅ SUKSES" : "💀 GAGAL"}`);
     fs.writeFileSync(path.join(logDir, `${task.name}.log`), buffer);
 
     return isTaskSolved;
@@ -51,17 +54,22 @@ async function main() {
     console.log(`Memulai batch processing untuk 30 task di folder training dengan Arsitektur ECS (Math Branchless)...`);
 
     let totalSolved = 0;
+    const batchStart = performance.now();
 
     for (const file of files) {
         try {
             const isSolved = await runExternalTask(path.join('training', file), logDir);
-            totalSolved += Number(isSolved);
+            totalSolved += Number(!!isSolved);
         } catch(e) {
             console.error(`Task ${file} gagal dieksekusi dengan error:`, e);
         }
     }
 
-    console.log(`\n📊 BATCH SELESAI: Berhasil memecahkan ${totalSolved} dari ${files.length} soal.`);
+    const batchEnd = performance.now();
+    const batchDuration = ((batchEnd - batchStart) / 1000).toFixed(2);
+
+    console.log(`\n📊 BATCH SELESAI: Orchestrator menyelesaikan run penuh untuk ${files.length} soal (Hasil Render: ${totalSolved}).`);
+    console.log(`⏱️ TOTAL WAKTU BATCH (30 Task): ${batchDuration} detik.`);
 }
 
 main().catch(console.error);
