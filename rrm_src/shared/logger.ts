@@ -6,6 +6,8 @@ export enum LogLevel {
     ERROR = 4
 }
 
+const MAX_LOG_LINES = 5000; // Mencegah memory leak dari unlimited array push
+
 export class PDRLogger {
     static level: LogLevel = LogLevel.INFO;
     static listeners: ((msg: string) => void)[] = [];
@@ -32,8 +34,15 @@ export class PDRLogger {
     }
 
     private static notify(msg: string) {
+        // Bounded Array (GC friendly)
+        if (this.buffer.length >= MAX_LOG_LINES) {
+            this.buffer.shift(); // Buang yang paling lama
+        }
         this.buffer.push(msg);
-        this.listeners.forEach(l => l(msg));
+
+        for (let i = 0; i < this.listeners.length; i++) {
+            this.listeners[i]!(msg);
+        }
     }
 
     static trace(...args: any[]) { 
