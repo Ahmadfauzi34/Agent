@@ -120,11 +120,14 @@ export class TopologicalAligner {
                     else if (maxSim === simMy) bestAxiomType = `MIRROR_Y+TRANS_${dx.toFixed(2)}_${dy.toFixed(2)}`;
                     else bestAxiomType = `MIRROR_XY+TRANS_${dx.toFixed(2)}_${dy.toFixed(2)}`;
 
-                    // 🚨 PERINGATAN KINERJA (V8 AUDIT):
-                    // Kita JANGAN menghitung Delta = bind(tgtTensor, inverse(srcTensor)) di dalam blok if ini!
-                    // Memang menghemat variabel, tapi memanggil FHRR.bind di dalam inner loop setiap kali
-                    // menemukan tetangga yang lebih dekat akan menjalankan O(N * 8192) operasi ALU yang sia-sia!
-                    // Lebih baik catat indeks terbaiknya (bestTargetIdx), lalu jalankan ALU 1x di luar loop!
+                    // Misi 2: Color Mutation Tracking
+                    // Walaupun kalkulus Tensor sudah secara implisit merekam perubahan warna (Target * Inverse(Source)),
+                    // kita melacaknya secara eksplisit dalam log (AxiomType) agar proses pruning dan cross-validation lebih jelas.
+                    const srcToken = sourceManifold.tokens[sIdx];
+                    const tgtToken = targetManifold.tokens[tIdx];
+                    if (srcToken !== tgtToken) {
+                        bestAxiomType += `+COLOR(${srcToken}->${tgtToken})`;
+                    }
                 }
             });
 
@@ -134,7 +137,9 @@ export class TopologicalAligner {
                 usedTargets.add(bestTargetIdx);
                 const tgtTensor = targetManifold.getTensor(bestTargetIdx);
 
-                // ALU 8192-D Dijalankan HANYA SEKALI per Source setelah loop Target selesai!
+                // Kalkulus Makro Sejati (Axiom Extraction)
+                // Ini secara matematis berisi: Translasi ⊛ Geometri ⊛ Mutasi Warna (jika ada)
+                // Dieksekusi 1x di luar inner-loop untuk mempertahankan kecepatan V8.
                 delta = FHRR.bind(tgtTensor, FHRR.inverse(srcTensor));
             }
 
