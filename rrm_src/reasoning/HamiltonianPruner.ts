@@ -1,109 +1,130 @@
-import { TensorVector, GLOBAL_DIMENSION } from '../core/config';
+import { TensorVector, GLOBAL_DIMENSION, MAX_HYPOTHESES } from '../core/config.js';
 import { PDRLogger } from '../shared/logger.js';
 
 export interface Hypothesis {
-    id: string;
-    tensor_rule: TensorVector;
-    energy: number;     // Modal kepercayaan (Dimulai dari 1.0)
-    decay_rate: number; // Kecepatan peluruhan
+    id: string; // Tetap disimpan untuk log
+    index: number; // Index di array SoA
+    tensor_rule: TensorVector; // Pointer ke sub-array SoA
+    energy: number;
 }
 
 /**
  * ☠️ HAMILTONIAN PRUNER (Fase 4: The Cortex)
  * Medan disipatif (Thermodynamic Dissipation Field).
- * Bertugas "membunuh" tebakan (Hypothesis) aturan yang salah/berantakan
- * dengan meluruhkan energinya menggunakan Decay Exponential.
- * Membantu agen beranjak dari "trauma" masa lalu.
+ * 100% Structure of Arrays (SoA). Bebas Map dan Iterator Dinamis.
  */
 export class HamiltonianPruner {
-    private activeHypotheses: Map<string, Hypothesis> = new Map();
+    public activeCount: number = 0;
+
+    // -- SoA Buffers --
+    private ids: string[] = new Array(MAX_HYPOTHESES).fill("");
+    private energies: Float32Array = new Float32Array(MAX_HYPOTHESES);
+    private decayRates: Float32Array = new Float32Array(MAX_HYPOTHESES);
+    private ruleTensors: Float32Array = new Float32Array(MAX_HYPOTHESES * GLOBAL_DIMENSION);
 
     /**
      * Memasukkan tebakan rule baru ke dalam memori kerja sementara.
      */
     public injectHypothesis(id: string, rule: TensorVector, initialEnergy: number = 1.0, decayRate: number = 0.15): void {
-        this.activeHypotheses.set(id, {
-            id,
-            tensor_rule: new Float32Array(rule),
-            energy: initialEnergy,
-            decay_rate: decayRate
-        });
+        if (this.activeCount >= MAX_HYPOTHESES) {
+            PDRLogger.trace("[HamiltonianPruner] Arena kepenuhan. Menolak hipotesis baru.");
+            return;
+        }
+
+        const idx = this.activeCount;
+        this.ids[idx] = id;
+        this.energies[idx] = initialEnergy;
+        this.decayRates[idx] = decayRate;
+
+        const offset = idx * GLOBAL_DIMENSION;
+        this.ruleTensors.set(rule, offset);
+
+        this.activeCount++;
     }
 
     /**
-     * Ticking Time / Evolusi Waktu.
-     * Mengurangi energi dari hipotesis yang tidak menerima penguatan.
-     * @param globalEntropy Konstanta entropi yang mendikte kerasnya pemangkasan.
+     * Helper untuk mendapatkan sub-array dari tensor rule.
+     */
+    private getTensor(idx: number): TensorVector {
+        const offset = idx * GLOBAL_DIMENSION;
+        return this.ruleTensors.subarray(offset, offset + GLOBAL_DIMENSION);
+    }
+
+    /**
+     * Ticking Time / Evolusi Waktu (Peluruhan Pasif).
      */
     public evolveTime(globalEntropy: number = 1.0): void {
-        const keysToRemove: string[] = [];
+        for (let i = 0; i < this.activeCount; i++) {
+            let energy = this.energies[i]!;
+            // Skip ghost state (Hukum 5)
+            if (energy <= 0.0) continue;
 
-        for (const [id, hyp] of this.activeHypotheses.entries()) {
-            // Hukum Termodinamika: Energi meluruh secara eksponensial (E = E * e^(-decay * entropy))
-            hyp.energy *= Math.exp(-hyp.decay_rate * globalEntropy);
+            const decay = this.decayRates[i]!;
+
+            // Hukum Termodinamika: Energi meluruh secara eksponensial
+            energy *= Math.exp(-decay * globalEntropy);
 
             // Operasi Disipatif pada Vektor (Vector Fading)
-            // Perlahan mengembalikan vektor aturan ke ruang hampa (Noise Statis 0)
-            const fadingFactor = hyp.energy;
-            for (let i = 0; i < GLOBAL_DIMENSION; i++) {
-                hyp.tensor_rule[i] *= fadingFactor;
+            const fadingFactor = energy;
+            const tensor = this.getTensor(i);
+            for (let d = 0; d < GLOBAL_DIMENSION; d++) {
+                tensor[d] *= fadingFactor;
             }
 
             // Batas Kematian (Minimum Description Length Pruning)
-            if (hyp.energy < 0.05) {
-                keysToRemove.push(id);
+            if (energy < 0.05) {
+                this.energies[i] = 0.0; // Vacuum state (Hukum 5: Jangan dislice)
+                PDRLogger.trace(`[HamiltonianPruner] ☠️ Hipotesis '${this.ids[i]}' mati terurai menjadi debu kuantum.`);
+            } else {
+                this.energies[i] = energy;
             }
-        }
-
-        // Sapu bersih ingatan yang sudah mati
-        for (const deadId of keysToRemove) {
-            this.activeHypotheses.delete(deadId);
-            PDRLogger.trace(`[HamiltonianPruner] ☠️ Hipotesis '${deadId}' mati terurai menjadi debu kuantum.`);
         }
     }
 
     /**
      * Menguatkan Hipotesis (Negative Entropy / Negentropy)
-     * Dipanggil ketika agen melihat bukti yang mendukung aturan ini.
      */
-    public reinforceHypothesis(id: string, boostEnergy: number = 0.5): void {
-        const hyp = this.activeHypotheses.get(id);
-        if (hyp) {
-            // Batasi energi maksimal ke 1.0 agar tidak meledak
-            hyp.energy = Math.min(1.0, hyp.energy + boostEnergy);
+    public reinforceHypothesis(index: number, boostEnergy: number = 0.5): void {
+        let energy = this.energies[index]!;
+        if (energy <= 0.0) return;
 
-            // Rekonstruksi kekuatan vektor (Anti-Fading)
-            const restoreFactor = 1.0 / Math.max(0.01, hyp.energy - boostEnergy);
-            for (let i = 0; i < GLOBAL_DIMENSION; i++) {
-                // Skala aman pencegahan overshooting
-                hyp.tensor_rule[i] = Math.max(-1, Math.min(1, hyp.tensor_rule[i]! * restoreFactor));
-            }
+        const newEnergy = Math.min(1.0, energy + boostEnergy);
+
+        // Rekonstruksi kekuatan vektor (Anti-Fading)
+        const restoreFactor = 1.0 / Math.max(0.01, energy - boostEnergy);
+        const tensor = this.getTensor(index);
+
+        for (let d = 0; d < GLOBAL_DIMENSION; d++) {
+            // Skala aman pencegahan overshooting
+            tensor[d] = Math.max(-1, Math.min(1, tensor[d]! * restoreFactor));
         }
+
+        this.energies[index] = newEnergy;
     }
 
     /**
      * 💥 INTERFERENSI DESTRUKTIF (The Eraser)
-     * Diterapkan ketika suatu Axiom (Hukum) terbukti SALAH memprediksi
-     * pergerakan entitas di dimensi/pair selanjutnya (Cross-Validation).
+     * Menggunakan Indeks SoA untuk kecepatan.
      */
-    public punishHypothesis(id: string, penaltyEnergy: number = 0.5): void {
-        const hyp = this.activeHypotheses.get(id);
-        if (hyp) {
-            // Hancurkan energinya secara brutal (Quantum Jump to 0)
-            hyp.energy -= penaltyEnergy;
+    public punishHypothesis(index: number, penaltyEnergy: number = 0.5): void {
+        let energy = this.energies[index]!;
+        if (energy <= 0.0) return;
 
-            // Operasi Disipatif Instan (Fading)
-            // Memastikan energi tidak negatif saat menghitung skala
-            const fadingFactor = Math.max(0.0, hyp.energy);
-            for (let i = 0; i < GLOBAL_DIMENSION; i++) {
-                hyp.tensor_rule[i] *= fadingFactor;
-            }
+        energy -= penaltyEnergy;
 
-            // Kematian Instan (Minimum Description Length Pruning)
-            if (hyp.energy < 0.05) {
-                this.activeHypotheses.delete(id);
-                PDRLogger.trace(`[HamiltonianPruner] ⚡ ERASED: Hipotesis '${id}' dimusnahkan secara paksa oleh Interferensi Destruktif.`);
-            }
+        // Operasi Disipatif Instan (Fading)
+        const fadingFactor = Math.max(0.0, energy);
+        const tensor = this.getTensor(index);
+        for (let d = 0; d < GLOBAL_DIMENSION; d++) {
+            tensor[d] *= fadingFactor;
+        }
+
+        // Kematian Instan
+        if (energy < 0.05) {
+            this.energies[index] = 0.0;
+            PDRLogger.trace(`[HamiltonianPruner] ⚡ ERASED: Hipotesis '${this.ids[index]}' dimusnahkan secara paksa oleh Interferensi Destruktif.`);
+        } else {
+            this.energies[index] = energy;
         }
     }
 
@@ -111,6 +132,17 @@ export class HamiltonianPruner {
      * Mendapatkan sisa hipotesis yang selamat dari seleksi alam.
      */
     public getSurvivingRules(): Hypothesis[] {
-        return Array.from(this.activeHypotheses.values());
+        const survivors: Hypothesis[] = [];
+        for (let i = 0; i < this.activeCount; i++) {
+            if (this.energies[i]! > 0.0) {
+                survivors.push({
+                    id: this.ids[i]!,
+                    index: i,
+                    tensor_rule: this.getTensor(i),
+                    energy: this.energies[i]!
+                });
+            }
+        }
+        return survivors;
     }
 }
