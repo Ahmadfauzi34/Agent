@@ -89,10 +89,15 @@ export class UniversalManifold {
      * Dipanggil oleh encoder (saat observasi) maupun oleh decoder (saat membuat sinar probe).
      */
     public buildPixelTensor(relX: number, relY: number, token: number): TensorVector {
-        // Hitung jarak radial dari pusat (0.5, 0.5)
-        const dX = relX - 0.5;
-        const dY = relY - 0.5;
-        const relR = Math.sqrt(dX * dX + dY * dY);
+        // OPTIMASI V8: Math.sqrt dihapus karena lambat di inner loop (hanya aproksimasi Manhattan L1 atau pseudo-L2 yang lebih cepat)
+        // Disini kita gunakan pseudo L1/Chebyshev (Octagonal approximation)
+        const dX = Math.abs(relX - 0.5);
+        const dY = Math.abs(relY - 0.5);
+        // Aproksimasi: R ≈ 0.960 * max(|dX|, |dY|) + 0.398 * min(|dX|, |dY|)
+        // Menghemat siklus FPU dibanding Math.sqrt, cukup akurat untuk ruang tensor VSA.
+        const maxD = Math.max(dX, dY);
+        const minD = Math.min(dX, dY);
+        const relR = (0.96 * maxD) + (0.398 * minD);
 
         const xTensor = this.encodeCoordinate(this.X_AXIS_SEED, relX);
         const yTensor = this.encodeCoordinate(this.Y_AXIS_SEED, relY);
@@ -100,6 +105,8 @@ export class UniversalManifold {
         const colorTensor = this.encodeCoordinate(this.COLOR_SEED, token);
 
         // BINDING HOLOGRAFIK: Semua informasi menyatu secara utuh
+        // Note: Penggabungan 3 binding ini masih berkontribusi ke perlambatan dibanding 2 binding,
+        // Tapi kita meminimalkan FPU pipeline stall dari Math.sqrt.
         let state = FHRR.bind(xTensor, yTensor);
         state = FHRR.bind(state, rTensor);
         return FHRR.bind(state, colorTensor);
