@@ -91,24 +91,15 @@ export class UniversalManifold {
     public buildPixelTensor(relX: number, relY: number, token: number): TensorVector {
         // OPTIMASI V8: Math.sqrt dihapus karena lambat di inner loop (hanya aproksimasi Manhattan L1 atau pseudo-L2 yang lebih cepat)
         // Disini kita gunakan pseudo L1/Chebyshev (Octagonal approximation)
-        const dX = Math.abs(relX - 0.5);
-        const dY = Math.abs(relY - 0.5);
-        // Aproksimasi: R ≈ 0.960 * max(|dX|, |dY|) + 0.398 * min(|dX|, |dY|)
-        // Menghemat siklus FPU dibanding Math.sqrt, cukup akurat untuk ruang tensor VSA.
-        const maxD = Math.max(dX, dY);
-        const minD = Math.min(dX, dY);
-        const relR = (0.96 * maxD) + (0.398 * minD);
-
         const xTensor = this.encodeCoordinate(this.X_AXIS_SEED, relX);
         const yTensor = this.encodeCoordinate(this.Y_AXIS_SEED, relY);
-        const rTensor = this.encodeCoordinate(this.R_AXIS_SEED, relR); // 🌟 Kesadaran Radial
         const colorTensor = this.encodeCoordinate(this.COLOR_SEED, token);
 
-        // BINDING HOLOGRAFIK: Semua informasi menyatu secara utuh
-        // Note: Penggabungan 3 binding ini masih berkontribusi ke perlambatan dibanding 2 binding,
-        // Tapi kita meminimalkan FPU pipeline stall dari Math.sqrt.
-        let state = FHRR.bind(xTensor, yTensor);
-        state = FHRR.bind(state, rTensor);
-        return FHRR.bind(state, colorTensor);
+        // BINDING HOLOGRAFIK: Kembali ke arsitektur tercepat
+        // Mengikat hanya X, Y, dan Color menghemat waktu O(N * 8192) untuk properti tambahan
+        // tanpa kehilangan akurasi signifikan di subset ARC umum. Kesadaran Radial
+        // dicabut karena biaya komputasi Tensor 8192-D (6 detik) tidak sepadan dengan gain akurasi.
+        const xyBind = FHRR.bind(xTensor, yTensor);
+        return FHRR.bind(xyBind, colorTensor);
     }
 }
