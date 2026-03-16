@@ -11,12 +11,14 @@ export class UniversalManifold {
     // Sumbu Spasial Dasar untuk VSA
     public readonly X_AXIS_SEED: TensorVector;
     public readonly Y_AXIS_SEED: TensorVector;
+    public readonly R_AXIS_SEED: TensorVector; // 🌟 KESADARAN RADIAL (Jarak dari Pusat)
     public readonly COLOR_SEED: TensorVector; // Alias "Token Seed"
 
     constructor() {
         // Membuat seed ortogonal dasar (Holographic Axioms)
         this.X_AXIS_SEED = FHRR.create();
         this.Y_AXIS_SEED = FHRR.create();
+        this.R_AXIS_SEED = FHRR.create();
         this.COLOR_SEED  = FHRR.create();
     }
 
@@ -83,16 +85,23 @@ export class UniversalManifold {
 
     /**
      * Merakit satu "Partikel Kesadaran" (Pixel/Token) menjadi Superposisi Kuantum.
-     * Tensor = Bind( X^relX, Bind(Y^relY, COLOR^token) )
+     * Tensor = Bind( X^relX, Bind(Y^relY, Bind(R^relR, COLOR^token)) )
      * Dipanggil oleh encoder (saat observasi) maupun oleh decoder (saat membuat sinar probe).
      */
     public buildPixelTensor(relX: number, relY: number, token: number): TensorVector {
+        // Hitung jarak radial dari pusat (0.5, 0.5)
+        const dX = relX - 0.5;
+        const dY = relY - 0.5;
+        const relR = Math.sqrt(dX * dX + dY * dY);
+
         const xTensor = this.encodeCoordinate(this.X_AXIS_SEED, relX);
         const yTensor = this.encodeCoordinate(this.Y_AXIS_SEED, relY);
+        const rTensor = this.encodeCoordinate(this.R_AXIS_SEED, relR); // 🌟 Kesadaran Radial
         const colorTensor = this.encodeCoordinate(this.COLOR_SEED, token);
 
-        // Ikat semua properti menjadi satu Vektor Kesatuan
-        const xyBind = FHRR.bind(xTensor, yTensor);
-        return FHRR.bind(xyBind, colorTensor);
+        // BINDING HOLOGRAFIK: Semua informasi menyatu secara utuh
+        let state = FHRR.bind(xTensor, yTensor);
+        state = FHRR.bind(state, rTensor);
+        return FHRR.bind(state, colorTensor);
     }
 }
