@@ -1,5 +1,5 @@
 import { UniversalManifold, EntitySegmenter, HologramDecoder } from './perception/index.js';
-import { TopologicalAligner, WaveDynamics, HamiltonianPruner } from './reasoning/index.js';
+import { TopologicalAligner, WaveDynamics, HamiltonianPruner, QuantumSandbox } from './reasoning/index.js';
 import { GlobalBlackboard } from './reasoning/GlobalBlackboard.js';
 import { LogicSeedBank } from './memory/index.js';
 import { Task } from './shared/index.js';
@@ -20,6 +20,7 @@ export class RRM_Agent {
     private waveDynamics = new WaveDynamics();
     private pruner = new HamiltonianPruner();
     private blackboard = new GlobalBlackboard();
+    private sandbox = new QuantumSandbox(); // 🌟 The New Imagination Space
     private decoder: HologramDecoder;
     private seedBank: LogicSeedBank;
 
@@ -117,8 +118,9 @@ export class RRM_Agent {
         }
 
         // 3. =======================================================
-        // 🔥 THE EVOLVE PHASE (Renormalization Group Flow / Cross-Validation)
-        // Membunuh hipotesis yang tidak konsisten secara universal.
+        // 🔥 THE EVOLVE PHASE (Karl Friston's Active Inference & Simulation)
+        // Membunuh hipotesis yang menghasilkan "Surprise" (Prediction Error) tinggi
+        // menggunakan Twin Universe (Quantum Sandbox).
         // =======================================================
         log(`   [3] EVOLVE: Menjalankan Termodinamika & Interferensi Destruktif (Cross-Validation)...`);
 
@@ -129,40 +131,24 @@ export class RRM_Agent {
 
             for (let i = 0; i < trainStates.length; i++) {
                 const state = trainStates[i]!;
-                let ruleMatchedInThisState = false;
 
-                // V8 Optimized Control Flow
-                state.in.forEachActive((inIdx, inMass, inRelX, inRelY, inToken) => {
-                    const inTensor = state.in.getTensor(inIdx);
+                // 1. Kloning Realitas (In/Source) ke dalam Sandbox (Memcpy C-Level)
+                this.sandbox.cloneReality(state.in);
 
-                    // Prediksi masa depan: Apa jadinya entitas ini jika dikenai Hukum ini?
-                    const predictedTensor = FHRR.bind(inTensor, rule.tensor_rule);
+                // 2. Berimajinasi: Terapkan Aksioma ke seluruh Sandbox secara serentak
+                this.sandbox.applyAxiomToSandbox(rule.tensor_rule);
 
-                    let foundMatch = false;
+                // 3. Ukur Free Energy (Seberapa mirip hasil imajinasi dengan Target nyata)
+                // Nilai mendekati 0 = Identik (Surprise Rendah), Nilai mendekati 1.0 = Gagal Total (Surprise Tinggi)
+                const freeEnergy = this.sandbox.calculateFreeEnergy(state.out);
 
-                    // Cek apakah prediksi ini NYATA ada di output manifold
-                    state.out.forEachActive((outIdx, outMass, outRelX, outRelY, outToken) => {
-                        if (foundMatch) return; // Skip if already matched
-
-                        const outTensor = state.out.getTensor(outIdx);
-                        const sim = FHRR.similarity(predictedTensor, outTensor);
-
-                        // Threshold resonansi dilonggarkan karena fasa seringkali noise
-                        // Cukup mencari jejak tipis dari prediksi
-                        if (sim > 0.1) {
-                            foundMatch = true;
-                        }
-                    });
-
-                    if (foundMatch) {
-                        ruleMatchedInThisState = true;
-                    }
-                });
-
-                // Sebuah axiom cukup dihitung valid jika ia berhasil memprediksi BAGAIMANA
-                // setidaknya SATU entitas bergerak dalam sebuah State (pair).
-                // Karena kita belum mengekstrak aturan per-tipe-warna secara sempurna.
-                if (!ruleMatchedInThisState && state.in.activeCount > 0) {
+                // 4. Misi 3 (Quantum IF-Statements): Toleransi Surprise
+                // Karena Axiom seringkali bersifat kondisional (e.g. Hanya berlaku untuk kotak Biru),
+                // hasil imajinasinya tidak akan 100% cocok dengan The Target Grid secara keseluruhan.
+                // Jika energinya mendekati 1.0, berarti benar-benar tidak ada satu pun entitas
+                // yang terprediksi dengan benar (Vakum total / Error fatal).
+                // Kita gunakan batas ambang yang sangat longgar untuk mempertahankan aturan kondisional.
+                if (freeEnergy >= 0.9 && state.in.activeCount > 0) {
                     isUniversallyValid = false;
                     break;
                 }
