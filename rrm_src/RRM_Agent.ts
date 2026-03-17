@@ -1,5 +1,5 @@
 import { UniversalManifold, EntitySegmenter, HologramDecoder } from './perception/index.js';
-import { TopologicalAligner, WaveDynamics, HamiltonianPruner, QuantumSandbox } from './reasoning/index.js';
+import { TopologicalAligner, WaveDynamics, HamiltonianPruner, MultiverseSandbox, MAX_BRANCHES } from './reasoning/index.js';
 import { GlobalBlackboard } from './reasoning/GlobalBlackboard.js';
 import { LogicSeedBank } from './memory/index.js';
 import { Task } from './shared/index.js';
@@ -9,7 +9,7 @@ import { TensorVector, GLOBAL_DIMENSION } from './core/config.js';
 import { FHRR } from './core/fhrr.js';
 
 /**
- * 🤖 THE RECURSIVE REASONING MACHINE (Fase 5: Sang Orkestrator)
+ * 🤖 THE RECURSIVE REASONING MACHINE (Fase 6: Multiverse Deep Planning)
  * Siklus termodinamika murni yang menggantikan seluruh pendekatan heuristik kaku.
  * Menggunakan Loop ECS: PERCEIVE -> RESONATE -> EVOLVE -> COLLAPSE
  */
@@ -20,7 +20,7 @@ export class RRM_Agent {
     private waveDynamics = new WaveDynamics();
     private pruner = new HamiltonianPruner();
     private blackboard = new GlobalBlackboard();
-    private sandbox = new QuantumSandbox(); // 🌟 The New Imagination Space
+    private multiverse = new MultiverseSandbox(); // 🌟 The New Imagination Space (Multi-Branch)
     private decoder: HologramDecoder;
     private seedBank: LogicSeedBank;
 
@@ -118,36 +118,34 @@ export class RRM_Agent {
         }
 
         // 3. =======================================================
-        // 🔥 THE EVOLVE PHASE (Karl Friston's Active Inference & Simulation)
-        // Membunuh hipotesis yang menghasilkan "Surprise" (Prediction Error) tinggi
-        // menggunakan Twin Universe (Quantum Sandbox).
+        // 🔥 THE EVOLVE PHASE (Deep Active Inference / Multiverse Search)
+        // Mengeksekusi pencarian multi-cabang untuk mencari lintasan termodinamika terbaik
         // =======================================================
-        log(`   [3] EVOLVE: Menjalankan Termodinamika & Interferensi Destruktif (Cross-Validation)...`);
+        log(`   [3] EVOLVE: Menjalankan Termodinamika & Multiverse Tree Search...`);
 
         const activeRules = this.pruner.getSurvivingRules();
 
+        // Dalam eksekusi kali ini, kita akan menyederhanakan MCTS menjadi simulasi kedalaman-1
+        // melintasi seluruh state untuk memverifikasi kompatibilitas MultiverseBuffer.
         for (const rule of activeRules) {
             let isUniversallyValid = true;
 
             for (let i = 0; i < trainStates.length; i++) {
                 const state = trainStates[i]!;
 
-                // 1. Kloning Realitas (In/Source) ke dalam Sandbox (Memcpy C-Level)
-                this.sandbox.cloneReality(state.in);
+                // Cabang Imajinasi ID (0-3 untuk iterasi 4 cabang simulasi paralel nanti)
+                const universeId = 0; // Karena saat ini masih pengujian kompatibilitas
 
-                // 2. Berimajinasi: Terapkan Aksioma ke seluruh Sandbox secara serentak
-                this.sandbox.applyAxiomToSandbox(rule.tensor_rule);
+                // 1. Kloning Realitas ke Alam Semesta spesifik
+                this.multiverse.cloneToUniverse(state.in, universeId);
 
-                // 3. Ukur Free Energy (Seberapa mirip hasil imajinasi dengan Target nyata)
-                // Nilai mendekati 0 = Identik (Surprise Rendah), Nilai mendekati 1.0 = Gagal Total (Surprise Tinggi)
-                const freeEnergy = this.sandbox.calculateFreeEnergy(state.out);
+                // 2. Terapkan Aksioma
+                this.multiverse.applyAxiom(universeId, rule.tensor_rule);
 
-                // 4. Misi 3 (Quantum IF-Statements): Toleransi Surprise
-                // Karena Axiom seringkali bersifat kondisional (e.g. Hanya berlaku untuk kotak Biru),
-                // hasil imajinasinya tidak akan 100% cocok dengan The Target Grid secara keseluruhan.
-                // Jika energinya mendekati 1.0, berarti benar-benar tidak ada satu pun entitas
-                // yang terprediksi dengan benar (Vakum total / Error fatal).
-                // Kita gunakan batas ambang yang sangat longgar untuk mempertahankan aturan kondisional.
+                // 3. Ukur Free Energy di alam semesta tersebut
+                const freeEnergy = this.multiverse.calculateFreeEnergy(universeId, state.out);
+
+                // 4. Evaluasi Kejutan
                 if (freeEnergy >= 0.9 && state.in.activeCount > 0) {
                     isUniversallyValid = false;
                     break;
@@ -155,11 +153,11 @@ export class RRM_Agent {
             }
 
             if (isUniversallyValid) {
-                // Penguatan positif untuk Hukum Universal
+                // Penguatan positif
                 this.pruner.reinforceHypothesis(rule.index, 0.5);
             } else {
-                // 💥 THE ERASER: Hancurkan seketika (Interferensi Destruktif)
-                this.pruner.punishHypothesis(rule.index, 1.0); // Penalti maksimal
+                // The Eraser
+                this.pruner.punishHypothesis(rule.index, 1.0);
             }
         }
 
