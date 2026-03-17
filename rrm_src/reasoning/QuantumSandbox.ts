@@ -32,7 +32,8 @@ export class QuantumSandbox {
         this.sandboxWorld.tensors.set(realWorld.tensors);
         this.sandboxWorld.masses.set(realWorld.masses);
         this.sandboxWorld.tokens.set(realWorld.tokens);
-        this.sandboxWorld.spreads.set(realWorld.spreads);
+        this.sandboxWorld.spansX.set(realWorld.spansX);
+        this.sandboxWorld.spansY.set(realWorld.spansY);
         this.sandboxWorld.centersX.set(realWorld.centersX);
         this.sandboxWorld.centersY.set(realWorld.centersY);
         this.sandboxWorld.momentumsX.set(realWorld.momentumsX);

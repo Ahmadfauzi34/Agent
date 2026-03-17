@@ -18,7 +18,8 @@ export class MultiverseSandbox {
     private mvTensors: Float32Array;
     private mvMasses: Float32Array;
     private mvTokens: Float32Array;
-    private mvSpreads: Float32Array;
+    private mvSpansX: Float32Array;
+    private mvSpansY: Float32Array;
     private mvCentersX: Float32Array;
     private mvCentersY: Float32Array;
     private mvMomentumsX: Float32Array;
@@ -39,7 +40,8 @@ export class MultiverseSandbox {
         this.mvTensors = new Float32Array(totalTensorSize);
         this.mvMasses = new Float32Array(totalEntities);
         this.mvTokens = new Float32Array(totalEntities);
-        this.mvSpreads = new Float32Array(totalEntities);
+        this.mvSpansX = new Float32Array(totalEntities);
+        this.mvSpansY = new Float32Array(totalEntities);
         this.mvCentersX = new Float32Array(totalEntities);
         this.mvCentersY = new Float32Array(totalEntities);
         this.mvMomentumsX = new Float32Array(totalEntities);
@@ -61,7 +63,8 @@ export class MultiverseSandbox {
             view.tensors = this.mvTensors.subarray(tOffset, tOffset + MAX_ENTITIES * GLOBAL_DIMENSION);
             view.masses = this.mvMasses.subarray(eOffset, eOffset + MAX_ENTITIES);
             view.tokens = this.mvTokens.subarray(eOffset, eOffset + MAX_ENTITIES);
-            view.spreads = this.mvSpreads.subarray(eOffset, eOffset + MAX_ENTITIES);
+            view.spansX = this.mvSpansX.subarray(eOffset, eOffset + MAX_ENTITIES);
+            view.spansY = this.mvSpansY.subarray(eOffset, eOffset + MAX_ENTITIES);
             view.centersX = this.mvCentersX.subarray(eOffset, eOffset + MAX_ENTITIES);
             view.centersY = this.mvCentersY.subarray(eOffset, eOffset + MAX_ENTITIES);
             view.momentumsX = this.mvMomentumsX.subarray(eOffset, eOffset + MAX_ENTITIES);
@@ -91,7 +94,8 @@ export class MultiverseSandbox {
         targetView.tensors.set(source.tensors);
         targetView.masses.set(source.masses);
         targetView.tokens.set(source.tokens);
-        targetView.spreads.set(source.spreads);
+        targetView.spansX.set(source.spansX);
+        targetView.spansY.set(source.spansY);
         targetView.centersX.set(source.centersX);
         targetView.centersY.set(source.centersY);
         targetView.momentumsX.set(source.momentumsX);

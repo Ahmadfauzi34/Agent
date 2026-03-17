@@ -1,5 +1,5 @@
 import { UniversalManifold, EntitySegmenter, HologramDecoder } from './perception/index.js';
-import { TopologicalAligner, WaveDynamics, HamiltonianPruner, MultiverseSandbox, MAX_BRANCHES } from './reasoning/index.js';
+import { TopologicalAligner, WaveDynamics, HamiltonianPruner, MultiverseSandbox, MAX_BRANCHES, MAX_DEPTH } from './reasoning/index.js';
 import { GlobalBlackboard } from './reasoning/GlobalBlackboard.js';
 import { LogicSeedBank } from './memory/index.js';
 import { Task } from './shared/index.js';
@@ -23,6 +23,9 @@ export class RRM_Agent {
     private multiverse = new MultiverseSandbox(); // 🌟 The New Imagination Space (Multi-Branch)
     private decoder: HologramDecoder;
     private seedBank: LogicSeedBank;
+
+    // Seed untuk merekam Jejak Waktu dalam VSA (Time-Traveling Binding)
+    private readonly TIME_SEED = FHRR.create();
 
     constructor() {
         this.seedBank = new LogicSeedBank(this.perceiver);
@@ -118,46 +121,67 @@ export class RRM_Agent {
         }
 
         // 3. =======================================================
-        // 🔥 THE EVOLVE PHASE (Deep Active Inference / Multiverse Search)
-        // Mengeksekusi pencarian multi-cabang untuk mencari lintasan termodinamika terbaik
+        // 🔥 THE EVOLVE PHASE (Deep Active Inference / Multiverse Tree Search)
+        // Mengeksekusi pencarian multi-cabang (MCTS) untuk mencari Trajectory terbaik.
         // =======================================================
         log(`   [3] EVOLVE: Menjalankan Termodinamika & Multiverse Tree Search...`);
 
+        // Array untuk menyimpan lintasan aksi yang lolos Free Energy = 0.0 (Sempurna)
+        const winningTrajectories: TensorVector[] = [];
         const activeRules = this.pruner.getSurvivingRules();
 
-        // Dalam eksekusi kali ini, kita akan menyederhanakan MCTS menjadi simulasi kedalaman-1
-        // melintasi seluruh state untuk memverifikasi kompatibilitas MultiverseBuffer.
-        for (const rule of activeRules) {
-            let isUniversallyValid = true;
+        // Ambil top-K rule terkuat untuk menjadi cabang pohon MCTS agar tidak meledak
+        // Kita pakai MAX_BRANCHES (misal 4 aksi terbaik)
+        activeRules.sort((a, b) => b.energy - a.energy);
+        const topRules = activeRules.slice(0, MAX_BRANCHES);
 
-            for (let i = 0; i < trainStates.length; i++) {
-                const state = trainStates[i]!;
+        for (let i = 0; i < trainStates.length; i++) {
+            const state = trainStates[i]!;
 
-                // Cabang Imajinasi ID (0-3 untuk iterasi 4 cabang simulasi paralel nanti)
-                const universeId = 0; // Karena saat ini masih pengujian kompatibilitas
+            // Memulai Pencarian Imajinasi Mendalam (Recursive Multiverse)
+            // Ini akan meruntuhkan cabang yang memiliki energi tinggi dan mengembalikan
+            // Trajectory Tensor (sejarah ikatan waktu) jika menemukan kecocokan sempurna.
+            const trajectory = this.deepImagine(state.in, state.out, 1, topRules);
 
-                // 1. Kloning Realitas ke Alam Semesta spesifik
-                this.multiverse.cloneToUniverse(state.in, universeId);
-
-                // 2. Terapkan Aksioma
-                this.multiverse.applyAxiom(universeId, rule.tensor_rule);
-
-                // 3. Ukur Free Energy di alam semesta tersebut
-                const freeEnergy = this.multiverse.calculateFreeEnergy(universeId, state.out);
-
-                // 4. Evaluasi Kejutan
-                if (freeEnergy >= 0.9 && state.in.activeCount > 0) {
-                    isUniversallyValid = false;
-                    break;
-                }
+            if (trajectory) {
+                winningTrajectories.push(trajectory);
             }
+        }
 
-            if (isUniversallyValid) {
-                // Penguatan positif
-                this.pruner.reinforceHypothesis(rule.index, 0.5);
-            } else {
-                // The Eraser
-                this.pruner.punishHypothesis(rule.index, 1.0);
+        // Catatan: Karena implementasi MCTS kita mengembalikan Tensor Trajectory,
+        // proses pruner konvensional (mengurangi energi rules individu) sebagian besar digantikan
+        // oleh survival of the fittest Trajectories. Untuk sementara, kita menganggap
+        // Trajectories ini sebagai "Axiom" di tahap Collapse.
+
+        // Bersihkan pruner dan suntikkan Trajectory pemenang sebagai aturan baru.
+        // Ini adalah cara yang VSA untuk mengekstrak langkah tanpa String Array.
+        if (winningTrajectories.length > 0) {
+            this.pruner.evolveTime(1.0); // Bunuh semua rule lawas yang terfragmentasi
+            for (let i = 0; i < winningTrajectories.length; i++) {
+                this.pruner.injectHypothesis(`TRAJECTORY_WINNER_${i}`, winningTrajectories[i]!, 1.0, 0.0);
+            }
+        } else {
+            // Jika Deep Planning gagal menemukan jalur sempurna 0.0, kita kembali
+            // ke Evaluasi 1-langkah konvensional untuk mengamankan soal yang simpel
+            // yang tidak butuh Traverse Kedalaman (Fallback Mechanism).
+            for (const rule of activeRules) {
+                let isUniversallyValid = true;
+                for (let i = 0; i < trainStates.length; i++) {
+                    const state = trainStates[i]!;
+                    this.multiverse.cloneToUniverse(state.in, 0);
+                    this.multiverse.applyAxiom(0, rule.tensor_rule);
+                    const freeEnergy = this.multiverse.calculateFreeEnergy(0, state.out);
+
+                    if (freeEnergy >= 0.9 && state.in.activeCount > 0) {
+                        isUniversallyValid = false;
+                        break;
+                    }
+                }
+                if (isUniversallyValid) {
+                    this.pruner.reinforceHypothesis(rule.index, 0.5);
+                } else {
+                    this.pruner.punishHypothesis(rule.index, 1.0);
+                }
             }
         }
 
@@ -226,5 +250,62 @@ export class RRM_Agent {
         } else {
             return testInput;
         }
+    }
+
+    /**
+     * 🌀 THE DEEP ACTIVE INFERENCE LOOP (MCTS)
+     * Menjalankan penelusuran pohon multiverse secara rekursif (Depth-First Search).
+     */
+    private deepImagine(
+        currentUniverse: EntityManifold,
+        targetUniverse: EntityManifold,
+        depth: number,
+        availableActions: any[],
+        currentTrajectory: TensorVector | null = null,
+        currentFreeEnergy: number = 1.0
+    ): TensorVector | null {
+        if (depth > MAX_DEPTH) return null; // Mentok
+
+        for (let branch = 0; branch < availableActions.length; branch++) {
+            const action = availableActions[branch]!;
+            const universeId = (depth - 1) * MAX_BRANCHES + branch; // Pemetaan linier ID ke Multiverse
+
+            // 1. Kloning ke cabang masa depan
+            this.multiverse.cloneToUniverse(currentUniverse, universeId);
+
+            // 2. Berimajinasi (Aplikasikan Hukum)
+            this.multiverse.applyAxiom(universeId, action.tensor_rule);
+
+            // 3. Evaluasi Surprise (Free Energy)
+            const newFreeEnergy = this.multiverse.calculateFreeEnergy(universeId, targetUniverse);
+
+            // 4. Update Sejarah Vektor dengan Time-Traveling Binding
+            const timePhase = FHRR.fractionalBind(this.TIME_SEED, depth); // Time step T_d
+            const stepAction = FHRR.bind(action.tensor_rule, timePhase);
+            const newTrajectory = currentTrajectory ? FHRR.bind(currentTrajectory, stepAction) : stepAction;
+
+            // 5. Kondisi Penilaian Cabang (Thermodynamic Pruning)
+            if (newFreeEnergy < 0.05) {
+                // RESONANSI SEMPURNA DITEMUKAN! Jawaban teka-teki terpecahkan
+                return newTrajectory;
+            } else if (newFreeEnergy < currentFreeEnergy) {
+                // Entropi berkurang (Makin mirip Target). Eksplorasi ke tingkat lebih dalam!
+                // Perhatikan: Rekursi ke masa depan akan menggunakan Semesta saat ini sebagai sumber
+                const winningFuture = this.deepImagine(
+                    this.multiverse.getUniverse(universeId),
+                    targetUniverse,
+                    depth + 1,
+                    availableActions,
+                    newTrajectory,
+                    newFreeEnergy
+                );
+
+                if (winningFuture) return winningFuture;
+            }
+            // Jika FreeEnergy >= currentFreeEnergy, cabang ini akan otomatis "Dibunuh"
+            // (Tidak dilanjutkan iterasi ke dalam), dan universeId-nya akan ditimpa di iterasi lain.
+        }
+
+        return null;
     }
 }
