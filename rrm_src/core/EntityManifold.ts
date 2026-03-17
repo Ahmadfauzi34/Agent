@@ -22,8 +22,11 @@ export class EntityManifold {
     /** Energi amplitudo (Jumlah piksel pembentuk) */
     public masses: Float32Array;
 
-    /** Penyebaran dimensi fisik (Luas Bounding Box) */
-    public spreads: Float32Array;
+    /** Penyebaran dimensi spasial maksimum X (Lebar Bounding Box) */
+    public spansX: Float32Array;
+
+    /** Penyebaran dimensi spasial maksimum Y (Tinggi Bounding Box) */
+    public spansY: Float32Array;
 
     /** Pusat massa relatif X (0.0 - 1.0) */
     public centersX: Float32Array;
@@ -47,7 +50,8 @@ export class EntityManifold {
         this.ids = new Array(MAX_ENTITIES).fill("");
         this.tokens = new Float32Array(MAX_ENTITIES);
         this.masses = new Float32Array(MAX_ENTITIES);
-        this.spreads = new Float32Array(MAX_ENTITIES);
+        this.spansX = new Float32Array(MAX_ENTITIES);
+        this.spansY = new Float32Array(MAX_ENTITIES);
         this.centersX = new Float32Array(MAX_ENTITIES);
         this.centersY = new Float32Array(MAX_ENTITIES);
         this.momentumsX = new Float32Array(MAX_ENTITIES);
@@ -81,7 +85,8 @@ export class EntityManifold {
 
         // Reset properties
         this.masses[index] = 0.0;
-        this.spreads[index] = 0.0;
+        this.spansX[index] = 0.0;
+        this.spansY[index] = 0.0;
         this.centersX[index] = 0.0;
         this.centersY[index] = 0.0;
         this.momentumsX[index] = 0.0;

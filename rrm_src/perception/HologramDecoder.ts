@@ -43,23 +43,26 @@ export class HologramDecoder {
 
             const eTensor = manifold.getTensor(e);
 
-            // OPTIMASI: Batasi area Sinar Probe berdasarkan Pusat Massa & Sebaran aslinya.
-            // Menembak seluruh grid (misal 30x30 = 900 piksel * 10 warna = 9000 Sinar Probe per Entitas)
-            // akan melumpuhkan CPU. Kita limit ke dalam radius yang masuk akal.
-            const spread = manifold.spreads[e]!;
-            const radius = Math.ceil(Math.sqrt(spread)) + 1;
+            // OPTIMASI: Batasi area Sinar Probe berdasarkan Pusat Massa & Bounding Box Anisotropik aslinya.
+            // Menembak seluruh grid akan melumpuhkan CPU.
+            const spanX = manifold.spansX[e]!;
+            const spanY = manifold.spansY[e]!;
 
             const centerX = Math.floor(manifold.centersX[e]! * (width - 1));
             const centerY = Math.floor(manifold.centersY[e]! * (height - 1));
 
-            const startX = Math.max(0, centerX - radius);
-            const endX = Math.min(width - 1, centerX + radius);
-            const startY = Math.max(0, centerY - radius);
-            const endY = Math.min(height - 1, centerY + radius);
+            // Radius pencarian = setengah span + padding untuk mentolerir pergeseran kecil
+            const halfX = Math.floor(spanX / 2) + 1;
+            const halfY = Math.floor(spanY / 2) + 1;
+
+            const startX = Math.max(0, centerX - halfX);
+            const endX = Math.min(width - 1, centerX + halfX);
+            const startY = Math.max(0, centerY - halfY);
+            const endY = Math.min(height - 1, centerY + halfY);
 
             // Misi 2 (Mutasi Warna) & Evaluasi Z-Buffer
-            // Alih-alih merender membabi-buta, kita memindai spektrum probabilitas secara penuh
-            // HANYA di dalam area Bounding Box lokal untuk menghemat O(N) eksekusi Sinar Probe.
+            // Memindai probabilitas spektrum secara penuh HANYA di dalam area Anisotropik Bounding Box lokal
+            // Mengatasi clipping bug pada objek linier panjang (garis 1x30).
             for (let y = startY; y <= endY; y++) {
                 for (let x = startX; x <= endX; x++) {
                     const relX = x / Math.max(1, width - 1);

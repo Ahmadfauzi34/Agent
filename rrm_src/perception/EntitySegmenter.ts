@@ -109,8 +109,9 @@ export class EntitySegmenter {
                     }
                 }
 
-                // Hitung penyebaran spasial (luas bounding box + 1)
-                manifold.spreads[eIndex] = (maxX - minX + 1) * (maxY - minY + 1);
+                // Hitung dimensi Bounding Box Anisotropik
+                manifold.spansX[eIndex] = (maxX - minX + 1);
+                manifold.spansY[eIndex] = (maxY - minY + 1);
 
                 // Hitung Center of Mass rata-rata
                 manifold.centersX[eIndex] = sumX / membersCount;
