@@ -50,8 +50,10 @@ async function main() {
         fs.mkdirSync(logDir);
     }
 
-    const files = fs.readdirSync(trainingDir).filter(f => f.endsWith('.json')).slice(0, 30);
-    console.log(`Memulai batch processing untuk 30 task di folder training dengan Arsitektur ECS (Math Branchless)...`);
+    const allFiles = fs.readdirSync(trainingDir).filter(f => f.endsWith('.json'));
+    // STRESS TEST: Jalankan SEMUA task (400 task) di folder training
+    const files = allFiles;
+    console.log(`Memulai STRESS TEST untuk ${files.length} task di folder training dengan Arsitektur Kuantum ECS...`);
 
     let totalSolved = 0;
     const batchStart = performance.now();

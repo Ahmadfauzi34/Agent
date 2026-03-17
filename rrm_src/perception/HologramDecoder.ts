@@ -17,38 +17,38 @@ export class HologramDecoder {
     }
 
     /**
-     * 🌊 THE COLLAPSE FUNCTION 🌊
-     * Memproyeksikan EntityManifold ke dalam Grid 2D.
-     * Menggunakan ECS/SoA architecture dan probe iterasi cerdas tanpa If-Else.
+     * 🌊 THE COLLAPSE FUNCTION (True Quantum Collapse) 🌊
+     * Memproyeksikan Superposisi Entitas Kuantum kembali menjadi Grid 2D.
+     * Menggunakan "Coherence Z-Buffer" dan "Multi-Spectrum Probe" untuk
+     * merender mutasi warna secara otomatis tanpa `if/else`.
      */
     public collapseToGrid(
         manifold: EntityManifold,
         width: number,
         height: number,
-        threshold: number = 0.5 // Diturunkan agar toleran terhadap decoherence
+        threshold: number = 0.1 // Minimum coherence to overcome vacuum noise
     ): number[][] {
-        // Inisialisasi grid kosong
+        // Inisialisasi grid realitas (0 = vakum)
         const grid: number[][] = Array.from({ length: height }, () => Array(width).fill(0));
 
-        // Karena kita menggunakan EntityManifold, kita akan "menembakkan" probe spasial
-        // ke MASING-MASING entitas aktif, bukan ke 1 universeTensor raksasa yang rentan crosstalk.
+        // Inisialisasi Z-Buffer (Mengukur kedalaman amplitudo/coherence tertinggi)
+        // 0.0 adalah vakum. Benda dengan resonansi lebih kuat akan mengalahkan benda samar.
+        const zBuffer: number[][] = Array.from({ length: height }, () => Array(width).fill(0.0));
+
         const numEntities = manifold.activeCount;
 
         for (let e = 0; e < numEntities; e++) {
-            // V8 Optimized Control Flow (Abaikan entitas mati/vakum)
+            // Abaikan entitas yang telah runtuh menjadi ruang hampa (mass = 0)
             if (manifold.masses[e] === 0.0) continue;
 
             const eTensor = manifold.getTensor(e);
 
-            // Kita sudah tau token aslinya dari manifold (kecuali jika hukum termodinamika mengubah warna,
-            // untuk iterasi ini kita asumsikan warna stabil dan posisi/bentuk yang berubah).
-            const token = manifold.tokens[e]!;
+            // OPTIMASI: Batasi area Sinar Probe berdasarkan Pusat Massa & Sebaran aslinya.
+            // Menembak seluruh grid (misal 30x30 = 900 piksel * 10 warna = 9000 Sinar Probe per Entitas)
+            // akan melumpuhkan CPU. Kita limit ke dalam radius yang masuk akal.
+            const spread = manifold.spreads[e]!;
+            const radius = Math.ceil(Math.sqrt(spread)) + 1;
 
-            // Limit penyebaran probe berdasarkan spread awal entitas agar efisien (O(N) rendering lokal)
-            // Akar kuadrat spread memberi kita radius radius pencarian spasial kasar
-            const radius = Math.ceil(Math.sqrt(manifold.spreads[e]!)) + 1;
-
-            // Titik tengah awal entitas (Sebagai patokan pencarian)
             const centerX = Math.floor(manifold.centersX[e]! * (width - 1));
             const centerY = Math.floor(manifold.centersY[e]! * (height - 1));
 
@@ -57,30 +57,50 @@ export class HologramDecoder {
             const startY = Math.max(0, centerY - radius);
             const endY = Math.min(height - 1, centerY + radius);
 
-            // Tembakkan probe di seluruh grid (Mencari jika entitas teleportasi jauh)
-            // Meskipun radius lokal bisa dihitung, karena ini superposisi yang mengalami WaveGravity,
-            // posisinya bisa bergeser ke ujung grid.
-            for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
+            // Misi 2 (Mutasi Warna) & Evaluasi Z-Buffer
+            // Alih-alih merender membabi-buta, kita memindai spektrum probabilitas secara penuh
+            // HANYA di dalam area Bounding Box lokal untuk menghemat O(N) eksekusi Sinar Probe.
+            for (let y = startY; y <= endY; y++) {
+                for (let x = startX; x <= endX; x++) {
                     const relX = x / Math.max(1, width - 1);
                     const relY = y / Math.max(1, height - 1);
 
-                    // Bangkitkan Sinar Probe (Hanya mencari kecocokan posisi, abaikan token karena token nempel di manifold)
-                    const probePhasor = this.manifoldPerceiver.buildPixelTensor(relX, relY, token);
+                    // ==========================================
+                    // SENSOR MULTI-SPEKTRUM (Scan Semua 10 Warna ARC)
+                    // ==========================================
+                    let bestColor = 0;
+                    let bestCoherence = -Infinity;
 
-                    // PENGUKURAN RESONANSI (Dot Product / Holographic Interference)
-                    let coherence = 0.0;
-                    for (let d = 0; d < GLOBAL_DIMENSION; d++) {
-                        coherence += eTensor[d]! * probePhasor[d]!;
+                    // Kita uji resonansi Entitas ini terhadap semua kemungkinan 10 Warna ARC (0-9)
+                    // pada koordinat (X, Y) ini. Warna yang paling beresonansi adalah warna sejatinya.
+                    for (let c = 0; c < 10; c++) {
+                        const probePhasor = this.manifoldPerceiver.buildPixelTensor(relX, relY, c);
+
+                        let coherence = 0.0;
+                        for (let d = 0; d < GLOBAL_DIMENSION; d++) {
+                            coherence += eTensor[d]! * probePhasor[d]!;
+                        }
+
+                        // Branchless Max
+                        const isBetter = Number(coherence > bestCoherence);
+                        bestCoherence = (bestCoherence * (1 - isBetter)) + (coherence * isBetter);
+                        bestColor = (bestColor * (1 - isBetter)) + (c * isBetter);
                     }
 
-                    // Threshold disesuaikan dengan Dot Product dari tensor termodinamika.
-                    // Karena telah mengalami banyak phase shift (decay, gravity), dot product mungkin kecil.
-                    // Kita berikan threshold absolut yang lebih rendah.
-                    const isConstructive = Number(coherence > 0.1);
+                    // ==========================================
+                    // KONDISI KOLAPS (The Quantum Z-Buffer)
+                    // ==========================================
+                    // Apakah sinyal entitas ini cukup kuat untuk menembus vakum?
+                    const isVisible = Number(bestCoherence > threshold);
 
-                    // Branchless Overwrite
-                    grid[y]![x] = (grid[y]![x]! * (1 - isConstructive)) + (token * isConstructive);
+                    // Apakah sinyal entitas ini lebih kuat (solid) dari benda lain yang sudah ada di koordinat ini?
+                    const isFront = Number(bestCoherence > zBuffer[y]![x]!);
+
+                    // Hanya menimpa grid jika entitas ini TERLIHAT dan BERADA DI DEPAN (Coherence tertinggi)
+                    const shouldOverwrite = isVisible * isFront;
+
+                    zBuffer[y]![x] = (zBuffer[y]![x]! * (1 - shouldOverwrite)) + (bestCoherence * shouldOverwrite);
+                    grid[y]![x] = (grid[y]![x]! * (1 - shouldOverwrite)) + (bestColor * shouldOverwrite);
                 }
             }
         }

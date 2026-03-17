@@ -1,5 +1,5 @@
 import { UniversalManifold, EntitySegmenter, HologramDecoder } from './perception/index.js';
-import { TopologicalAligner, WaveDynamics, HamiltonianPruner } from './reasoning/index.js';
+import { TopologicalAligner, WaveDynamics, HamiltonianPruner, MultiverseSandbox, MAX_BRANCHES } from './reasoning/index.js';
 import { GlobalBlackboard } from './reasoning/GlobalBlackboard.js';
 import { LogicSeedBank } from './memory/index.js';
 import { Task } from './shared/index.js';
@@ -9,7 +9,7 @@ import { TensorVector, GLOBAL_DIMENSION } from './core/config.js';
 import { FHRR } from './core/fhrr.js';
 
 /**
- * 🤖 THE RECURSIVE REASONING MACHINE (Fase 5: Sang Orkestrator)
+ * 🤖 THE RECURSIVE REASONING MACHINE (Fase 6: Multiverse Deep Planning)
  * Siklus termodinamika murni yang menggantikan seluruh pendekatan heuristik kaku.
  * Menggunakan Loop ECS: PERCEIVE -> RESONATE -> EVOLVE -> COLLAPSE
  */
@@ -20,6 +20,7 @@ export class RRM_Agent {
     private waveDynamics = new WaveDynamics();
     private pruner = new HamiltonianPruner();
     private blackboard = new GlobalBlackboard();
+    private multiverse = new MultiverseSandbox(); // 🌟 The New Imagination Space (Multi-Branch)
     private decoder: HologramDecoder;
     private seedBank: LogicSeedBank;
 
@@ -117,63 +118,46 @@ export class RRM_Agent {
         }
 
         // 3. =======================================================
-        // 🔥 THE EVOLVE PHASE (Renormalization Group Flow / Cross-Validation)
-        // Membunuh hipotesis yang tidak konsisten secara universal.
+        // 🔥 THE EVOLVE PHASE (Deep Active Inference / Multiverse Search)
+        // Mengeksekusi pencarian multi-cabang untuk mencari lintasan termodinamika terbaik
         // =======================================================
-        log(`   [3] EVOLVE: Menjalankan Termodinamika & Interferensi Destruktif (Cross-Validation)...`);
+        log(`   [3] EVOLVE: Menjalankan Termodinamika & Multiverse Tree Search...`);
 
         const activeRules = this.pruner.getSurvivingRules();
 
+        // Dalam eksekusi kali ini, kita akan menyederhanakan MCTS menjadi simulasi kedalaman-1
+        // melintasi seluruh state untuk memverifikasi kompatibilitas MultiverseBuffer.
         for (const rule of activeRules) {
             let isUniversallyValid = true;
 
             for (let i = 0; i < trainStates.length; i++) {
                 const state = trainStates[i]!;
-                let ruleMatchedInThisState = false;
 
-                // V8 Optimized Control Flow
-                state.in.forEachActive((inIdx, inMass, inRelX, inRelY, inToken) => {
-                    const inTensor = state.in.getTensor(inIdx);
+                // Cabang Imajinasi ID (0-3 untuk iterasi 4 cabang simulasi paralel nanti)
+                const universeId = 0; // Karena saat ini masih pengujian kompatibilitas
 
-                    // Prediksi masa depan: Apa jadinya entitas ini jika dikenai Hukum ini?
-                    const predictedTensor = FHRR.bind(inTensor, rule.tensor_rule);
+                // 1. Kloning Realitas ke Alam Semesta spesifik
+                this.multiverse.cloneToUniverse(state.in, universeId);
 
-                    let foundMatch = false;
+                // 2. Terapkan Aksioma
+                this.multiverse.applyAxiom(universeId, rule.tensor_rule);
 
-                    // Cek apakah prediksi ini NYATA ada di output manifold
-                    state.out.forEachActive((outIdx, outMass, outRelX, outRelY, outToken) => {
-                        if (foundMatch) return; // Skip if already matched
+                // 3. Ukur Free Energy di alam semesta tersebut
+                const freeEnergy = this.multiverse.calculateFreeEnergy(universeId, state.out);
 
-                        const outTensor = state.out.getTensor(outIdx);
-                        const sim = FHRR.similarity(predictedTensor, outTensor);
-
-                        // Threshold resonansi dilonggarkan karena fasa seringkali noise
-                        // Cukup mencari jejak tipis dari prediksi
-                        if (sim > 0.1) {
-                            foundMatch = true;
-                        }
-                    });
-
-                    if (foundMatch) {
-                        ruleMatchedInThisState = true;
-                    }
-                });
-
-                // Sebuah axiom cukup dihitung valid jika ia berhasil memprediksi BAGAIMANA
-                // setidaknya SATU entitas bergerak dalam sebuah State (pair).
-                // Karena kita belum mengekstrak aturan per-tipe-warna secara sempurna.
-                if (!ruleMatchedInThisState && state.in.activeCount > 0) {
+                // 4. Evaluasi Kejutan
+                if (freeEnergy >= 0.9 && state.in.activeCount > 0) {
                     isUniversallyValid = false;
                     break;
                 }
             }
 
             if (isUniversallyValid) {
-                // Penguatan positif untuk Hukum Universal
+                // Penguatan positif
                 this.pruner.reinforceHypothesis(rule.index, 0.5);
             } else {
-                // 💥 THE ERASER: Hancurkan seketika (Interferensi Destruktif)
-                this.pruner.punishHypothesis(rule.index, 1.0); // Penalti maksimal
+                // The Eraser
+                this.pruner.punishHypothesis(rule.index, 1.0);
             }
         }
 
