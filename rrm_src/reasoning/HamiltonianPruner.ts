@@ -145,4 +145,15 @@ export class HamiltonianPruner {
         }
         return survivors;
     }
+
+    /**
+     * THE ERASER (Pembersihan Ekstrem)
+     * Memusnahkan seluruh hipotesis dari memori aktif.
+     * Sangat berguna saat agen telah berhasil merangkai Axiom bersih
+     * dan ingin menghapus seluruh jejak debu noise/tebakan kotor sebelumnya.
+     */
+    public clearAllHypotheses(): void {
+        this.activeCount = 0;
+        this.energies.fill(0.0);
+    }
 }

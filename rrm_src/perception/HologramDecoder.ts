@@ -43,26 +43,21 @@ export class HologramDecoder {
 
             const eTensor = manifold.getTensor(e);
 
-            // OPTIMASI: Batasi area Sinar Probe berdasarkan Pusat Massa & Bounding Box Anisotropik aslinya.
-            // Menembak seluruh grid akan melumpuhkan CPU.
-            const spanX = manifold.spansX[e]!;
-            const spanY = manifold.spansY[e]!;
-
-            const centerX = Math.floor(manifold.centersX[e]! * (width - 1));
-            const centerY = Math.floor(manifold.centersY[e]! * (height - 1));
-
-            // Radius pencarian = setengah span + padding untuk mentolerir pergeseran kecil
-            const halfX = Math.floor(spanX / 2) + 1;
-            const halfY = Math.floor(spanY / 2) + 1;
-
-            const startX = Math.max(0, centerX - halfX);
-            const endX = Math.min(width - 1, centerX + halfX);
-            const startY = Math.max(0, centerY - halfY);
-            const endY = Math.min(height - 1, centerY + halfY);
+            // Bounding Box Dinamis: Jika agen telah melakukan pergeseran/translasi di Sandbox,
+            // koordinat `centersX/Y` miliknya sudah tidak valid (desync) karena pergeseran
+            // terjadi secara abstrak di ranah Tensor, bukan array fisik.
+            // Oleh karena itu, kita perlu melebarkan "Sinar Probe" untuk menjangkau seluruh
+            // wilayah layar agar entitas yang bergeser/teleportasi tetap bisa ditemukan oleh Probe.
+            // (Kita harus merelakan sedikit O(N^2) untuk akurasi Fase 4).
+            const startX = 0;
+            const endX = width - 1;
+            const startY = 0;
+            const endY = height - 1;
 
             // Misi 2 (Mutasi Warna) & Evaluasi Z-Buffer
-            // Memindai probabilitas spektrum secara penuh HANYA di dalam area Anisotropik Bounding Box lokal
-            // Mengatasi clipping bug pada objek linier panjang (garis 1x30).
+            // Memindai probabilitas spektrum secara penuh ke seluruh grid.
+            // Ini akan menemukan entitas kita di manapun dia berada setelah dipindah oleh Hukum Fisika
+            // maupun mengalami mutasi warna, tanpa clipping.
             for (let y = startY; y <= endY; y++) {
                 for (let x = startX; x <= endX; x++) {
                     const relX = x / Math.max(1, width - 1);
