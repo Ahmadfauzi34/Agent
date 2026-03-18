@@ -93,7 +93,7 @@ export class QuantumSandbox {
             if (this.sandboxWorld.masses[s] === 0.0) continue;
 
             const sTensor = this.sandboxWorld.getTensor(s);
-            let bestResonance = -Infinity;
+            let bestResonance = -999.0;
 
             for (let t = 0; t < targetEntities; t++) {
                 if (targetReality.masses[t] === 0.0) continue;
@@ -105,6 +105,8 @@ export class QuantumSandbox {
                 const isBetter = Number(resonance > bestResonance);
                 bestResonance = (bestResonance * (1 - isBetter)) + (resonance * isBetter);
             }
+
+            if (bestResonance === -999.0) bestResonance = -1.0;
 
             // Free Energy = 1.0 - Resonance (Semakin resonan, semakin kecil Free Energy-nya)
             // Jika bestResonance negatif (saling tolak), Surprise meledak > 1.0

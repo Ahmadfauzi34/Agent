@@ -50,7 +50,7 @@ export class TopologicalAligner {
 
         for (const sIdx of sourceIndices) {
             let bestTargetIdx = -1;
-            let bestSim = -1.0;
+            let bestSim = -999.0;
             let bestAxiomType = "IDENTITY";
 
             const srcTensor = sourceManifold.getTensor(sIdx);

@@ -199,29 +199,46 @@ export class RRM_Agent {
             // Jika Deep Planning gagal menemukan jalur sempurna 0.0, kita kembali
             // ke Evaluasi 1-langkah konvensional untuk mengamankan soal yang simpel
             // yang tidak butuh Traverse Kedalaman (Fallback Mechanism).
+            let bestFallbackRule: TensorVector | null = null;
+            let lowestEnergySum = Infinity;
+
             for (const rule of activeRules) {
-                let isUniversallyValid = true;
+                let ruleEnergySum = 0.0;
+
                 for (let i = 0; i < trainStates.length; i++) {
                     const state = trainStates[i]!;
                     this.multiverse.cloneToUniverse(state.in, 0);
                     this.multiverse.applyAxiom(0, rule.tensor_rule);
                     const freeEnergy = this.multiverse.calculateFreeEnergy(0, state.out);
 
-                    if (freeEnergy >= 0.9 && state.in.activeCount > 0) {
-                        isUniversallyValid = false;
-                        break;
-                    }
+                    ruleEnergySum += freeEnergy;
                 }
-                if (isUniversallyValid) {
-                    this.pruner.reinforceHypothesis(rule.index, 0.5);
-                } else {
-                    this.pruner.punishHypothesis(rule.index, 1.0);
+
+                // Karena kita belum mengekstrak logika multi-agen dengan sempurna,
+                // beberapa aturan hanya berlaku untuk 1 objek (e.g. geser balok merah),
+                // sehingga freeEnergy secara total masih akan tinggi (karena objek lain tidak bergerak).
+                // Alih-alih membunuh semua rule jika ada 1 state > 0.9, kita cukup
+                // memilih aturan tunggal yang secara RATA-RATA paling mengurangi entropi
+                // (Lowest Free Energy Sum).
+                if (ruleEnergySum < lowestEnergySum) {
+                    lowestEnergySum = ruleEnergySum;
+                    bestFallbackRule = rule.tensor_rule;
                 }
             }
-        }
 
-        // Tembakan peluruhan pasif terakhir untuk membersihkan sisa debu noise
-        this.pruner.evolveTime(0.1);
+            // [DOSA 3: MCTS FALLBACK] Konsistensi Alur
+            // Daripada membiarkan pruner penuh dengan aksioma berantakan,
+            // kita bersihkan Pruner dan HANYA memasukkan aturan tunggal terbaik
+            // yang ditemukan oleh fallback, menjadikannya sekuens 1-langkah
+            // agar Rute B (Collapse) mengeksekusi dengan bersih.
+            this.pruner.clearAllHypotheses();
+
+            // Kita harus memastikan rule tersebut valid, minimal memiliki energy
+            if (bestFallbackRule && lowestEnergySum < Infinity) {
+                // Decay Rate harus 0.0, energi 1.0, karena ini sudah bersih
+                this.pruner.injectHypothesis(`CLEAN_AXIOM_FALLBACK`, bestFallbackRule, 1.0, 0.0);
+            }
+        }
 
         const survivingRules = this.pruner.getSurvivingRules();
         const rulesCount = survivingRules.length;
@@ -229,7 +246,7 @@ export class RRM_Agent {
         // Logika Index Boolean bebas IF-ELSE untuk logging
         const statusMessages = [
             `   💀 EVOLVE GAGAL: Semua hipotesis musnah dilanda Entropi Kuantum.`,
-            `   🌟 EVOLVE BERHASIL: Tersisa ${rulesCount} Hukum Alam (Axiom) yang kebal dari Entropi.`
+            `   🌟 EVOLVE BERHASIL: Mengekstrak ${rulesCount} Hukum Alam (Axiom) Bersih dari Trajectory.`
         ];
         log(statusMessages[Number(rulesCount > 0)]!);
 
