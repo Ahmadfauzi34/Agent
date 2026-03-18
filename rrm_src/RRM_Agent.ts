@@ -108,13 +108,13 @@ export class RRM_Agent {
                     // Jika coherence sangat kuat, reuse memori lama
                     if (knownMemory && knownMemory.coherence > 0.75) {
                         log(`      [Resonance] Pergerakan dikenali sebagai: ${knownMemory.name} (Axiom Geometri: ${match.axiomType}) (Kemiripan: ${(knownMemory.coherence * 100).toFixed(2)}%)`);
-                        this.pruner.injectHypothesis(knownMemory.name, knownMemory.phasor, 1.0, 0.001);
+                        this.pruner.injectHypothesis(knownMemory.name, knownMemory.phasor, match.deltaX, match.deltaY, 1.0, 0.001);
                     } else {
                         // Jika tidak ada yang mirip > 75%, kita ciptakan hukum baru
                         // (Mencegah false positive dari harvested seeds yang merusak Cross Validation)
                         const ruleId = `LAW_NEW_TRAIN_${i}_E${match.sourceIndex}_[${match.axiomType}]`;
                         // Decay rate super rendah karena Axiom sudah dipra-validasi oleh Centroid & Mirror Probes
-                        this.pruner.injectHypothesis(ruleId, match.deltaTensor, 1.0, 0.005);
+                        this.pruner.injectHypothesis(ruleId, match.deltaTensor, match.deltaX, match.deltaY, 1.0, 0.005);
                     }
                 }
             }
@@ -127,7 +127,7 @@ export class RRM_Agent {
         log(`   [3] EVOLVE: Menjalankan Termodinamika & Multiverse Tree Search...`);
 
         // Array untuk menyimpan lintasan aksi yang lolos Free Energy = 0.0 (Sempurna)
-        const winningTrajectories: TensorVector[] = [];
+        const winningTrajectories: { tensor: TensorVector, depth: number }[] = [];
         const activeRules = this.pruner.getSurvivingRules();
 
         // Ambil top-K rule terkuat untuk menjadi cabang pohon MCTS agar tidak meledak
@@ -141,52 +141,92 @@ export class RRM_Agent {
             // Memulai Pencarian Imajinasi Mendalam (Recursive Multiverse)
             // Ini akan meruntuhkan cabang yang memiliki energi tinggi dan mengembalikan
             // Trajectory Tensor (sejarah ikatan waktu) jika menemukan kecocokan sempurna.
-            const trajectory = this.deepImagine(state.in, state.out, 1, topRules);
+            const trajectoryResult = this.deepImagine(state.in, state.out, 1, topRules);
 
-            if (trajectory) {
-                winningTrajectories.push(trajectory);
+            if (trajectoryResult) {
+                winningTrajectories.push(trajectoryResult);
             }
         }
 
-        // Catatan: Karena implementasi MCTS kita mengembalikan Tensor Trajectory,
-        // proses pruner konvensional (mengurangi energi rules individu) sebagian besar digantikan
-        // oleh survival of the fittest Trajectories. Untuk sementara, kita menganggap
-        // Trajectories ini sebagai "Axiom" di tahap Collapse.
-
-        // Bersihkan pruner dan suntikkan Trajectory pemenang sebagai aturan baru.
-        // Ini adalah cara yang VSA untuk mengekstrak langkah tanpa String Array.
+        // 3B. =======================================================
+        // RUTE A: RETROCAUSAL UNBINDING (Menarik Rumus Bersih dari Trajectory)
+        // Mengekstrak aksi murni dari kebisingan Vektor Masa Depan.
+        // =======================================================
+        const cleanAxiomSequence: any[] = [];
         if (winningTrajectories.length > 0) {
-            this.pruner.evolveTime(1.0); // Bunuh semua rule lawas yang terfragmentasi
-            for (let i = 0; i < winningTrajectories.length; i++) {
-                this.pruner.injectHypothesis(`TRAJECTORY_WINNER_${i}`, winningTrajectories[i]!, 1.0, 0.0);
+            log(`      [Retrocausal Unbinding] Mengekstrak urutan Hukum dari Alam Semesta Pemenang...`);
+
+            // Kita ambil satu lintasan pemenang yang konsisten
+            const winner = winningTrajectories[0]!;
+            const trajectoryTensor = winner.tensor;
+            const maxDepthReached = winner.depth;
+
+            for (let d = 1; d <= maxDepthReached; d++) {
+                // Konjugasi Waktu (Time Inverse)
+                const timePhase = FHRR.fractionalBind(this.TIME_SEED, d);
+                const timeInverse = FHRR.inverse(timePhase);
+
+                // Ekstrak Sinyal Bising Aksi pada langkah T_d
+                const noisyAxiom = FHRR.bind(trajectoryTensor, timeInverse);
+
+                // Auto-Associative Memory (Mencocokkan Sinyal Bising ke Axiom Bersih)
+                let bestMatch: any | null = null;
+                let highestSim = -Infinity;
+
+                for (const rule of activeRules) {
+                    const sim = FHRR.similarity(noisyAxiom, rule.tensor_rule);
+                    if (sim > highestSim) {
+                        highestSim = sim;
+                        bestMatch = rule;
+                    }
+                }
+
+                // Simpan Axiom yang sudah bersih (Noise-free) beserta Momentumn-nya
+                if (bestMatch && highestSim > 0.1) {
+                    cleanAxiomSequence.push(bestMatch);
+                }
+            }
+
+            // [BUGFIX] Hapus bersih semua tebakan kotor (bukan sekedar decay 1 langkah)
+            // agar Test Grid (Fase 4) tidak dieksekusi dengan ratusan sampah noise training.
+            this.pruner.clearAllHypotheses();
+
+            // Inject aturan bersih kembali ke Pruner sebagai Sequence Linier
+            for (let i = 0; i < cleanAxiomSequence.length; i++) {
+                const rule = cleanAxiomSequence[i]!;
+                this.pruner.injectHypothesis(`CLEAN_AXIOM_STEP_${i+1}`, rule.tensor_rule, rule.deltaX, rule.deltaY, 1.0, 0.0);
             }
         } else {
             // Jika Deep Planning gagal menemukan jalur sempurna 0.0, kita kembali
             // ke Evaluasi 1-langkah konvensional untuk mengamankan soal yang simpel
             // yang tidak butuh Traverse Kedalaman (Fallback Mechanism).
+            let bestFallbackRule: any | null = null;
+            let lowestEnergySum = Infinity;
+
             for (const rule of activeRules) {
-                let isUniversallyValid = true;
+                let ruleEnergySum = 0.0;
+
                 for (let i = 0; i < trainStates.length; i++) {
                     const state = trainStates[i]!;
                     this.multiverse.cloneToUniverse(state.in, 0);
-                    this.multiverse.applyAxiom(0, rule.tensor_rule);
+                    this.multiverse.applyAxiom(0, rule.tensor_rule, rule.deltaX, rule.deltaY);
                     const freeEnergy = this.multiverse.calculateFreeEnergy(0, state.out);
 
-                    if (freeEnergy >= 0.9 && state.in.activeCount > 0) {
-                        isUniversallyValid = false;
-                        break;
-                    }
+                    ruleEnergySum += freeEnergy;
                 }
-                if (isUniversallyValid) {
-                    this.pruner.reinforceHypothesis(rule.index, 0.5);
-                } else {
-                    this.pruner.punishHypothesis(rule.index, 1.0);
+
+                if (ruleEnergySum < lowestEnergySum) {
+                    lowestEnergySum = ruleEnergySum;
+                    bestFallbackRule = rule;
                 }
             }
-        }
 
-        // Tembakan peluruhan pasif terakhir untuk membersihkan sisa debu noise
-        this.pruner.evolveTime(0.1);
+            this.pruner.clearAllHypotheses();
+
+            if (bestFallbackRule && lowestEnergySum < Infinity) {
+                this.pruner.injectHypothesis(`CLEAN_AXIOM_FALLBACK`, bestFallbackRule.tensor_rule, bestFallbackRule.deltaX, bestFallbackRule.deltaY, 1.0, 0.0);
+            }
+        }
 
         const survivingRules = this.pruner.getSurvivingRules();
         const rulesCount = survivingRules.length;
@@ -194,7 +234,7 @@ export class RRM_Agent {
         // Logika Index Boolean bebas IF-ELSE untuk logging
         const statusMessages = [
             `   💀 EVOLVE GAGAL: Semua hipotesis musnah dilanda Entropi Kuantum.`,
-            `   🌟 EVOLVE BERHASIL: Tersisa ${rulesCount} Hukum Alam (Axiom) yang kebal dari Entropi.`
+            `   🌟 EVOLVE BERHASIL: Mengekstrak ${rulesCount} Hukum Alam (Axiom) Bersih dari Trajectory.`
         ];
         log(statusMessages[Number(rulesCount > 0)]!);
 
@@ -202,35 +242,32 @@ export class RRM_Agent {
         if (rulesCount === 0) return null;
 
         // 4. =======================================================
-        // 🌌 THE COLLAPSE PHASE
-        // Meruntuhkan probabilitas gelombang menjadi realitas absolut (Output Prediksi)
+        // 🌌 THE COLLAPSE PHASE (Rute B: Wavefunction Collapse / Memcpy)
+        // Mengeksekusi urutan Axiom bersih di Sandbox, lalu langsung Meruntuhkan
+        // Sandbox yang sempurna itu ke dunia nyata (testManifold) secara O(1).
         // =======================================================
-        log(`   [4] COLLAPSE: Mengaplikasikan Axiom ke realitas Test...`);
+        log(`   [4] COLLAPSE: Mengeksekusi Runtuhan Fungsi Gelombang Kuantum ke realitas Test...`);
 
-        // Terapkan medan Wave Gravity ke EntityManifold (Test)
-        this.waveDynamics.initializeEntities(testManifold);
-        this.waveDynamics.evolveEntanglement(0.2); // Sinkronisasi state awal tes
+        // 1. Kloning Test Grid awal ke Sandbox (Universe 0)
+        this.multiverse.cloneToUniverse(testManifold, 0);
 
-        // Contextualize dengan memori kolektif yang sudah dibangun saat training
-        const collectiveState = this.blackboard.readCollectiveState();
-
-        for (let i = 0; i < testManifold.activeCount; i++) {
-            if (testManifold.masses[i] === 0.0) continue;
-
-            const tensor = testManifold.getTensor(i);
-
-            // Sadarkan agen akan state kolektif
-            const contextualizedTensor = this.blackboard.contextualizeAgent(tensor);
-
-            // Tarik tensor test menggunakan sisa-sisa aturan yang selamat dan memori kolektif
-            const attractors = survivingRules.map(r => r.tensor_rule);
-            attractors.push(contextualizedTensor); // Atraktor tambahan dari consciousness
-
-            this.waveDynamics.applyWaveGravity(i, attractors, []);
-
-            // Picu efek domino: Jika agen ini berubah, agen yang terikat ikut terpengaruh proporsional
-            this.waveDynamics.triggerCollapse(i);
+        // 2. Mainkan seluruh sekuens Axiom bersih ke Sandbox secara berurutan
+        for (const rule of survivingRules) {
+            this.multiverse.applyAxiom(0, rule.tensor_rule, rule.deltaX, rule.deltaY);
         }
+
+        // 3. O(1) MEMCPY COLLAPSE
+        // Ambil universe yang sudah matang dari Sandbox
+        const winningUniverse = this.multiverse.getUniverse(0);
+
+        // Timpa kenyataan (testManifold) dengan masa depan dari Sandbox
+        testManifold.tensors.set(winningUniverse.tensors);
+        testManifold.spansX.set(winningUniverse.spansX);
+        testManifold.spansY.set(winningUniverse.spansY);
+        testManifold.tokens.set(winningUniverse.tokens);
+        testManifold.centersX.set(winningUniverse.centersX);
+        testManifold.centersY.set(winningUniverse.centersY);
+        testManifold.masses.set(winningUniverse.masses);
 
         // Mengambil ukuran asli test grid (Jika 2D) untuk re-render
         const testInput = task.test[0]!.input;
@@ -241,11 +278,10 @@ export class RRM_Agent {
             const height = grid.length;
             const width = grid[0]?.length || 0;
 
-            // Menerapkan Runtuhan Gelombang Kuantum (Quantum Collapse)
-            // Memproyeksikan EntityManifold yang sudah berevolusi (Evolve) kembali ke grid piksel
-            const collapsedGrid = this.decoder.collapseToGrid(testManifold, width, height, 0.35); // Threshold diturunkan sedikit untuk menoleransi entropi
+            // Memproyeksikan EntityManifold yang sudah runtuh kembali ke grid piksel
+            const collapsedGrid = this.decoder.collapseToGrid(testManifold, width, height, 0.35);
 
-            log(`   ✅ REALITAS TERBENTUK: Grid (${width}x${height}) dirender ulang dari superposisi kuantum secara branchless ECS.`);
+            log(`   ✅ REALITAS TERBENTUK: Grid (${width}x${height}) dirender ulang dari Memcpy Collapse secara branchless ECS.`);
             return collapsedGrid;
         } else {
             return testInput;
@@ -263,7 +299,7 @@ export class RRM_Agent {
         availableActions: any[],
         currentTrajectory: TensorVector | null = null,
         currentFreeEnergy: number = 1.0
-    ): TensorVector | null {
+    ): { tensor: TensorVector, depth: number } | null {
         if (depth > MAX_DEPTH) return null; // Mentok
 
         for (let branch = 0; branch < availableActions.length; branch++) {
@@ -273,8 +309,8 @@ export class RRM_Agent {
             // 1. Kloning ke cabang masa depan
             this.multiverse.cloneToUniverse(currentUniverse, universeId);
 
-            // 2. Berimajinasi (Aplikasikan Hukum)
-            this.multiverse.applyAxiom(universeId, action.tensor_rule);
+            // 2. Berimajinasi (Aplikasikan Hukum Fisika Kuantum & Skalar Kinetik)
+            this.multiverse.applyAxiom(universeId, action.tensor_rule, action.deltaX, action.deltaY);
 
             // 3. Evaluasi Surprise (Free Energy)
             const newFreeEnergy = this.multiverse.calculateFreeEnergy(universeId, targetUniverse);
@@ -287,7 +323,7 @@ export class RRM_Agent {
             // 5. Kondisi Penilaian Cabang (Thermodynamic Pruning)
             if (newFreeEnergy < 0.05) {
                 // RESONANSI SEMPURNA DITEMUKAN! Jawaban teka-teki terpecahkan
-                return newTrajectory;
+                return { tensor: newTrajectory, depth };
             } else if (newFreeEnergy < currentFreeEnergy) {
                 // Entropi berkurang (Makin mirip Target). Eksplorasi ke tingkat lebih dalam!
                 // Perhatikan: Rekursi ke masa depan akan menggunakan Semesta saat ini sebagai sumber

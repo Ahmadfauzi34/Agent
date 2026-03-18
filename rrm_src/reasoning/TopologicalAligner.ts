@@ -9,6 +9,8 @@ export interface AlignmentMatch {
     targetIndex: number; // -1 jika tidak ada target
     similarity: number;
     deltaTensor: TensorVector | null; // Selisih vektor (Pergerakan konseptual/spasial)
+    deltaX: number; // Kinetika skalar X (Untuk O(1) render updates)
+    deltaY: number; // Kinetika skalar Y (Untuk O(1) render updates)
     axiomType: string; // IDENTITY, MIRROR_X, MIRROR_Y, MIRROR_XY
 }
 
@@ -17,11 +19,17 @@ export interface AlignmentMatch {
  * Melacak entitas dari Manifold Input ke Manifold Output secara agnostik
  * tanpa memuja Array of Objects (SoA Ready).
  */
+import { MAX_ENTITIES } from '../core/config.js';
+
 export class TopologicalAligner {
     private perceiver: UniversalManifold;
 
+    // Memory Pool O(1) untuk menghindari Garbage Collection pada setiap panggilan align()
+    private sourceIndicesBuffer: Int32Array;
+
     constructor(perceiver: UniversalManifold) {
         this.perceiver = perceiver;
+        this.sourceIndicesBuffer = new Int32Array(MAX_ENTITIES);
     }
 
     /**
@@ -32,26 +40,33 @@ export class TopologicalAligner {
         const matches: AlignmentMatch[] = [];
         const usedTargets = new Set<number>();
 
-        // 🚨 KOREKSI ARSITEK (Non-Determinisme Sort):
-        // Sort memang rentan membalikkan kembar jika massanya sama. Kita perbaiki
-        // dengan menambahkan ID/Urutan sebagai tie-breaker (Fallback sekunder).
-        // Kenapa sort() tetap wajib? Karena jika 1 titik debu (noise) diuji lebih dulu,
-        // Algoritma Greedy akan membiarkannya "mencuri" target dari objek raksasa.
-        const sourceIndices: number[] = [];
+        // 🚨 KOREKSI ARSITEK (Non-Determinisme Sort & Zero-GC):
+        // Kita menggunakan Int32Array pre-allocated yang sangat bersahabat dengan L1 Cache.
+        // Tidak ada array.push() dinamis yang membuat V8 kewalahan mengumpulkan sampah (GC).
+        let sourceCount = 0;
         for(let i = 0; i < sourceManifold.activeCount; i++) {
-            if (sourceManifold.masses[i]! > 0) sourceIndices.push(i);
+            if (sourceManifold.masses[i]! > 0) {
+                this.sourceIndicesBuffer[sourceCount++] = i;
+            }
         }
 
-        sourceIndices.sort((a, b) => {
+        // Subarray view tidak menduplikasi memori, ia hanya membuat jendela seleksi
+        const activeIndices = this.sourceIndicesBuffer.subarray(0, sourceCount);
+
+        // In-place sort pada typed array
+        activeIndices.sort((a, b) => {
             const massDiff = sourceManifold.masses[b]! - sourceManifold.masses[a]!;
             if (massDiff !== 0) return massDiff;
             return a - b; // Tie-breaker deterministik
         });
 
-        for (const sIdx of sourceIndices) {
+        for (let i = 0; i < sourceCount; i++) {
+            const sIdx = activeIndices[i]!;
             let bestTargetIdx = -1;
-            let bestSim = -1.0;
+            let bestSim = -999.0;
             let bestAxiomType = "IDENTITY";
+            let bestDx = 0.0;
+            let bestDy = 0.0;
 
             const srcTensor = sourceManifold.getTensor(sIdx);
             const srcMass = sourceManifold.masses[sIdx]!;
@@ -114,6 +129,8 @@ export class TopologicalAligner {
                 if (combinedScore > bestSim) {
                     bestSim = combinedScore;
                     bestTargetIdx = tIdx;
+                    bestDx = dx;
+                    bestDy = dy;
 
                     if (maxSim === simId) bestAxiomType = `TRANSLATE_${dx.toFixed(2)}_${dy.toFixed(2)}`;
                     else if (maxSim === simMx) bestAxiomType = `MIRROR_X+TRANS_${dx.toFixed(2)}_${dy.toFixed(2)}`;
@@ -148,6 +165,8 @@ export class TopologicalAligner {
                 targetIndex: bestTargetIdx,
                 similarity: bestSim,
                 deltaTensor: delta,
+                deltaX: bestDx,
+                deltaY: bestDy,
                 axiomType: bestAxiomType
             });
         }

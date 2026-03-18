@@ -43,26 +43,30 @@ export class HologramDecoder {
 
             const eTensor = manifold.getTensor(e);
 
-            // OPTIMASI: Batasi area Sinar Probe berdasarkan Pusat Massa & Bounding Box Anisotropik aslinya.
-            // Menembak seluruh grid akan melumpuhkan CPU.
+            // OPTIMASI DOSA 2: Bounding Box Anisotropik Kinetik
+            // Karena `centersX` dan `centersY` kini sudah diperbarui secara akurat
+            // oleh `MultiverseSandbox.applyAxiom` (menggunakan eksekusi Momentum Skalar),
+            // kita bisa KEMBALI menggunakan Sinar Probe O(N) yang super ketat!
             const spanX = manifold.spansX[e]!;
             const spanY = manifold.spansY[e]!;
 
             const centerX = Math.floor(manifold.centersX[e]! * (width - 1));
             const centerY = Math.floor(manifold.centersY[e]! * (height - 1));
 
-            // Radius pencarian = setengah span + padding untuk mentolerir pergeseran kecil
+            // Radius pencarian = setengah rentang + padding aman 1 piksel
             const halfX = Math.floor(spanX / 2) + 1;
             const halfY = Math.floor(spanY / 2) + 1;
 
+            // PENGAMANAN OUT OF BOUNDS (Clamping)
+            // Walaupun centersX/Y bergeser keluar koordinat absolut, Math.max dan Math.min
+            // memastikan iterasi kita tetap berada di dalam array 2D grid piksel.
             const startX = Math.max(0, centerX - halfX);
             const endX = Math.min(width - 1, centerX + halfX);
             const startY = Math.max(0, centerY - halfY);
             const endY = Math.min(height - 1, centerY + halfY);
 
-            // Misi 2 (Mutasi Warna) & Evaluasi Z-Buffer
-            // Memindai probabilitas spektrum secara penuh HANYA di dalam area Anisotropik Bounding Box lokal
-            // Mengatasi clipping bug pada objek linier panjang (garis 1x30).
+            // Memindai probabilitas spektrum secara penuh HANYA di area Bounding Box baru
+            // Menghindari O(N^2) full-grid scan tanpa memotong gambar garis (Anti-Isotropik).
             for (let y = startY; y <= endY; y++) {
                 for (let x = startX; x <= endX; x++) {
                     const relX = x / Math.max(1, width - 1);

@@ -36,26 +36,6 @@ export class AxiomGenerator {
     }
 
     /**
-     * Membangkitkan Axiom Perubahan Warna (Color Mutation).
-     *
-     * @param fromToken Warna/Token awal
-     * @param toToken Warna/Token akhir
-     * @param colorSeed Vektor benih untuk dimensi Warna
-     * @returns Delta Phasor (Tensor Transformasi Warna)
-     */
-    public static generateColorAxiom(
-        fromToken: number,
-        toToken: number,
-        colorSeed: TensorVector
-    ): TensorVector {
-        const fromColor = FHRR.fractionalBind(colorSeed, fromToken);
-        const toColor = FHRR.fractionalBind(colorSeed, toToken);
-
-        // Axiom = Target * Inverse(Source)
-        return FHRR.bind(toColor, FHRR.inverse(fromColor));
-    }
-
-    /**
      * Membangkitkan Axiom Refleksi / Cermin (Symmetry).
      * 100% Branchless dan Mempertahankan Identitas Warna (Tidak menciptakan Anti-Materi).
      *

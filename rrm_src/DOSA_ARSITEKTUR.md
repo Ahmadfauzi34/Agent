@@ -124,4 +124,38 @@ for (let i=0; i<8192; i++) {
 ```
 
 ---
-**"Patuhilah Kelima Hukum Penebusan Ini, Niscaya Reasoning Engine RRM-Mu Akan Melesat Pada Batas Kecepatan Silikon."** 🌌
+
+## 🚫 DOSA 6: Pembunuhan Senyap di Branchless Math (Not-A-Number / NaN Explosion)
+Ketika membuang `if-else` untuk mencari nilai maksimum secara dinamis (Branchless Max), ada godaan matematis untuk menggunakan inisialisasi tak terhingga (`-Infinity`).
+
+❌ **Bentuk Dosa (Silent Killer):**
+```typescript
+let bestResonance = -Infinity;
+for (let t = 0; t < targetEntities; t++) {
+    const resonance = FHRR.similarity(sTensor, tTensor); // Mengembalikan nilai -1.0 hingga 1.0
+    const isBetter = Number(resonance > bestResonance);
+
+    // BRANCHLESS MAX: Jika isBetter = 1, kita ambil resonance. Jika isBetter = 0, kita ambil bestResonance.
+    bestResonance = (bestResonance * (1 - isBetter)) + (resonance * isBetter);
+}
+```
+🚨 **Kenapa Ini Menghancurkan Mesin? (-Infinity * 0 = NaN)**
+*   Dalam spesifikasi IEEE 754 JavaScript, mengalikan `Infinity` atau `-Infinity` dengan `0` **tidak menghasilkan 0**. Ia menghasilkan `NaN` (Not a Number).
+*   Pada iterasi pertama, `resonance` (misal 0.5) pasti lebih besar dari `-Infinity`, sehingga `isBetter` menjadi `1`.
+*   Rumus sebelah kiri menjadi: `(-Infinity * (1 - 1))` $\rightarrow$ `(-Infinity * 0)` $\rightarrow$ **`NaN`**.
+*   Seketika variabel `bestResonance` menjadi `NaN`, dan seluruh algoritma termodinamika agen di sisa program akan runtuh tanpa melemparkan error atau pesan _crash_ (Sangat sulit di-*debug*).
+
+✅ **Penebusan Dosa (Sensible Negative Bounding):**
+Karena output *Cosine Similarity* atau VSA Tensor kita secara matematis dibatasi (contohnya, antara -1.0 hingga 1.0, atau paling ekstrem -2.0), **jangan pernah** menggunakan `-Infinity`. Gunakan batas bawah yang logis dan aman untuk dikalikan dengan nol.
+```typescript
+// Aman, bebas NaN! (-999.0 * 0 = 0)
+let bestResonance = -999.0;
+for (let t = 0; t < targetEntities; t++) {
+    const resonance = FHRR.similarity(sTensor, tTensor);
+    const isBetter = Number(resonance > bestResonance);
+    bestResonance = (bestResonance * (1 - isBetter)) + (resonance * isBetter);
+}
+```
+
+---
+**"Patuhilah Keenam Hukum Penebusan Ini, Niscaya Reasoning Engine RRM-Mu Akan Melesat Pada Batas Kecepatan Silikon."** 🌌

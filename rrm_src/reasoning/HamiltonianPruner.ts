@@ -5,6 +5,8 @@ export interface Hypothesis {
     id: string; // Tetap disimpan untuk log
     index: number; // Index di array SoA
     tensor_rule: TensorVector; // Pointer ke sub-array SoA
+    deltaX: number; // Kinetika translasi X
+    deltaY: number; // Kinetika translasi Y
     energy: number;
 }
 
@@ -20,12 +22,14 @@ export class HamiltonianPruner {
     private ids: string[] = new Array(MAX_HYPOTHESES).fill("");
     private energies: Float32Array = new Float32Array(MAX_HYPOTHESES);
     private decayRates: Float32Array = new Float32Array(MAX_HYPOTHESES);
+    private ruleDeltaX: Float32Array = new Float32Array(MAX_HYPOTHESES);
+    private ruleDeltaY: Float32Array = new Float32Array(MAX_HYPOTHESES);
     private ruleTensors: Float32Array = new Float32Array(MAX_HYPOTHESES * GLOBAL_DIMENSION);
 
     /**
      * Memasukkan tebakan rule baru ke dalam memori kerja sementara.
      */
-    public injectHypothesis(id: string, rule: TensorVector, initialEnergy: number = 1.0, decayRate: number = 0.15): void {
+    public injectHypothesis(id: string, rule: TensorVector, deltaX: number = 0.0, deltaY: number = 0.0, initialEnergy: number = 1.0, decayRate: number = 0.15): void {
         if (this.activeCount >= MAX_HYPOTHESES) {
             PDRLogger.trace("[HamiltonianPruner] Arena kepenuhan. Menolak hipotesis baru.");
             return;
@@ -35,6 +39,8 @@ export class HamiltonianPruner {
         this.ids[idx] = id;
         this.energies[idx] = initialEnergy;
         this.decayRates[idx] = decayRate;
+        this.ruleDeltaX[idx] = deltaX;
+        this.ruleDeltaY[idx] = deltaY;
 
         const offset = idx * GLOBAL_DIMENSION;
         this.ruleTensors.set(rule, offset);
@@ -139,10 +145,23 @@ export class HamiltonianPruner {
                     id: this.ids[i]!,
                     index: i,
                     tensor_rule: this.getTensor(i),
+                    deltaX: this.ruleDeltaX[i]!,
+                    deltaY: this.ruleDeltaY[i]!,
                     energy: this.energies[i]!
                 });
             }
         }
         return survivors;
+    }
+
+    /**
+     * THE ERASER (Pembersihan Ekstrem)
+     * Memusnahkan seluruh hipotesis dari memori aktif.
+     * Sangat berguna saat agen telah berhasil merangkai Axiom bersih
+     * dan ingin menghapus seluruh jejak debu noise/tebakan kotor sebelumnya.
+     */
+    public clearAllHypotheses(): void {
+        this.activeCount = 0;
+        this.energies.fill(0.0);
     }
 }
