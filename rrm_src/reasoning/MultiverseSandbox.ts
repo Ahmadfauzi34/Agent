@@ -113,7 +113,7 @@ export class MultiverseSandbox {
     /**
      * Terapkan aksioma (misal: Axiom Translasi/Mutasi) ke Universe tertentu.
      */
-    public applyAxiom(universeId: number, axiomVector: TensorVector): void {
+    public applyAxiom(universeId: number, axiomVector: TensorVector, deltaX: number, deltaY: number): void {
         const u = this.getUniverse(universeId);
 
         for (let e = 0; e < u.activeCount; e++) {
@@ -122,6 +122,12 @@ export class MultiverseSandbox {
             const entityTensor = u.getTensor(e);
             const futureState = FHRR.bind(entityTensor, axiomVector);
             entityTensor.set(futureState);
+
+            // OPTIMASI DOSA 2: Eksekusi Skalar Kinetik
+            // Kita memperbarui batas spasial secara independen dari FHRR Binding
+            // agar render engine O(N) tidak perlu mencari entitas ke seluruh layar
+            u.centersX[e] += deltaX;
+            u.centersY[e] += deltaY;
         }
     }
 

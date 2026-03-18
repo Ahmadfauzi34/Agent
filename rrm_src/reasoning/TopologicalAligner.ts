@@ -9,6 +9,8 @@ export interface AlignmentMatch {
     targetIndex: number; // -1 jika tidak ada target
     similarity: number;
     deltaTensor: TensorVector | null; // Selisih vektor (Pergerakan konseptual/spasial)
+    deltaX: number; // Kinetika skalar X (Untuk O(1) render updates)
+    deltaY: number; // Kinetika skalar Y (Untuk O(1) render updates)
     axiomType: string; // IDENTITY, MIRROR_X, MIRROR_Y, MIRROR_XY
 }
 
@@ -63,6 +65,8 @@ export class TopologicalAligner {
             let bestTargetIdx = -1;
             let bestSim = -999.0;
             let bestAxiomType = "IDENTITY";
+            let bestDx = 0.0;
+            let bestDy = 0.0;
 
             const srcTensor = sourceManifold.getTensor(sIdx);
             const srcMass = sourceManifold.masses[sIdx]!;
@@ -125,6 +129,8 @@ export class TopologicalAligner {
                 if (combinedScore > bestSim) {
                     bestSim = combinedScore;
                     bestTargetIdx = tIdx;
+                    bestDx = dx;
+                    bestDy = dy;
 
                     if (maxSim === simId) bestAxiomType = `TRANSLATE_${dx.toFixed(2)}_${dy.toFixed(2)}`;
                     else if (maxSim === simMx) bestAxiomType = `MIRROR_X+TRANS_${dx.toFixed(2)}_${dy.toFixed(2)}`;
@@ -159,6 +165,8 @@ export class TopologicalAligner {
                 targetIndex: bestTargetIdx,
                 similarity: bestSim,
                 deltaTensor: delta,
+                deltaX: bestDx,
+                deltaY: bestDy,
                 axiomType: bestAxiomType
             });
         }

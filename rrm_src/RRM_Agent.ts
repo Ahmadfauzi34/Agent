@@ -108,13 +108,13 @@ export class RRM_Agent {
                     // Jika coherence sangat kuat, reuse memori lama
                     if (knownMemory && knownMemory.coherence > 0.75) {
                         log(`      [Resonance] Pergerakan dikenali sebagai: ${knownMemory.name} (Axiom Geometri: ${match.axiomType}) (Kemiripan: ${(knownMemory.coherence * 100).toFixed(2)}%)`);
-                        this.pruner.injectHypothesis(knownMemory.name, knownMemory.phasor, 1.0, 0.001);
+                        this.pruner.injectHypothesis(knownMemory.name, knownMemory.phasor, match.deltaX, match.deltaY, 1.0, 0.001);
                     } else {
                         // Jika tidak ada yang mirip > 75%, kita ciptakan hukum baru
                         // (Mencegah false positive dari harvested seeds yang merusak Cross Validation)
                         const ruleId = `LAW_NEW_TRAIN_${i}_E${match.sourceIndex}_[${match.axiomType}]`;
                         // Decay rate super rendah karena Axiom sudah dipra-validasi oleh Centroid & Mirror Probes
-                        this.pruner.injectHypothesis(ruleId, match.deltaTensor, 1.0, 0.005);
+                        this.pruner.injectHypothesis(ruleId, match.deltaTensor, match.deltaX, match.deltaY, 1.0, 0.005);
                     }
                 }
             }
@@ -152,7 +152,7 @@ export class RRM_Agent {
         // RUTE A: RETROCAUSAL UNBINDING (Menarik Rumus Bersih dari Trajectory)
         // Mengekstrak aksi murni dari kebisingan Vektor Masa Depan.
         // =======================================================
-        const cleanAxiomSequence: TensorVector[] = [];
+        const cleanAxiomSequence: any[] = [];
         if (winningTrajectories.length > 0) {
             log(`      [Retrocausal Unbinding] Mengekstrak urutan Hukum dari Alam Semesta Pemenang...`);
 
@@ -170,18 +170,18 @@ export class RRM_Agent {
                 const noisyAxiom = FHRR.bind(trajectoryTensor, timeInverse);
 
                 // Auto-Associative Memory (Mencocokkan Sinyal Bising ke Axiom Bersih)
-                let bestMatch: TensorVector | null = null;
+                let bestMatch: any | null = null;
                 let highestSim = -Infinity;
 
                 for (const rule of activeRules) {
                     const sim = FHRR.similarity(noisyAxiom, rule.tensor_rule);
                     if (sim > highestSim) {
                         highestSim = sim;
-                        bestMatch = rule.tensor_rule;
+                        bestMatch = rule;
                     }
                 }
 
-                // Simpan Axiom yang sudah bersih (Noise-free)
+                // Simpan Axiom yang sudah bersih (Noise-free) beserta Momentumn-nya
                 if (bestMatch && highestSim > 0.1) {
                     cleanAxiomSequence.push(bestMatch);
                 }
@@ -193,13 +193,14 @@ export class RRM_Agent {
 
             // Inject aturan bersih kembali ke Pruner sebagai Sequence Linier
             for (let i = 0; i < cleanAxiomSequence.length; i++) {
-                this.pruner.injectHypothesis(`CLEAN_AXIOM_STEP_${i+1}`, cleanAxiomSequence[i]!, 1.0, 0.0);
+                const rule = cleanAxiomSequence[i]!;
+                this.pruner.injectHypothesis(`CLEAN_AXIOM_STEP_${i+1}`, rule.tensor_rule, rule.deltaX, rule.deltaY, 1.0, 0.0);
             }
         } else {
             // Jika Deep Planning gagal menemukan jalur sempurna 0.0, kita kembali
             // ke Evaluasi 1-langkah konvensional untuk mengamankan soal yang simpel
             // yang tidak butuh Traverse Kedalaman (Fallback Mechanism).
-            let bestFallbackRule: TensorVector | null = null;
+            let bestFallbackRule: any | null = null;
             let lowestEnergySum = Infinity;
 
             for (const rule of activeRules) {
@@ -208,35 +209,22 @@ export class RRM_Agent {
                 for (let i = 0; i < trainStates.length; i++) {
                     const state = trainStates[i]!;
                     this.multiverse.cloneToUniverse(state.in, 0);
-                    this.multiverse.applyAxiom(0, rule.tensor_rule);
+                    this.multiverse.applyAxiom(0, rule.tensor_rule, rule.deltaX, rule.deltaY);
                     const freeEnergy = this.multiverse.calculateFreeEnergy(0, state.out);
 
                     ruleEnergySum += freeEnergy;
                 }
 
-                // Karena kita belum mengekstrak logika multi-agen dengan sempurna,
-                // beberapa aturan hanya berlaku untuk 1 objek (e.g. geser balok merah),
-                // sehingga freeEnergy secara total masih akan tinggi (karena objek lain tidak bergerak).
-                // Alih-alih membunuh semua rule jika ada 1 state > 0.9, kita cukup
-                // memilih aturan tunggal yang secara RATA-RATA paling mengurangi entropi
-                // (Lowest Free Energy Sum).
                 if (ruleEnergySum < lowestEnergySum) {
                     lowestEnergySum = ruleEnergySum;
-                    bestFallbackRule = rule.tensor_rule;
+                    bestFallbackRule = rule;
                 }
             }
 
-            // [DOSA 3: MCTS FALLBACK] Konsistensi Alur
-            // Daripada membiarkan pruner penuh dengan aksioma berantakan,
-            // kita bersihkan Pruner dan HANYA memasukkan aturan tunggal terbaik
-            // yang ditemukan oleh fallback, menjadikannya sekuens 1-langkah
-            // agar Rute B (Collapse) mengeksekusi dengan bersih.
             this.pruner.clearAllHypotheses();
 
-            // Kita harus memastikan rule tersebut valid, minimal memiliki energy
             if (bestFallbackRule && lowestEnergySum < Infinity) {
-                // Decay Rate harus 0.0, energi 1.0, karena ini sudah bersih
-                this.pruner.injectHypothesis(`CLEAN_AXIOM_FALLBACK`, bestFallbackRule, 1.0, 0.0);
+                this.pruner.injectHypothesis(`CLEAN_AXIOM_FALLBACK`, bestFallbackRule.tensor_rule, bestFallbackRule.deltaX, bestFallbackRule.deltaY, 1.0, 0.0);
             }
         }
 
@@ -265,7 +253,7 @@ export class RRM_Agent {
 
         // 2. Mainkan seluruh sekuens Axiom bersih ke Sandbox secara berurutan
         for (const rule of survivingRules) {
-            this.multiverse.applyAxiom(0, rule.tensor_rule);
+            this.multiverse.applyAxiom(0, rule.tensor_rule, rule.deltaX, rule.deltaY);
         }
 
         // 3. O(1) MEMCPY COLLAPSE
@@ -321,8 +309,8 @@ export class RRM_Agent {
             // 1. Kloning ke cabang masa depan
             this.multiverse.cloneToUniverse(currentUniverse, universeId);
 
-            // 2. Berimajinasi (Aplikasikan Hukum)
-            this.multiverse.applyAxiom(universeId, action.tensor_rule);
+            // 2. Berimajinasi (Aplikasikan Hukum Fisika Kuantum & Skalar Kinetik)
+            this.multiverse.applyAxiom(universeId, action.tensor_rule, action.deltaX, action.deltaY);
 
             // 3. Evaluasi Surprise (Free Energy)
             const newFreeEnergy = this.multiverse.calculateFreeEnergy(universeId, targetUniverse);
