@@ -1,5 +1,5 @@
 import { UniversalManifold, EntitySegmenter, HologramDecoder } from './perception/index.js';
-import { TopologicalAligner, WaveDynamics, HamiltonianPruner, MultiverseSandbox, MAX_BRANCHES, MAX_DEPTH } from './reasoning/index.js';
+import { TopologicalAligner, WaveDynamics, HamiltonianPruner, MultiverseSandbox, MAX_BRANCHES, MAX_DEPTH, GroverDiffusionSystem } from './reasoning/index.js';
 import { GlobalBlackboard } from './reasoning/GlobalBlackboard.js';
 import { LogicSeedBank } from './memory/index.js';
 import { Task } from './shared/index.js';
@@ -156,8 +156,33 @@ export class RRM_Agent {
         if (winningTrajectories.length > 0) {
             log(`      [Retrocausal Unbinding] Mengekstrak urutan Hukum dari Alam Semesta Pemenang...`);
 
-            // Kita ambil satu lintasan pemenang yang konsisten
-            const winner = winningTrajectories[0]!;
+            // ==========================================================
+            // THE HYBRID ARC SYSTEM: GROVER AMBIGUITY RESOLVER
+            // ==========================================================
+            let winner = winningTrajectories[0]!;
+
+            if (winningTrajectories.length > 1) {
+                log(`      [Grover Diffusion] Menyelesaikan ambiguitas ${winningTrajectories.length} lintasan masa depan menggunakan Interferensi Kuantum...`);
+                // Kita inisialisasi Grover dengan "Warm Start" (Energi 1.0 karena mereka sudah lolos MCTS)
+                // secara teknis, kita bisa memberi skor energi dari FreeEnergy MCTS.
+                const candidates = winningTrajectories.map(t => ({
+                    tensor: t.tensor,
+                    depth: t.depth,
+                    energy: 1.0 // Pemenang MCTS memiliki energi maksimum
+                }));
+
+                const grover = new GroverDiffusionSystem(this.multiverse, {
+                    dimensions: GLOBAL_DIMENSION,
+                    searchSpaceSize: candidates.length,
+                    temperature: 0.1,
+                    freeEnergyThreshold: 0.05,
+                    maxIterations: 3
+                });
+
+                const ultimateWinner = grover.search(candidates, trainStates);
+                if (ultimateWinner) winner = ultimateWinner;
+            }
+
             const trajectoryTensor = winner.tensor;
             const maxDepthReached = winner.depth;
 
@@ -203,6 +228,9 @@ export class RRM_Agent {
             let bestFallbackRule: any | null = null;
             let lowestEnergySum = Infinity;
 
+            // Kumpulkan kandidat fallback untuk Grover jika terjadi ambiguitas (Banyak rule punya skor mirip)
+            const fallbackCandidates: any[] = [];
+
             for (const rule of activeRules) {
                 let ruleEnergySum = 0.0;
 
@@ -219,6 +247,28 @@ export class RRM_Agent {
                     lowestEnergySum = ruleEnergySum;
                     bestFallbackRule = rule;
                 }
+
+                // Masukkan kandidat yang lumayan bagus (Toleransi 1.5 total Free Energy)
+                if (ruleEnergySum < 1.5) {
+                    // Beri energi kebalikan dari Surprise (Semakin kecil Surprise, Semakin besar Energi)
+                    rule.energy = Math.max(0.01, 1.0 - (ruleEnergySum / trainStates.length));
+                    fallbackCandidates.push(rule);
+                }
+            }
+
+            // Jika ada lebih dari 1 kandidat yang layak di Fallback, Grover turun tangan memisahkan noise
+            if (fallbackCandidates.length > 1) {
+                log(`      [Grover Diffusion] Resolusi Ambiguitas Fallback terhadap ${fallbackCandidates.length} aksioma parsial...`);
+                const grover = new GroverDiffusionSystem(this.multiverse, {
+                    dimensions: GLOBAL_DIMENSION,
+                    searchSpaceSize: fallbackCandidates.length,
+                    temperature: 0.1,
+                    freeEnergyThreshold: 0.1,
+                    maxIterations: 3
+                });
+
+                const ultimateWinner = grover.search(fallbackCandidates, trainStates);
+                if (ultimateWinner) bestFallbackRule = ultimateWinner;
             }
 
             this.pruner.clearAllHypotheses();
