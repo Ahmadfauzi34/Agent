@@ -3,6 +3,7 @@ import { TensorVector, GLOBAL_DIMENSION } from '../core/config.js';
 import { FHRR } from '../core/fhrr.js';
 import { AxiomGenerator } from './AxiomGenerator.js';
 import { UniversalManifold } from '../perception/UniversalManifold.js';
+import { CoreSeeds } from '../core/CoreSeeds.js';
 
 export interface AlignmentMatch {
     sourceIndex: number;
@@ -86,7 +87,7 @@ export class TopologicalAligner {
                 // Bangkitkan Axiom Translasi Spasial Murni
                 const translationAxiom = AxiomGenerator.generateTranslationAxiom(
                     dx, dy,
-                    this.perceiver.X_AXIS_SEED, this.perceiver.Y_AXIS_SEED
+                    CoreSeeds.X_AXIS_SEED, CoreSeeds.Y_AXIS_SEED
                 );
 
                 // Terapkan translasi ke Source (Memposisikan Source di atas Target)
@@ -98,19 +99,19 @@ export class TopologicalAligner {
                 const probeMirrorX = AxiomGenerator.applyReflection(
                     alignedSrcTensor, tgtRelX, tgtRelY,
                     1.0, 0.0,
-                    this.perceiver.X_AXIS_SEED, this.perceiver.Y_AXIS_SEED
+                    CoreSeeds.X_AXIS_SEED, CoreSeeds.Y_AXIS_SEED
                 );
 
                 const probeMirrorY = AxiomGenerator.applyReflection(
                     alignedSrcTensor, tgtRelX, tgtRelY,
                     0.0, 1.0,
-                    this.perceiver.X_AXIS_SEED, this.perceiver.Y_AXIS_SEED
+                    CoreSeeds.X_AXIS_SEED, CoreSeeds.Y_AXIS_SEED
                 );
 
                 const probeMirrorXY = AxiomGenerator.applyReflection(
                     alignedSrcTensor, tgtRelX, tgtRelY,
                     1.0, 1.0,
-                    this.perceiver.X_AXIS_SEED, this.perceiver.Y_AXIS_SEED
+                    CoreSeeds.X_AXIS_SEED, CoreSeeds.Y_AXIS_SEED
                 );
 
                 // Mengukur 4 Kemungkinan Paralel

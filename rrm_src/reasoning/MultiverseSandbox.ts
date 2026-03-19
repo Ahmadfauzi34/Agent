@@ -1,6 +1,8 @@
 import { EntityManifold } from '../core/EntityManifold.js';
 import { TensorVector, GLOBAL_DIMENSION, MAX_ENTITIES } from '../core/config.js';
 import { FHRR } from '../core/fhrr.js';
+import { CoreSeeds } from '../core/CoreSeeds.js';
+import { AxiomGenerator } from './AxiomGenerator.js';
 
 export const MAX_DEPTH = 5;
 export const MAX_BRANCHES = 4;
@@ -29,6 +31,8 @@ export class MultiverseSandbox {
     // Array non-typed
     private mvIds: string[][];
     private mvActiveCount: number[];
+    private mvGlobalWidth: number[];
+    private mvGlobalHeight: number[];
 
     // Virtual Manifold View untuk memudahkan parsing & perhitungan
     private universeViews: EntityManifold[];
@@ -50,6 +54,8 @@ export class MultiverseSandbox {
 
         this.mvIds = Array.from({ length: UNIVERSE_COUNT }, () => new Array(MAX_ENTITIES).fill(""));
         this.mvActiveCount = new Array(UNIVERSE_COUNT).fill(0);
+        this.mvGlobalWidth = new Array(UNIVERSE_COUNT).fill(1);
+        this.mvGlobalHeight = new Array(UNIVERSE_COUNT).fill(1);
 
         this.universeViews = [];
 
@@ -80,6 +86,8 @@ export class MultiverseSandbox {
     public getUniverse(universeId: number): EntityManifold {
         const view = this.universeViews[universeId]!;
         view.activeCount = this.mvActiveCount[universeId]!;
+        view.globalWidth = this.mvGlobalWidth[universeId]!;
+        view.globalHeight = this.mvGlobalHeight[universeId]!;
         return view;
     }
 
@@ -107,27 +115,103 @@ export class MultiverseSandbox {
         }
 
         this.mvActiveCount[targetUniverseId] = source.activeCount;
+        this.mvGlobalWidth[targetUniverseId] = source.globalWidth;
+        this.mvGlobalHeight[targetUniverseId] = source.globalHeight;
+
         targetView.activeCount = source.activeCount;
+        targetView.globalWidth = source.globalWidth;
+        targetView.globalHeight = source.globalHeight;
     }
 
     /**
      * Terapkan aksioma (misal: Axiom Translasi/Mutasi) ke Universe tertentu.
+     * Mengandung FISIKA DOMINO EFEK (Entanglement / Collision Detection).
      */
     public applyAxiom(universeId: number, axiomVector: TensorVector, deltaX: number, deltaY: number): void {
         const u = this.getUniverse(universeId);
 
+        const width = u.globalWidth;
+        const height = u.globalHeight;
+
+        // Fase 1: Terapkan perubahan pada agen utama dan catat pergerakan absolutnya
+        const movedEntities: number[] = [];
+
         for (let e = 0; e < u.activeCount; e++) {
             if (u.masses[e] === 0.0) continue;
 
+            // Terapkan translasi ke Tensor entitas
             const entityTensor = u.getTensor(e);
             const futureState = FHRR.bind(entityTensor, axiomVector);
             entityTensor.set(futureState);
 
             // OPTIMASI DOSA 2: Eksekusi Skalar Kinetik
-            // Kita memperbarui batas spasial secara independen dari FHRR Binding
-            // agar render engine O(N) tidak perlu mencari entitas ke seluruh layar
-            u.centersX[e] += deltaX;
-            u.centersY[e] += deltaY;
+            if (deltaX !== 0.0 || deltaY !== 0.0) {
+                u.centersX[e] += deltaX;
+                u.centersY[e] += deltaY;
+                movedEntities.push(e);
+            }
+        }
+
+        // Fase 2: Pengecekan Tabrakan (AABB Collision) & Transfer Entanglement (Domino Effect)
+        for (let m = 0; m < movedEntities.length; m++) {
+            const e1 = movedEntities[m]!;
+
+            // Konversi dari relatif (0.0-1.0) ke koordinat absolut Piksel
+            const cX1 = u.centersX[e1]! * (width - 1);
+            const cY1 = u.centersY[e1]! * (height - 1);
+            const spanX1 = u.spansX[e1]!;
+            const spanY1 = u.spansY[e1]!;
+
+            // Radius Bounding Box A
+            const rx1 = spanX1 / 2.0;
+            const ry1 = spanY1 / 2.0;
+
+            for (let e2 = 0; e2 < u.activeCount; e2++) {
+                // Jangan cek dengan diri sendiri atau yang sudah mati
+                if (e1 === e2 || u.masses[e2] === 0.0) continue;
+
+                // Konversi agen kedua ke absolut
+                const cX2 = u.centersX[e2]! * (width - 1);
+                const cY2 = u.centersY[e2]! * (height - 1);
+                const spanX2 = u.spansX[e2]!;
+                const spanY2 = u.spansY[e2]!;
+
+                // Radius Bounding Box B
+                const rx2 = spanX2 / 2.0;
+                const ry2 = spanY2 / 2.0;
+
+                // Branchless AABB Collision Check
+                const overlapX = (rx1 + rx2) - Math.abs(cX1 - cX2);
+                const overlapY = (ry1 + ry2) - Math.abs(cY1 - cY2);
+
+                const isColliding = Number(overlapX >= 0 && overlapY >= 0);
+
+                if (isColliding === 1) {
+                    const isAlreadyMoved = movedEntities.includes(e2);
+                    if (!isAlreadyMoved) {
+                        // Entitas e2 terjerat oleh e1
+                        u.entanglementStatus[e2] = 1.0;
+                        u.entanglementStatus[e1] = 1.0;
+
+                        // Pindahkan secara spasial
+                        u.centersX[e2] += deltaX;
+                        u.centersY[e2] += deltaY;
+
+                        // BANGKITKAN TENSOR TRANSLASI MURNI (Seed Bank Pattern)
+                        // Karena Sandbox sekarang memiliki akses O(1) ke CoreSeeds,
+                        // kita bisa menghasilkan fasa pergeseran tanpa UniversalManifold!
+                        const dominoShiftTensor = AxiomGenerator.generateTranslationAxiom(
+                            deltaX, deltaY,
+                            CoreSeeds.X_AXIS_SEED, CoreSeeds.Y_AXIS_SEED
+                        );
+
+                        // Ikat entitas e2 dengan translasi spasial ini
+                        const e2Tensor = u.getTensor(e2);
+                        const futureE2State = FHRR.bind(e2Tensor, dominoShiftTensor);
+                        e2Tensor.set(futureE2State);
+                    }
+                }
+            }
         }
     }
 

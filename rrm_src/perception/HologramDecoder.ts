@@ -76,7 +76,7 @@ export class HologramDecoder {
                     // SENSOR MULTI-SPEKTRUM (Scan Semua 10 Warna ARC)
                     // ==========================================
                     let bestColor = 0;
-                    let bestCoherence = -Infinity;
+                    let bestCoherence = -999.0; // PENGAMANAN DOSA 6 (Mencegah NaN Explosion dari -Infinity * 0)
 
                     // Kita uji resonansi Entitas ini terhadap semua kemungkinan 10 Warna ARC (0-9)
                     // pada koordinat (X, Y) ini. Warna yang paling beresonansi adalah warna sejatinya.

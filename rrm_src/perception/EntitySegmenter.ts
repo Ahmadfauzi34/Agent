@@ -21,6 +21,10 @@ export class EntitySegmenter {
         const entries = Array.from(stream.entries());
         const visited = new Set<string>();
 
+        // Simpan dimensi global agar MultiverseSandbox bisa menghitung tabrakan absolut
+        let globalWidth = 1;
+        let globalHeight = 1;
+
         // Parsing ID kunci (x,y_tToken)
         const parseKey = (key: string) => {
             const parts = key.split('_t');
@@ -44,7 +48,13 @@ export class EntitySegmenter {
                 tokenGroups.set(parsed.token, []);
             }
             tokenGroups.get(parsed.token)!.push({ key, tensor, parsed });
+
+            globalWidth = Math.max(globalWidth, parsed.x + 1);
+            globalHeight = Math.max(globalHeight, parsed.y + 1);
         }
+
+        manifold.globalWidth = globalWidth;
+        manifold.globalHeight = globalHeight;
 
         // Jalankan Resonansi Quantum per Prior Belief (Warna)
         for (const [token, groupEntries] of tokenGroups.entries()) {
