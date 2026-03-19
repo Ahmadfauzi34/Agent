@@ -7,6 +7,129 @@ import { UniversalManifold } from '../perception/UniversalManifold.js';
  * Tempat penyimpanan seluruh "Skill" dan "Logika" dalam bentuk Tensor Kontinu.
  * 100% Menggunakan Arsitektur SoA (Entity Component System style).
  */
+// ============================================
+// CONFIGURATION & UTILITIES
+// ============================================
+const CACHE_SIZE = 1024;             // Ukuran LRU cache
+const LSH_BUCKET_COUNT = 256;        // Jumlah bucket untuk LSH
+const LSH_PROJECTIONS = 8;           // Jumlah proyeksi LSH
+
+// ============================================
+// LSH INDEX FOR SUBLINEAR SEARCH (O(1))
+// ============================================
+class LSHIndex {
+    private projections: Float32Array[];
+    private buckets: Map<string, number[]>[];
+
+    constructor(
+        private dimension: number,
+        private numProjections: number,
+        private bucketCount: number
+    ) {
+        // Bangkitkan Vektor Proyeksi Acak
+        this.projections = [];
+        for (let i = 0; i < numProjections; i++) {
+            const proj = new Float32Array(dimension);
+            let magSq = 0;
+            for (let d = 0; d < dimension; d++) {
+                const val = (Math.random() * 2 - 1);
+                proj[d] = val;
+                magSq += val * val;
+            }
+            // Normalisasi L2 Branchless
+            const invMag = 1.0 / (Math.sqrt(magSq) + 1e-15);
+            for (let d = 0; d < dimension; d++) proj[d]! *= invMag;
+            this.projections.push(proj);
+        }
+
+        this.buckets = Array(numProjections).fill(null).map(() => new Map());
+    }
+
+    hash(tensor: Float32Array): string[] {
+        const hashes: string[] = [];
+        for (let i = 0; i < this.numProjections; i++) {
+            const proj = this.projections[i]!;
+            let dot = 0;
+            for (let d = 0; d < this.dimension; d++) {
+                dot += tensor[d]! * proj[d]!;
+            }
+            // Kuantisasi dot product (-1.0 hingga 1.0) ke dalam ember diskrit
+            const bucketIdx = Math.floor((dot + 1.0) * this.bucketCount / 2.0);
+            // Pengamanan Array Bounds
+            const safeBucketIdx = Math.max(0, Math.min(bucketIdx, this.bucketCount - 1));
+            hashes.push(`${i}_${safeBucketIdx}`);
+        }
+        return hashes;
+    }
+
+    add(index: number, tensor: Float32Array): void {
+        const hashes = this.hash(tensor);
+        for (let projIdx = 0; projIdx < this.numProjections; projIdx++) {
+            const hash = hashes[projIdx]!;
+            const bucket = this.buckets[projIdx]!;
+            if (!bucket.has(hash)) bucket.set(hash, []);
+            bucket.get(hash)!.push(index);
+        }
+    }
+
+    query(tensor: Float32Array, maxCandidates: number = 100): number[] {
+        const hashes = this.hash(tensor);
+        const candidates = new Set<number>();
+
+        for (let projIdx = 0; projIdx < this.numProjections; projIdx++) {
+            const hash = hashes[projIdx]!;
+            const bucket = this.buckets[projIdx]!;
+            const indices = bucket.get(hash);
+            if (indices) {
+                for (let i = 0; i < indices.length; i++) {
+                    candidates.add(indices[i]!);
+                }
+            }
+        }
+
+        const result = Array.from(candidates);
+        if (result.length > maxCandidates) {
+            return result.slice(0, maxCandidates);
+        }
+        return result;
+    }
+
+    clear(): void {
+        for (let i = 0; i < this.buckets.length; i++) {
+            this.buckets[i]!.clear();
+        }
+    }
+}
+
+class LRUCache<K, V> {
+    private cache = new Map<K, V>();
+
+    constructor(private maxSize: number) {}
+
+    get(key: K): V | undefined {
+        const value = this.cache.get(key);
+        if (value !== undefined) {
+            this.cache.delete(key);
+            this.cache.set(key, value);
+        }
+        return value;
+    }
+
+    set(key: K, value: V): void {
+        if (this.cache.has(key)) {
+            this.cache.delete(key);
+        } else if (this.cache.size >= this.maxSize) {
+            const firstKey = this.cache.keys().next().value;
+            this.cache.delete(firstKey);
+        }
+        this.cache.set(key, value);
+    }
+
+    clear(): void {
+        this.cache.clear();
+    }
+}
+
 export class LogicSeedBank {
     /** Total aksioma memori yang tersimpan */
     public activeCount: number = 0;
@@ -17,12 +140,17 @@ export class LogicSeedBank {
 
     /** ID Pendaftaran / Seed */
     public ruleSeeds: Int32Array;
-    
+
     /**
      * Tensor Buffer Raksasa: [MAX_SEEDS x GLOBAL_DIMENSION]
      * Seluruh hukum alam semesta berjejer secara linier di RAM
      */
     public ruleTensors: Float32Array;
+
+    // --- INSTING OPTIMIZATIONS ---
+    private tensorCache: LRUCache<string, { name: string, seed: number, coherence: number, phasor: TensorVector }>;
+    private hotAxioms: Map<string, Float32Array> = new Map();
+    private lshIndex: LSHIndex;
 
     private perceiver: UniversalManifold;
     private nextCustomSeed: number = 100000;
@@ -34,6 +162,9 @@ export class LogicSeedBank {
         this.ruleNames = new Array(MAX_SEEDS).fill("");
         this.ruleSeeds = new Int32Array(MAX_SEEDS);
         this.ruleTensors = new Float32Array(MAX_SEEDS * GLOBAL_DIMENSION);
+
+        this.tensorCache = new LRUCache(CACHE_SIZE);
+        this.lshIndex = new LSHIndex(GLOBAL_DIMENSION, LSH_PROJECTIONS, LSH_BUCKET_COUNT);
 
         this.initializeAxioms();
     }
@@ -55,6 +186,16 @@ export class LogicSeedBank {
         const offset = idx * GLOBAL_DIMENSION;
         this.ruleTensors.set(tensor, offset);
 
+        const subTensor = this.ruleTensors.subarray(offset, offset + GLOBAL_DIMENSION) as Float32Array;
+
+        // Membangun memori insting untuk Aksioma fundamental (Level 1 & 2)
+        if (name.startsWith('L1_') || name.startsWith('L2_')) {
+            this.hotAxioms.set(name, subTensor);
+        }
+
+        // LSH Indexing untuk pencarian O(1) di data panen JSON (Harvest) yang masif
+        this.lshIndex.add(idx, subTensor);
+
         this.activeCount++;
     }
 
@@ -70,7 +211,8 @@ export class LogicSeedBank {
      * Mengimpor Hukum dari file JSON (Harvested Data)
      */
     public loadHarvestedSeeds(jsonData: any[]): void {
-        let loadedCount = 0;
+        const tensorsToAdd: Array<{ name: string, seed: number, tensor: Float32Array }> = [];
+
         for (const task of jsonData) {
             if (!task.rules) continue;
 
@@ -81,23 +223,35 @@ export class LogicSeedBank {
                 const phasor = new Float32Array(GLOBAL_DIMENSION);
                 const lawLength = lawString.length;
 
+                // Fast string to tensor conversion (Branchless ternary equivalent via boolean cast logic is ideal,
+                // but direct parsing is fine for setup)
                 for (let i = 0; i < GLOBAL_DIMENSION; i++) {
                     const char = lawString[i % lawLength];
                     phasor[i] = char === '+' ? 1.0 : -1.0;
                 }
 
-                // Normalisasi
-                this.normalizeL2InPlace(phasor);
-
                 const opName = rule.op || "UNKNOWN_OP";
-                const ruleName = `HARVEST_${task.task_id}_${opName}_T${rule.target_token}_${loadedCount}`;
+                const ruleName = `HARVEST_${task.task_id}_${opName}_T${rule.target_token}_${tensorsToAdd.length}`;
 
-                const newSeed = this.nextCustomSeed++;
-                this.registerSkill(ruleName, newSeed, phasor);
-                loadedCount++;
+                tensorsToAdd.push({
+                    name: ruleName,
+                    seed: this.nextCustomSeed++,
+                    tensor: phasor
+                });
             }
         }
-        console.log(`[LogicSeedBank] Berhasil memanen ${loadedCount} Holographic Laws dari JSON.`);
+
+        // Batch normalize all at once
+        for (const { tensor } of tensorsToAdd) {
+            this.normalizeL2InPlaceFast(tensor);
+        }
+
+        // Register all
+        for (const { name, seed, tensor } of tensorsToAdd) {
+            this.registerSkill(name, seed, tensor);
+        }
+
+        console.log(`[LogicSeedBank] Berhasil memanen ${tensorsToAdd.length} Holographic Laws dari JSON dengan Fast Normalization.`);
     }
 
     /**
@@ -130,7 +284,7 @@ export class LogicSeedBank {
                 const yShift = FHRR.fractionalBind(this.perceiver.Y_AXIS_SEED, dy);
                 const phasor = FHRR.bind(xShift, yShift);
                 
-                this.normalizeL2InPlace(phasor);
+                this.normalizeL2InPlaceFast(phasor);
                 this.registerSkill(name, this.nextCustomSeed++, phasor);
             }
         }
@@ -144,7 +298,7 @@ export class LogicSeedBank {
             const name = `L2_COLOR_SHIFT_+${dc}`;
             const seed = 2000 + dc;
             const phasor = FHRR.fractionalBind(this.perceiver.COLOR_SEED, dc);
-            this.normalizeL2InPlace(phasor);
+            this.normalizeL2InPlaceFast(phasor);
             this.registerSkill(name, seed, phasor);
         }
     }
@@ -173,7 +327,7 @@ export class LogicSeedBank {
                  s = (s * 16807) % 2147483647;
                  operator[d] = ((s - 1) / 2147483646) * 2.0 - 1.0;
              }
-             this.normalizeL2InPlace(operator);
+             this.normalizeL2InPlaceFast(operator);
              this.registerSkill(`L4_GRAVITY_${dirs[i]}`, seedBaseGrav + i, operator);
         }
     }
@@ -183,16 +337,70 @@ export class LogicSeedBank {
      * V8 L1 Cache Optimized: Menyapu array Flat Float32 tanpa pointer hopping.
      */
     public findBestMatch(rawLogicPhasor: TensorVector): { name: string, seed: number, coherence: number, phasor: TensorVector } | null {
+        // 1. CACHE CHECK (O(1)) - Insting langsung
+        const cacheKey = this.getCacheKey(rawLogicPhasor);
+        const cached = this.tensorCache.get(cacheKey);
+        if (cached) return cached;
+
+        const normalizedRaw = new Float32Array(rawLogicPhasor);
+        this.normalizeL2InPlaceFast(normalizedRaw);
+
+        // 2. HOT AXIOM CHECK - Fast Path untuk memori Fundamental (Level 1 & 2)
+        for (const [name, phasor] of this.hotAxioms) {
+            const coherence = FHRR.similarity(normalizedRaw, phasor);
+            if (coherence > 0.95) { // Sangat mirip
+                // Cari index aslinya (Bisa dioptimasi dengan nameToIndex Map, tapi karena hotAxioms kecil, ini sangat cepat)
+                let seed = 0;
+                for (let i = 0; i < this.activeCount; i++) {
+                    if (this.ruleNames[i] === name) {
+                        seed = this.ruleSeeds[i]!;
+                        break;
+                    }
+                }
+                const result = { name, seed, coherence, phasor };
+                this.tensorCache.set(cacheKey, result);
+                return result;
+            }
+        }
+
+        // 3. LSH APPROXIMATE SEARCH (O(1) Locality Sensitive Hashing)
         let bestCoherence = -1.0;
         let bestIndex = -1;
 
-        // Normalisasi input untuk pengukuran Cosine Similarity yang akurat
-        const normalizedRaw = new Float32Array(rawLogicPhasor);
-        this.normalizeL2InPlace(normalizedRaw);
+        // Mengambil kandidat dari Hash Buckets alih-alih seluruh N (O(log N) / O(1))
+        const candidates = this.lshIndex.query(normalizedRaw, 50);
 
-        // V8 SIMD Loop
+        if (candidates.length > 0) {
+            for (let c = 0; c < candidates.length; c++) {
+                const idx = candidates[c]!;
+                const skillPhasor = this.getTensor(idx);
+                const coherence = FHRR.similarity(normalizedRaw, skillPhasor);
+                if (coherence > bestCoherence) {
+                    bestCoherence = coherence;
+                    bestIndex = idx;
+                }
+            }
+
+            // Jika hasil dari LSH sangat baik, kita bisa berhenti
+            if (bestCoherence > 0.85 && bestIndex !== -1) {
+                const result = {
+                    name: this.ruleNames[bestIndex]!,
+                    seed: this.ruleSeeds[bestIndex]!,
+                    coherence: bestCoherence,
+                    phasor: this.getTensor(bestIndex)
+                };
+                this.tensorCache.set(cacheKey, result);
+                return result;
+            }
+        }
+
+        // 4. FALLBACK: FULL SIMD LINEAR SEARCH (Jika LSH Meleset)
+        bestCoherence = -1.0;
+        bestIndex = -1;
+
         for (let i = 0; i < this.activeCount; i++) {
             const skillPhasor = this.getTensor(i);
+            // similarity() di FHRR menggunakan dot product sederhana
             const coherence = FHRR.similarity(normalizedRaw, skillPhasor);
 
             if (coherence > bestCoherence) {
@@ -202,28 +410,56 @@ export class LogicSeedBank {
         }
 
         if (bestIndex !== -1) {
-            return {
+            const result = {
                 name: this.ruleNames[bestIndex]!,
                 seed: this.ruleSeeds[bestIndex]!,
                 coherence: bestCoherence,
                 phasor: this.getTensor(bestIndex)
             };
+            this.tensorCache.set(cacheKey, result);
+            return result;
         }
 
         return null;
     }
 
-    // --- UTILITIES MATEMATIKA KUANTUM BRANCHLESS ---
+    // --- UTILITIES MATEMATIKA KUANTUM BRANCHLESS & SIMD UNROLLING ---
 
-    private normalizeL2InPlace(v: TensorVector): void {
+    /**
+     * Memaksa V8 JIT Compiler menggunakan Instruksi SIMD perangkat keras
+     * dengan menggulung loop (Loop Unrolling) 4 langkah sekaligus.
+     */
+    private normalizeL2InPlaceFast(v: TensorVector): void {
         let magSq = 0;
-        for (let i = 0; i < GLOBAL_DIMENSION; i++) {
-            magSq += v[i]! * v[i]!;
+        const len = v.length;
+
+        // Loop unrolling (4x)
+        for (let i = 0; i < len; i += 4) {
+            const v0 = v[i]!;
+            const v1 = v[i + 1]!;
+            const v2 = v[i + 2]!;
+            const v3 = v[i + 3]!;
+            magSq += v0 * v0 + v1 * v1 + v2 * v2 + v3 * v3;
         }
 
         const invMag = 1.0 / (Math.sqrt(magSq) + 1e-15);
-        for (let i = 0; i < GLOBAL_DIMENSION; i++) {
-            v[i] *= invMag;
+
+        for (let i = 0; i < len; i += 4) {
+            v[i]! *= invMag;
+            v[i + 1]! *= invMag;
+            v[i + 2]! *= invMag;
+            v[i + 3]! *= invMag;
         }
+    }
+
+    private getCacheKey(tensor: TensorVector): string {
+        // Fast hash untuk cache key: mengambil sampel mikro dari vektor 8192-D
+        let hash = 0;
+        for (let i = 0; i < Math.min(32, tensor.length); i++) {
+            const intVal = Math.floor(tensor[i]! * 1000);
+            hash = ((hash << 5) - hash) + intVal;
+            hash = hash & hash; // Convert to 32bit integer
+        }
+        return hash.toString(16);
     }
 }
