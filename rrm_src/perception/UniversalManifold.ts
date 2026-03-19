@@ -1,5 +1,6 @@
-import { TensorVector, GLOBAL_DIMENSION } from '../core/config';
-import { FHRR } from '../core/fhrr';
+import { TensorVector, GLOBAL_DIMENSION } from '../core/config.js';
+import { FHRR } from '../core/fhrr.js';
+import { CoreSeeds } from '../core/CoreSeeds.js';
 
 /**
  * 👁️ UNIVERSAL MANIFOLD (Fase 2: The Perception Layer)
@@ -9,15 +10,11 @@ import { FHRR } from '../core/fhrr';
  */
 export class UniversalManifold {
     // Sumbu Spasial Dasar untuk VSA
-    public readonly X_AXIS_SEED: TensorVector;
-    public readonly Y_AXIS_SEED: TensorVector;
     public readonly R_AXIS_SEED: TensorVector; // 🌟 KESADARAN RADIAL (Jarak dari Pusat)
     public readonly COLOR_SEED: TensorVector; // Alias "Token Seed"
 
     constructor() {
         // Membuat seed ortogonal dasar (Holographic Axioms)
-        this.X_AXIS_SEED = FHRR.create();
-        this.Y_AXIS_SEED = FHRR.create();
         this.R_AXIS_SEED = FHRR.create();
         this.COLOR_SEED  = FHRR.create();
     }
@@ -91,8 +88,8 @@ export class UniversalManifold {
     public buildPixelTensor(relX: number, relY: number, token: number): TensorVector {
         // OPTIMASI V8: Math.sqrt dihapus karena lambat di inner loop (hanya aproksimasi Manhattan L1 atau pseudo-L2 yang lebih cepat)
         // Disini kita gunakan pseudo L1/Chebyshev (Octagonal approximation)
-        const xTensor = this.encodeCoordinate(this.X_AXIS_SEED, relX);
-        const yTensor = this.encodeCoordinate(this.Y_AXIS_SEED, relY);
+        const xTensor = this.encodeCoordinate(CoreSeeds.X_AXIS_SEED, relX);
+        const yTensor = this.encodeCoordinate(CoreSeeds.Y_AXIS_SEED, relY);
         const colorTensor = this.encodeCoordinate(this.COLOR_SEED, token);
 
         // BINDING HOLOGRAFIK: Kembali ke arsitektur tercepat

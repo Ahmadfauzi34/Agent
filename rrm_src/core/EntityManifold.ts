@@ -11,6 +11,12 @@ export class EntityManifold {
     /** Pointer ke indeks kosong berikutnya */
     public activeCount: number = 0;
 
+    /** Resolusi Dunia Kuantum X (Lebar Layar Maksimal) */
+    public globalWidth: number = 1;
+
+    /** Resolusi Dunia Kuantum Y (Tinggi Layar Maksimal) */
+    public globalHeight: number = 1;
+
     // --- STRUKTUR ECS (Data Terpisah Berdasar Komponen, Bukan Objek) --- //
 
     /** ID String (Satu-satunya properti non-numerik, diakses jarang) */
@@ -66,6 +72,8 @@ export class EntityManifold {
      */
     public clear(): void {
         this.activeCount = 0;
+        this.globalWidth = 1;
+        this.globalHeight = 1;
         // Kita tidak perlu mengisi nol seluruh array karena alokasi pointer `activeCount`
         // sudah memblokir akses ke indeks sampah masa lalu. Hanya membersihkan apa yang diperlukan.
         // Jika butuh nol mutlak, Float32Array.fill() sangat dioptimasi V8.

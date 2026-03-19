@@ -1,6 +1,7 @@
 import { GLOBAL_DIMENSION, MAX_SEEDS, TensorVector } from '../core/config.js';
 import { FHRR } from '../core/fhrr.js';
 import { UniversalManifold } from '../perception/UniversalManifold.js';
+import { CoreSeeds } from '../core/CoreSeeds.js';
 
 /**
  * 🌌 THE LOGIC SEED BANK 🌌
@@ -280,8 +281,8 @@ export class LogicSeedBank {
                 
                 // Minta UniversalManifold membuat tensor koordinat
                 // Pergeseran adalah selisih Phase (Bukan piksel absolut)
-                const xShift = FHRR.fractionalBind(this.perceiver.X_AXIS_SEED, dx);
-                const yShift = FHRR.fractionalBind(this.perceiver.Y_AXIS_SEED, dy);
+                const xShift = FHRR.fractionalBind(CoreSeeds.X_AXIS_SEED, dx);
+                const yShift = FHRR.fractionalBind(CoreSeeds.Y_AXIS_SEED, dy);
                 const phasor = FHRR.bind(xShift, yShift);
                 
                 this.normalizeL2InPlaceFast(phasor);
