@@ -103,14 +103,14 @@ export class GroverDiffusionSystem {
       const deltaX = candidate.deltaX || 0.0;
       const deltaY = candidate.deltaY || 0.0;
       const tensorRule = candidate.tensor_rule || candidate.tensor;
-      const isSwarm = candidate.isSwarm || false;
+      const physicsTier = candidate.physicsTier || 0;
 
       // 1. Dynamic Evaluation: Jalankan Kandidat di Sandbox melintasi semua state pelatihan
       for (let s = 0; s < trainStates.length; s++) {
         const state = trainStates[s]!;
         // Gunakan Universe 0 untuk evaluasi sementara (O(1) memcpy)
         this.sandbox.cloneToUniverse(state.in, 0);
-        this.sandbox.applyAxiom(0, tensorRule, deltaX, deltaY, isSwarm);
+        this.sandbox.applyAxiom(0, tensorRule, deltaX, deltaY, physicsTier);
         totalFreeEnergy += this.sandbox.calculateFreeEnergy(0, state.out);
       }
 

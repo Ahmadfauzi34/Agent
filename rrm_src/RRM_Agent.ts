@@ -104,18 +104,18 @@ export class RRM_Agent {
                 // Similarity bisa anjlok karena noise superposisi. Tangkap semua > 0.1.
                 if (match.deltaTensor && match.similarity > 0.1) {
                     const knownMemory = this.seedBank.findBestMatch(match.deltaTensor);
-                    const isSwarm = match.axiomType.startsWith("SWARM_");
+                    const physicsTier = match.physicsTier;
 
                     // Jika coherence sangat kuat, reuse memori lama
                     if (knownMemory && knownMemory.coherence > 0.75) {
                         log(`      [Resonance] Pergerakan dikenali sebagai: ${knownMemory.name} (Axiom: ${match.axiomType}) (Kemiripan: ${(knownMemory.coherence * 100).toFixed(2)}%)`);
-                        this.pruner.injectHypothesis(knownMemory.name, knownMemory.phasor, match.deltaX, match.deltaY, 1.0, 0.001, isSwarm);
+                        this.pruner.injectHypothesis(knownMemory.name, knownMemory.phasor, match.deltaX, match.deltaY, 1.0, 0.001, physicsTier);
                     } else {
                         // Jika tidak ada yang mirip > 75%, kita ciptakan hukum baru
                         // (Mencegah false positive dari harvested seeds yang merusak Cross Validation)
                         const ruleId = `LAW_NEW_TRAIN_${i}_E${match.sourceIndex}_[${match.axiomType}]`;
                         // Decay rate super rendah karena Axiom sudah dipra-validasi oleh Centroid & Mirror Probes
-                        this.pruner.injectHypothesis(ruleId, match.deltaTensor, match.deltaX, match.deltaY, 1.0, 0.005, isSwarm);
+                        this.pruner.injectHypothesis(ruleId, match.deltaTensor, match.deltaX, match.deltaY, 1.0, 0.005, physicsTier);
                     }
                 }
             }
@@ -220,7 +220,7 @@ export class RRM_Agent {
             // Inject aturan bersih kembali ke Pruner sebagai Sequence Linier
             for (let i = 0; i < cleanAxiomSequence.length; i++) {
                 const rule = cleanAxiomSequence[i]!;
-                this.pruner.injectHypothesis(`CLEAN_AXIOM_STEP_${i+1}`, rule.tensor_rule, rule.deltaX, rule.deltaY, 1.0, 0.0, rule.isSwarm);
+                this.pruner.injectHypothesis(`CLEAN_AXIOM_STEP_${i+1}`, rule.tensor_rule, rule.deltaX, rule.deltaY, 1.0, 0.0, rule.physicsTier);
             }
         } else {
             // Jika Deep Planning gagal menemukan jalur sempurna 0.0, kita kembali
@@ -238,7 +238,7 @@ export class RRM_Agent {
                 for (let i = 0; i < trainStates.length; i++) {
                     const state = trainStates[i]!;
                     this.multiverse.cloneToUniverse(state.in, 0);
-                    this.multiverse.applyAxiom(0, rule.tensor_rule, rule.deltaX, rule.deltaY, rule.isSwarm);
+                    this.multiverse.applyAxiom(0, rule.tensor_rule, rule.deltaX, rule.deltaY, rule.physicsTier);
                     const freeEnergy = this.multiverse.calculateFreeEnergy(0, state.out);
 
                     ruleEnergySum += freeEnergy;
@@ -275,7 +275,7 @@ export class RRM_Agent {
             this.pruner.clearAllHypotheses();
 
             if (bestFallbackRule && lowestEnergySum < Infinity) {
-                this.pruner.injectHypothesis(`CLEAN_AXIOM_FALLBACK`, bestFallbackRule.tensor_rule, bestFallbackRule.deltaX, bestFallbackRule.deltaY, 1.0, 0.0, bestFallbackRule.isSwarm);
+                this.pruner.injectHypothesis(`CLEAN_AXIOM_FALLBACK`, bestFallbackRule.tensor_rule, bestFallbackRule.deltaX, bestFallbackRule.deltaY, 1.0, 0.0, bestFallbackRule.physicsTier);
             }
         }
 
@@ -304,7 +304,7 @@ export class RRM_Agent {
 
         // 2. Mainkan seluruh sekuens Axiom bersih ke Sandbox secara berurutan
         for (const rule of survivingRules) {
-            this.multiverse.applyAxiom(0, rule.tensor_rule, rule.deltaX, rule.deltaY, rule.isSwarm);
+            this.multiverse.applyAxiom(0, rule.tensor_rule, rule.deltaX, rule.deltaY, rule.physicsTier);
         }
 
         // 3. O(1) MEMCPY COLLAPSE
@@ -361,7 +361,7 @@ export class RRM_Agent {
             this.multiverse.cloneToUniverse(currentUniverse, universeId);
 
             // 2. Berimajinasi (Aplikasikan Hukum Fisika Kuantum & Skalar Kinetik)
-            this.multiverse.applyAxiom(universeId, action.tensor_rule, action.deltaX, action.deltaY, action.isSwarm);
+            this.multiverse.applyAxiom(universeId, action.tensor_rule, action.deltaX, action.deltaY, action.physicsTier);
 
             // 3. Evaluasi Surprise (Free Energy)
             const newFreeEnergy = this.multiverse.calculateFreeEnergy(universeId, targetUniverse);
