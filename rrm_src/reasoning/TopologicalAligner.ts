@@ -172,6 +172,45 @@ export class TopologicalAligner {
             });
         }
 
+        this.applyConsensusDetection(matches);
+
         return matches;
+    }
+
+    /**
+     * SENSOR KONSENSUS (Layered Swarm Activation)
+     * Menganalisa hasil alignment. Jika mayoritas benda (>= 3 entitas) bergerak ke arah
+     * yang sama, maka ini diklasifikasikan sebagai Medan Gerombolan (Swarm Axiom)
+     * alih-alih gerakan benda tunggal (Domino Effect).
+     */
+    private applyConsensusDetection(matches: AlignmentMatch[]): void {
+        const momentumCounts = new Map<string, number>();
+
+        // 1. Hitung Voting Momentum
+        for (const match of matches) {
+            // Hanya deteksi translasi murni (Abaikan objek diam atau yang bermutasi parah/hilang)
+            if (match.targetIndex === -1) continue;
+            if (Math.abs(match.deltaX) < 0.001 && Math.abs(match.deltaY) < 0.001) continue;
+
+            const key = `${match.deltaX.toFixed(3)}_${match.deltaY.toFixed(3)}`;
+            momentumCounts.set(key, (momentumCounts.get(key) || 0) + 1);
+        }
+
+        // 2. Terapkan Label SWARM jika Voting mencapai threshold (Misal: >= 3 entitas)
+        const SWARM_THRESHOLD = 3;
+
+        for (const match of matches) {
+            if (match.targetIndex === -1) continue;
+
+            const key = `${match.deltaX.toFixed(3)}_${match.deltaY.toFixed(3)}`;
+            const count = momentumCounts.get(key) || 0;
+
+            if (count >= SWARM_THRESHOLD) {
+                // Promosikan aksioma menjadi SWARM AXIOM
+                if (!match.axiomType.startsWith("SWARM_")) {
+                    match.axiomType = `SWARM_${match.axiomType}`;
+                }
+            }
+        }
     }
 }
