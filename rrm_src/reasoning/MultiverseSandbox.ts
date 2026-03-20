@@ -3,6 +3,7 @@ import { TensorVector, GLOBAL_DIMENSION, MAX_ENTITIES } from '../core/config.js'
 import { FHRR } from '../core/fhrr.js';
 import { CoreSeeds } from '../core/CoreSeeds.js';
 import { AxiomGenerator } from './AxiomGenerator.js';
+import { SwarmDynamics } from './SwarmDynamics.js';
 
 export const MAX_DEPTH = 5;
 export const MAX_BRANCHES = 4;
@@ -127,8 +128,14 @@ export class MultiverseSandbox {
      * Terapkan aksioma (misal: Axiom Translasi/Mutasi) ke Universe tertentu.
      * Mengandung FISIKA DOMINO EFEK (Entanglement / Collision Detection).
      */
-    public applyAxiom(universeId: number, axiomVector: TensorVector, deltaX: number, deltaY: number): void {
+    public applyAxiom(universeId: number, axiomVector: TensorVector, deltaX: number, deltaY: number, isSwarmAxiom: boolean = false): void {
         const u = this.getUniverse(universeId);
+
+        // INTERUPSI: Jika ini adalah Swarm Axiom (misal gravitasi turun)
+        if (isSwarmAxiom) {
+            SwarmDynamics.applySwarmGravity(u, deltaX, deltaY);
+            return;
+        }
 
         const width = u.globalWidth;
         const height = u.globalHeight;
