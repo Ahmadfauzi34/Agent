@@ -361,8 +361,11 @@ export class RRM_Agent {
             // 2. Berimajinasi (Aplikasikan Hukum Fisika Kuantum & Skalar Kinetik)
             this.multiverse.applyAxiom(universeId, action.tensor_rule, action.deltaX, action.deltaY, action.physicsTier);
 
-            // 3. Evaluasi Surprise (Free Energy)
-            const newFreeEnergy = this.multiverse.calculateFreeEnergy(universeId, targetUniverse);
+            // 3. Evaluasi Surprise (Free Energy) dengan Quantum Annealing (Thermal Noise)
+            // Semakin dalam iterasi (mentok), agen semakin toleran terhadap keanehan/noise agar bisa memecah kebuntuan
+            // Max noise 0.05 (5% kelonggaran kesamaan fasa)
+            const thermalNoise = 0.01 + (depth * 0.01);
+            const newFreeEnergy = this.multiverse.calculateFreeEnergy(universeId, targetUniverse, thermalNoise);
 
             // 4. Update Sejarah Vektor dengan Time-Traveling Binding
             const timePhase = FHRR.fractionalBind(this.TIME_SEED, depth); // Time step T_d
@@ -373,7 +376,7 @@ export class RRM_Agent {
             if (newFreeEnergy < 0.05) {
                 // RESONANSI SEMPURNA DITEMUKAN! Jawaban teka-teki terpecahkan
                 return { tensor: newTrajectory, depth };
-            } else if (newFreeEnergy < currentFreeEnergy) {
+            } else if (newFreeEnergy < currentFreeEnergy + thermalNoise) { // Annealed Escape Route
                 // Entropi berkurang (Makin mirip Target). Eksplorasi ke tingkat lebih dalam!
                 // Perhatikan: Rekursi ke masa depan akan menggunakan Semesta saat ini sebagai sumber
                 const winningFuture = this.deepImagine(

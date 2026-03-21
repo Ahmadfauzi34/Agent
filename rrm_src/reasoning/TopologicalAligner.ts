@@ -38,7 +38,7 @@ export class TopologicalAligner {
      * Mencocokkan Entitas dari Manifold Sumber dengan Manifold Target.
      * Menggunakan Imajinasi Kuantum (Probing 4 Skenario Geometri) untuk Resonance Search.
      */
-    public align(sourceManifold: EntityManifold, targetManifold: EntityManifold): AlignmentMatch[] {
+    public align(sourceManifold: EntityManifold, targetManifold: EntityManifold, enableAdvancedPhysics: boolean = false): AlignmentMatch[] {
         const matches: AlignmentMatch[] = [];
         const usedTargets = new Set<number>();
 
@@ -126,7 +126,14 @@ export class TopologicalAligner {
 
                 // 🚨 KOREKSI ARSITEK: Branchless Mass Ratio
                 const massRatio = Math.min(srcMass, tgtMass) / (Math.max(srcMass, tgtMass) + 1e-15);
-                const combinedScore = (maxSim * 0.7) + (massRatio * 0.3);
+                let combinedScore = (maxSim * 0.7) + (massRatio * 0.3);
+
+                // Thermal Noise Injection (Quantum Annealing) pada fase Resonance
+                // Jika sistem sedang "mabuk/bermimpi" (Advanced Physics On) di mana insting dasar gagal,
+                // beri sedikit toleransi noise (hingga 2%) pada pencocokan agar entitas mau bergerak meski tidak 100% cocok.
+                if (enableAdvancedPhysics) {
+                    combinedScore += (Math.random() * 0.02);
+                }
 
                 if (combinedScore > bestSim) {
                     bestSim = combinedScore;
