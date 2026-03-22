@@ -326,10 +326,11 @@ export class RRM_Agent {
         const survivingRules = this.pruner.getSurvivingRules();
 
         // SELF-EVALUATION: Jika kita dalam mode Fast Pass (enableAdvancedPhysics = false),
-        // dan hasil evolusi masih menghasilkan energi tinggi (bukan 0.0 sempurna), kembalikan null untuk men-trigger Snapshot.
+        // dan hasil evolusi murni GAGAL TOTAL (Tidak ada lintasan, tidak ada fallback candidate yang selamat).
+        // Kita mencabut syarat lowestEnergySumFallback > 0.01 agar tidak "false panic" pada soal AGI 1 & 2
+        // yang solusinya terkadang menyisakan sedikit noise (e.g., Free Energy 0.02) karena kompresi resolusi.
         if (!enableAdvancedPhysics) {
-            // Kita menganggap MCTS gagal jika tidak ada lintasan sempurna, dan tebakan fallback masih memiliki energi
-            if (survivingRules.length === 0 || (winningTrajectories.length === 0 && lowestEnergySumFallback > 0.01)) {
+            if (survivingRules.length === 0) {
                 return null;
             }
         }
@@ -361,11 +362,8 @@ export class RRM_Agent {
             // 2. Berimajinasi (Aplikasikan Hukum Fisika Kuantum & Skalar Kinetik)
             this.multiverse.applyAxiom(universeId, action.tensor_rule, action.deltaX, action.deltaY, action.physicsTier);
 
-            // 3. Evaluasi Surprise (Free Energy) dengan Quantum Annealing (Thermal Noise)
-            // Semakin dalam iterasi (mentok), agen semakin toleran terhadap keanehan/noise agar bisa memecah kebuntuan
-            // Max noise 0.05 (5% kelonggaran kesamaan fasa)
-            const thermalNoise = 0.01 + (depth * 0.01);
-            const newFreeEnergy = this.multiverse.calculateFreeEnergy(universeId, targetUniverse, thermalNoise);
+            // 3. Evaluasi Surprise (Free Energy)
+            const newFreeEnergy = this.multiverse.calculateFreeEnergy(universeId, targetUniverse);
 
             // 4. Update Sejarah Vektor dengan Time-Traveling Binding
             const timePhase = FHRR.fractionalBind(this.TIME_SEED, depth); // Time step T_d
@@ -376,7 +374,7 @@ export class RRM_Agent {
             if (newFreeEnergy < 0.05) {
                 // RESONANSI SEMPURNA DITEMUKAN! Jawaban teka-teki terpecahkan
                 return { tensor: newTrajectory, depth };
-            } else if (newFreeEnergy < currentFreeEnergy + thermalNoise) { // Annealed Escape Route
+            } else if (newFreeEnergy < currentFreeEnergy) {
                 // Entropi berkurang (Makin mirip Target). Eksplorasi ke tingkat lebih dalam!
                 // Perhatikan: Rekursi ke masa depan akan menggunakan Semesta saat ini sebagai sumber
                 const winningFuture = this.deepImagine(

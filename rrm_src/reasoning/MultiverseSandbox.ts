@@ -235,9 +235,8 @@ export class MultiverseSandbox {
     /**
      * 🧠 KARL FRISTON'S FREE ENERGY EVALUATION 🧠
      * Seberapa berantakan alam semesta ini jika dibandingkan dengan kenyataan target?
-     * Mendukung "Thermal Noise" (Quantum Annealing) agar agen bisa bermimpi dan keluar dari Local Minima.
      */
-    public calculateFreeEnergy(universeId: number, targetReality: EntityManifold, thermalNoise: number = 0.0): number {
+    public calculateFreeEnergy(universeId: number, targetReality: EntityManifold): number {
         const u = this.getUniverse(universeId);
         let totalSurprise = 0.0;
         let evaluatedEntities = 0;
@@ -262,17 +261,13 @@ export class MultiverseSandbox {
             // Jika tidak ada target (bestResonance masih -999), set ke -1 agar surprisenya = 2.0 (Kacau Maksimal)
             if (bestResonance === -999.0) bestResonance = -1.0;
 
-            // Injeksi Thermal Noise: Membuat batas "kesalahan" menjadi blur
-            // Noise 0.05 berarti kemiripan 95% bisa dianggap 100% sempurna di suhu tinggi.
-            const annealedResonance = Math.min(1.0, bestResonance + (Math.random() * thermalNoise));
-
-            const surprise = 1.0 - annealedResonance;
+            const surprise = 1.0 - bestResonance;
             totalSurprise += surprise;
             evaluatedEntities++;
         }
 
         if (evaluatedEntities === 0) return 1.0;
 
-        return Math.max(0.0, totalSurprise / evaluatedEntities);
+        return totalSurprise / evaluatedEntities;
     }
 }
