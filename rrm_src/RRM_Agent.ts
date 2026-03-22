@@ -73,223 +73,24 @@ export class RRM_Agent {
         const testManifold = new EntityManifold();
         this.segmenter.segmentStream(testStream, testManifold, 0.85);
 
-        // 2. =======================================================
-        // 🎼 THE RESONATE PHASE
-        // Mencari hubungan sebab-akibat (Hukum Fisika Kuantum) via Hungarian Matching
         // =======================================================
-        log(`   [2] RESONATE: Mencocokkan jejak Topologis dan mengikat Kausalitas...`);
-
-        // Membaca pergerakan dari seluruh pengalaman training
-        for (let i = 0; i < trainStates.length; i++) {
-            const state = trainStates[i]!;
-
-            // 2A. DETEKSI ENTANGLEMENT MULTI-AGENT (Hebbian Learning Branchless)
-            this.waveDynamics.initializeEntities(state.in);
-
-            // Evolve entanglement berdasarkan interaksi antar agen (Otomatis tanpa if-else)
-            this.waveDynamics.evolveEntanglement(0.2);
-
-            // 2B. KESADARAN KOLEKTIF (Superposisi state seluruh entitas)
-            const agentTensors: TensorVector[] = [];
-            for (let e = 0; e < state.in.activeCount; e++) {
-                if (state.in.masses[e]! > 0) agentTensors.push(state.in.getTensor(e));
-            }
-            this.blackboard.synchronize(agentTensors);
-
-            // 2C. HUNGARIAN MATCHING & HUKUM FISIKA
-            const alignments = this.aligner.align(state.in, state.out);
-
-            for (const match of alignments) {
-                // Ekstraksi Delta sangat kompleks sekarang (Translasi + Cermin).
-                // Similarity bisa anjlok karena noise superposisi. Tangkap semua > 0.1.
-                if (match.deltaTensor && match.similarity > 0.1) {
-                    const knownMemory = this.seedBank.findBestMatch(match.deltaTensor);
-
-                    // Jika coherence sangat kuat, reuse memori lama
-                    if (knownMemory && knownMemory.coherence > 0.75) {
-                        log(`      [Resonance] Pergerakan dikenali sebagai: ${knownMemory.name} (Axiom Geometri: ${match.axiomType}) (Kemiripan: ${(knownMemory.coherence * 100).toFixed(2)}%)`);
-                        this.pruner.injectHypothesis(knownMemory.name, knownMemory.phasor, match.deltaX, match.deltaY, 1.0, 0.001);
-                    } else {
-                        // Jika tidak ada yang mirip > 75%, kita ciptakan hukum baru
-                        // (Mencegah false positive dari harvested seeds yang merusak Cross Validation)
-                        const ruleId = `LAW_NEW_TRAIN_${i}_E${match.sourceIndex}_[${match.axiomType}]`;
-                        // Decay rate super rendah karena Axiom sudah dipra-validasi oleh Centroid & Mirror Probes
-                        this.pruner.injectHypothesis(ruleId, match.deltaTensor, match.deltaX, match.deltaY, 1.0, 0.005);
-                    }
-                }
-            }
-        }
-
-        // 3. =======================================================
-        // 🔥 THE EVOLVE PHASE (Deep Active Inference / Multiverse Tree Search)
-        // Mengeksekusi pencarian multi-cabang (MCTS) untuk mencari Trajectory terbaik.
+        // THE META-REACTIVE ORCHESTRATOR (Snapshot Pattern)
         // =======================================================
-        log(`   [3] EVOLVE: Menjalankan Termodinamika & Multiverse Tree Search...`);
+        let survivingRules = this.runResonateAndEvolve(trainStates, false, log);
 
-        // Array untuk menyimpan lintasan aksi yang lolos Free Energy = 0.0 (Sempurna)
-        const winningTrajectories: { tensor: TensorVector, depth: number }[] = [];
-        const activeRules = this.pruner.getSurvivingRules();
-
-        // Ambil top-K rule terkuat untuk menjadi cabang pohon MCTS agar tidak meledak
-        // Kita pakai MAX_BRANCHES (misal 4 aksi terbaik)
-        activeRules.sort((a, b) => b.energy - a.energy);
-        const topRules = activeRules.slice(0, MAX_BRANCHES);
-
-        for (let i = 0; i < trainStates.length; i++) {
-            const state = trainStates[i]!;
-
-            // Memulai Pencarian Imajinasi Mendalam (Recursive Multiverse)
-            // Ini akan meruntuhkan cabang yang memiliki energi tinggi dan mengembalikan
-            // Trajectory Tensor (sejarah ikatan waktu) jika menemukan kecocokan sempurna.
-            const trajectoryResult = this.deepImagine(state.in, state.out, 1, topRules);
-
-            if (trajectoryResult) {
-                winningTrajectories.push(trajectoryResult);
-            }
-        }
-
-        // 3B. =======================================================
-        // RUTE A: RETROCAUSAL UNBINDING (Menarik Rumus Bersih dari Trajectory)
-        // Mengekstrak aksi murni dari kebisingan Vektor Masa Depan.
-        // =======================================================
-        const cleanAxiomSequence: any[] = [];
-        if (winningTrajectories.length > 0) {
-            log(`      [Retrocausal Unbinding] Mengekstrak urutan Hukum dari Alam Semesta Pemenang...`);
-
-            // ==========================================================
-            // THE HYBRID ARC SYSTEM: GROVER AMBIGUITY RESOLVER
-            // ==========================================================
-            let winner = winningTrajectories[0]!;
-
-            if (winningTrajectories.length > 1) {
-                log(`      [Grover Diffusion] Menyelesaikan ambiguitas ${winningTrajectories.length} lintasan masa depan menggunakan Interferensi Kuantum...`);
-                // Kita inisialisasi Grover dengan "Warm Start" (Energi 1.0 karena mereka sudah lolos MCTS)
-                // secara teknis, kita bisa memberi skor energi dari FreeEnergy MCTS.
-                const candidates = winningTrajectories.map(t => ({
-                    tensor: t.tensor,
-                    depth: t.depth,
-                    energy: 1.0 // Pemenang MCTS memiliki energi maksimum
-                }));
-
-                const grover = new GroverDiffusionSystem(this.multiverse, {
-                    dimensions: GLOBAL_DIMENSION,
-                    searchSpaceSize: candidates.length,
-                    temperature: 0.1,
-                    freeEnergyThreshold: 0.05,
-                    maxIterations: 3
-                });
-
-                const ultimateWinner = grover.search(candidates, trainStates);
-                if (ultimateWinner) winner = ultimateWinner;
-            }
-
-            const trajectoryTensor = winner.tensor;
-            const maxDepthReached = winner.depth;
-
-            for (let d = 1; d <= maxDepthReached; d++) {
-                // Konjugasi Waktu (Time Inverse)
-                const timePhase = FHRR.fractionalBind(this.TIME_SEED, d);
-                const timeInverse = FHRR.inverse(timePhase);
-
-                // Ekstrak Sinyal Bising Aksi pada langkah T_d
-                const noisyAxiom = FHRR.bind(trajectoryTensor, timeInverse);
-
-                // Auto-Associative Memory (Mencocokkan Sinyal Bising ke Axiom Bersih)
-                let bestMatch: any | null = null;
-                let highestSim = -Infinity;
-
-                for (const rule of activeRules) {
-                    const sim = FHRR.similarity(noisyAxiom, rule.tensor_rule);
-                    if (sim > highestSim) {
-                        highestSim = sim;
-                        bestMatch = rule;
-                    }
-                }
-
-                // Simpan Axiom yang sudah bersih (Noise-free) beserta Momentumn-nya
-                if (bestMatch && highestSim > 0.1) {
-                    cleanAxiomSequence.push(bestMatch);
-                }
-            }
-
-            // [BUGFIX] Hapus bersih semua tebakan kotor (bukan sekedar decay 1 langkah)
-            // agar Test Grid (Fase 4) tidak dieksekusi dengan ratusan sampah noise training.
+        if (!survivingRules || survivingRules.length === 0) {
+            log(`   ⚠️ SNAPSHOT TRIGGERED: Fast Pass (Tier 0) gagal. Membangunkan Advanced Physics (DOMINO & SWARM)...`);
             this.pruner.clearAllHypotheses();
-
-            // Inject aturan bersih kembali ke Pruner sebagai Sequence Linier
-            for (let i = 0; i < cleanAxiomSequence.length; i++) {
-                const rule = cleanAxiomSequence[i]!;
-                this.pruner.injectHypothesis(`CLEAN_AXIOM_STEP_${i+1}`, rule.tensor_rule, rule.deltaX, rule.deltaY, 1.0, 0.0);
-            }
-        } else {
-            // Jika Deep Planning gagal menemukan jalur sempurna 0.0, kita kembali
-            // ke Evaluasi 1-langkah konvensional untuk mengamankan soal yang simpel
-            // yang tidak butuh Traverse Kedalaman (Fallback Mechanism).
-            let bestFallbackRule: any | null = null;
-            let lowestEnergySum = Infinity;
-
-            // Kumpulkan kandidat fallback untuk Grover jika terjadi ambiguitas (Banyak rule punya skor mirip)
-            const fallbackCandidates: any[] = [];
-
-            for (const rule of activeRules) {
-                let ruleEnergySum = 0.0;
-
-                for (let i = 0; i < trainStates.length; i++) {
-                    const state = trainStates[i]!;
-                    this.multiverse.cloneToUniverse(state.in, 0);
-                    this.multiverse.applyAxiom(0, rule.tensor_rule, rule.deltaX, rule.deltaY);
-                    const freeEnergy = this.multiverse.calculateFreeEnergy(0, state.out);
-
-                    ruleEnergySum += freeEnergy;
-                }
-
-                if (ruleEnergySum < lowestEnergySum) {
-                    lowestEnergySum = ruleEnergySum;
-                    bestFallbackRule = rule;
-                }
-
-                // Masukkan kandidat yang lumayan bagus (Toleransi 1.5 total Free Energy)
-                if (ruleEnergySum < 1.5) {
-                    // Beri energi kebalikan dari Surprise (Semakin kecil Surprise, Semakin besar Energi)
-                    rule.energy = Math.max(0.01, 1.0 - (ruleEnergySum / trainStates.length));
-                    fallbackCandidates.push(rule);
-                }
-            }
-
-            // Jika ada lebih dari 1 kandidat yang layak di Fallback, Grover turun tangan memisahkan noise
-            if (fallbackCandidates.length > 1) {
-                log(`      [Grover Diffusion] Resolusi Ambiguitas Fallback terhadap ${fallbackCandidates.length} aksioma parsial...`);
-                const grover = new GroverDiffusionSystem(this.multiverse, {
-                    dimensions: GLOBAL_DIMENSION,
-                    searchSpaceSize: fallbackCandidates.length,
-                    temperature: 0.1,
-                    freeEnergyThreshold: 0.1,
-                    maxIterations: 3
-                });
-
-                const ultimateWinner = grover.search(fallbackCandidates, trainStates);
-                if (ultimateWinner) bestFallbackRule = ultimateWinner;
-            }
-
-            this.pruner.clearAllHypotheses();
-
-            if (bestFallbackRule && lowestEnergySum < Infinity) {
-                this.pruner.injectHypothesis(`CLEAN_AXIOM_FALLBACK`, bestFallbackRule.tensor_rule, bestFallbackRule.deltaX, bestFallbackRule.deltaY, 1.0, 0.0);
-            }
+            survivingRules = this.runResonateAndEvolve(trainStates, true, log);
         }
 
-        const survivingRules = this.pruner.getSurvivingRules();
+        if (!survivingRules || survivingRules.length === 0) {
+            log(`   💀 EVOLVE GAGAL SECARA ABSOLUT: Semua hipotesis musnah dilanda Entropi Kuantum.`);
+            return null;
+        }
+
         const rulesCount = survivingRules.length;
-
-        // Logika Index Boolean bebas IF-ELSE untuk logging
-        const statusMessages = [
-            `   💀 EVOLVE GAGAL: Semua hipotesis musnah dilanda Entropi Kuantum.`,
-            `   🌟 EVOLVE BERHASIL: Mengekstrak ${rulesCount} Hukum Alam (Axiom) Bersih dari Trajectory.`
-        ];
-        log(statusMessages[Number(rulesCount > 0)]!);
-
-        // V8 Optimized Control Flow
-        if (rulesCount === 0) return null;
+        log(`   🌟 EVOLVE BERHASIL: Mengekstrak ${rulesCount} Hukum Alam (Axiom) Bersih dari Trajectory.`);
 
         // 4. =======================================================
         // 🌌 THE COLLAPSE PHASE (Rute B: Wavefunction Collapse / Memcpy)
@@ -303,7 +104,7 @@ export class RRM_Agent {
 
         // 2. Mainkan seluruh sekuens Axiom bersih ke Sandbox secara berurutan
         for (const rule of survivingRules) {
-            this.multiverse.applyAxiom(0, rule.tensor_rule, rule.deltaX, rule.deltaY);
+            this.multiverse.applyAxiom(0, rule.tensor_rule, rule.deltaX, rule.deltaY, rule.physicsTier);
         }
 
         // 3. O(1) MEMCPY COLLAPSE
@@ -339,6 +140,204 @@ export class RRM_Agent {
     }
 
     /**
+     * Menjalankan Fase 2 (RESONATE) dan Fase 3 (EVOLVE) dalam satu siklus yang dapat diulang.
+     * Mengembalikan array Hypothesis yang berhasil selamat (atau null jika memicu Snapshot).
+     */
+    private runResonateAndEvolve(trainStates: { in: EntityManifold, out: EntityManifold }[], enableAdvancedPhysics: boolean, log: (msg: string) => void): any[] | null {
+        log(`\n   [2] RESONATE: Mencocokkan jejak Topologis dan mengikat Kausalitas...`);
+
+        // Membaca pergerakan dari seluruh pengalaman training
+        for (let i = 0; i < trainStates.length; i++) {
+            const state = trainStates[i]!;
+
+            // 2A. DETEKSI ENTANGLEMENT MULTI-AGENT (Hebbian Learning Branchless)
+            this.waveDynamics.initializeEntities(state.in);
+
+            // Evolve entanglement berdasarkan interaksi antar agen (Otomatis tanpa if-else)
+            this.waveDynamics.evolveEntanglement(0.2);
+
+            // 2B. KESADARAN KOLEKTIF (Superposisi state seluruh entitas)
+            const agentTensors: TensorVector[] = [];
+            for (let e = 0; e < state.in.activeCount; e++) {
+                if (state.in.masses[e]! > 0) agentTensors.push(state.in.getTensor(e));
+            }
+            this.blackboard.synchronize(agentTensors);
+
+            // 2C. HUNGARIAN MATCHING & HUKUM FISIKA
+            const alignments = this.aligner.align(state.in, state.out, enableAdvancedPhysics);
+
+            for (const match of alignments) {
+                // Ekstraksi Delta sangat kompleks sekarang (Translasi + Cermin).
+                // Similarity bisa anjlok karena noise superposisi. Tangkap semua > 0.1.
+                if (match.deltaTensor && match.similarity > 0.1) {
+                    const knownMemory = this.seedBank.findBestMatch(match.deltaTensor);
+                    const physicsTier = match.physicsTier;
+
+                    // Jika coherence sangat kuat, reuse memori lama
+                    if (knownMemory && knownMemory.coherence > 0.75) {
+                        if (enableAdvancedPhysics) {
+                            log(`      [Resonance] Pergerakan dikenali sebagai: ${knownMemory.name} (Axiom: ${match.axiomType}) (Kemiripan: ${(knownMemory.coherence * 100).toFixed(2)}%)`);
+                        }
+                        this.pruner.injectHypothesis(knownMemory.name, knownMemory.phasor, match.deltaX, match.deltaY, 1.0, 0.001, physicsTier);
+                    } else {
+                        // Jika tidak ada yang mirip > 75%, kita ciptakan hukum baru
+                        // (Mencegah false positive dari harvested seeds yang merusak Cross Validation)
+                        const ruleId = `LAW_NEW_TRAIN_${i}_E${match.sourceIndex}_[${match.axiomType}]`;
+                        // Decay rate super rendah karena Axiom sudah dipra-validasi oleh Centroid & Mirror Probes
+                        this.pruner.injectHypothesis(ruleId, match.deltaTensor, match.deltaX, match.deltaY, 1.0, 0.005, physicsTier);
+                    }
+                }
+            }
+        }
+
+        log(`   [3] EVOLVE: Menjalankan Termodinamika & Multiverse Tree Search...`);
+
+        // Array untuk menyimpan lintasan aksi yang lolos Free Energy = 0.0 (Sempurna)
+        const winningTrajectories: { tensor: TensorVector, depth: number }[] = [];
+        const activeRules = this.pruner.getSurvivingRules();
+
+        // Ambil top-K rule terkuat untuk menjadi cabang pohon MCTS agar tidak meledak
+        // Kita pakai MAX_BRANCHES (misal 4 aksi terbaik)
+        activeRules.sort((a, b) => b.energy - a.energy);
+        const topRules = activeRules.slice(0, MAX_BRANCHES);
+
+        for (let i = 0; i < trainStates.length; i++) {
+            const state = trainStates[i]!;
+
+            // Memulai Pencarian Imajinasi Mendalam (Recursive Multiverse)
+            const trajectoryResult = this.deepImagine(state.in, state.out, 1, topRules);
+
+            if (trajectoryResult) {
+                winningTrajectories.push(trajectoryResult);
+            }
+        }
+
+        let lowestEnergySumFallback = Infinity;
+
+        // 3B. =======================================================
+        // RUTE A: RETROCAUSAL UNBINDING (Menarik Rumus Bersih dari Trajectory)
+        // Mengekstrak aksi murni dari kebisingan Vektor Masa Depan.
+        // =======================================================
+        const cleanAxiomSequence: any[] = [];
+        if (winningTrajectories.length > 0) {
+            if (enableAdvancedPhysics) log(`      [Retrocausal Unbinding] Mengekstrak urutan Hukum dari Alam Semesta Pemenang...`);
+
+            let winner = winningTrajectories[0]!;
+
+            if (winningTrajectories.length > 1) {
+                if (enableAdvancedPhysics) log(`      [Grover Diffusion] Menyelesaikan ambiguitas ${winningTrajectories.length} lintasan masa depan menggunakan Interferensi Kuantum...`);
+                const candidates = winningTrajectories.map(t => ({
+                    tensor: t.tensor,
+                    depth: t.depth,
+                    energy: 1.0
+                }));
+
+                const grover = new GroverDiffusionSystem(this.multiverse, {
+                    dimensions: GLOBAL_DIMENSION,
+                    searchSpaceSize: candidates.length,
+                    temperature: 0.1,
+                    freeEnergyThreshold: 0.05,
+                    maxIterations: 3
+                });
+
+                const ultimateWinner = grover.search(candidates, trainStates);
+                if (ultimateWinner) winner = ultimateWinner;
+            }
+
+            const trajectoryTensor = winner.tensor;
+            const maxDepthReached = winner.depth;
+
+            for (let d = 1; d <= maxDepthReached; d++) {
+                const timePhase = FHRR.fractionalBind(this.TIME_SEED, d);
+                const timeInverse = FHRR.inverse(timePhase);
+                const noisyAxiom = FHRR.bind(trajectoryTensor, timeInverse);
+
+                let bestMatch: any | null = null;
+                let highestSim = -Infinity;
+
+                for (const rule of activeRules) {
+                    const sim = FHRR.similarity(noisyAxiom, rule.tensor_rule);
+                    if (sim > highestSim) {
+                        highestSim = sim;
+                        bestMatch = rule;
+                    }
+                }
+
+                if (bestMatch && highestSim > 0.1) {
+                    cleanAxiomSequence.push(bestMatch);
+                }
+            }
+
+            this.pruner.clearAllHypotheses();
+
+            for (let i = 0; i < cleanAxiomSequence.length; i++) {
+                const rule = cleanAxiomSequence[i]!;
+                this.pruner.injectHypothesis(`CLEAN_AXIOM_STEP_${i+1}`, rule.tensor_rule, rule.deltaX, rule.deltaY, 1.0, 0.0, rule.physicsTier);
+            }
+        } else {
+            // Evaluasi 1-langkah konvensional (Fallback Mechanism).
+            let bestFallbackRule: any | null = null;
+            const fallbackCandidates: any[] = [];
+
+            for (const rule of activeRules) {
+                let ruleEnergySum = 0.0;
+
+                for (let i = 0; i < trainStates.length; i++) {
+                    const state = trainStates[i]!;
+                    this.multiverse.cloneToUniverse(state.in, 0);
+                    this.multiverse.applyAxiom(0, rule.tensor_rule, rule.deltaX, rule.deltaY, rule.physicsTier);
+                    const freeEnergy = this.multiverse.calculateFreeEnergy(0, state.out);
+
+                    ruleEnergySum += freeEnergy;
+                }
+
+                if (ruleEnergySum < lowestEnergySumFallback) {
+                    lowestEnergySumFallback = ruleEnergySum;
+                    bestFallbackRule = rule;
+                }
+
+                if (ruleEnergySum < 1.5) {
+                    rule.energy = Math.max(0.01, 1.0 - (ruleEnergySum / trainStates.length));
+                    fallbackCandidates.push(rule);
+                }
+            }
+
+            if (fallbackCandidates.length > 1) {
+                if (enableAdvancedPhysics) log(`      [Grover Diffusion] Resolusi Ambiguitas Fallback terhadap ${fallbackCandidates.length} aksioma parsial...`);
+                const grover = new GroverDiffusionSystem(this.multiverse, {
+                    dimensions: GLOBAL_DIMENSION,
+                    searchSpaceSize: fallbackCandidates.length,
+                    temperature: 0.1,
+                    freeEnergyThreshold: 0.1,
+                    maxIterations: 3
+                });
+
+                const ultimateWinner = grover.search(fallbackCandidates, trainStates);
+                if (ultimateWinner) bestFallbackRule = ultimateWinner;
+            }
+
+            this.pruner.clearAllHypotheses();
+
+            if (bestFallbackRule && lowestEnergySumFallback < Infinity) {
+                this.pruner.injectHypothesis(`CLEAN_AXIOM_FALLBACK`, bestFallbackRule.tensor_rule, bestFallbackRule.deltaX, bestFallbackRule.deltaY, 1.0, 0.0, bestFallbackRule.physicsTier);
+            }
+        }
+
+        const survivingRules = this.pruner.getSurvivingRules();
+
+        // SELF-EVALUATION: Jika kita dalam mode Fast Pass (enableAdvancedPhysics = false),
+        // dan hasil evolusi masih menghasilkan energi tinggi (bukan 0.0 sempurna), kembalikan null untuk men-trigger Snapshot.
+        if (!enableAdvancedPhysics) {
+            // Kita menganggap MCTS gagal jika tidak ada lintasan sempurna, dan tebakan fallback masih memiliki energi
+            if (survivingRules.length === 0 || (winningTrajectories.length === 0 && lowestEnergySumFallback > 0.01)) {
+                return null;
+            }
+        }
+
+        return survivingRules;
+    }
+
+    /**
      * 🌀 THE DEEP ACTIVE INFERENCE LOOP (MCTS)
      * Menjalankan penelusuran pohon multiverse secara rekursif (Depth-First Search).
      */
@@ -360,10 +359,13 @@ export class RRM_Agent {
             this.multiverse.cloneToUniverse(currentUniverse, universeId);
 
             // 2. Berimajinasi (Aplikasikan Hukum Fisika Kuantum & Skalar Kinetik)
-            this.multiverse.applyAxiom(universeId, action.tensor_rule, action.deltaX, action.deltaY);
+            this.multiverse.applyAxiom(universeId, action.tensor_rule, action.deltaX, action.deltaY, action.physicsTier);
 
-            // 3. Evaluasi Surprise (Free Energy)
-            const newFreeEnergy = this.multiverse.calculateFreeEnergy(universeId, targetUniverse);
+            // 3. Evaluasi Surprise (Free Energy) dengan Quantum Annealing (Thermal Noise)
+            // Semakin dalam iterasi (mentok), agen semakin toleran terhadap keanehan/noise agar bisa memecah kebuntuan
+            // Max noise 0.05 (5% kelonggaran kesamaan fasa)
+            const thermalNoise = 0.01 + (depth * 0.01);
+            const newFreeEnergy = this.multiverse.calculateFreeEnergy(universeId, targetUniverse, thermalNoise);
 
             // 4. Update Sejarah Vektor dengan Time-Traveling Binding
             const timePhase = FHRR.fractionalBind(this.TIME_SEED, depth); // Time step T_d
@@ -374,7 +376,7 @@ export class RRM_Agent {
             if (newFreeEnergy < 0.05) {
                 // RESONANSI SEMPURNA DITEMUKAN! Jawaban teka-teki terpecahkan
                 return { tensor: newTrajectory, depth };
-            } else if (newFreeEnergy < currentFreeEnergy) {
+            } else if (newFreeEnergy < currentFreeEnergy + thermalNoise) { // Annealed Escape Route
                 // Entropi berkurang (Makin mirip Target). Eksplorasi ke tingkat lebih dalam!
                 // Perhatikan: Rekursi ke masa depan akan menggunakan Semesta saat ini sebagai sumber
                 const winningFuture = this.deepImagine(

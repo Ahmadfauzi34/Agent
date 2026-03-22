@@ -126,32 +126,54 @@ export class MultiverseSandbox {
 
     /**
      * Terapkan aksioma (misal: Axiom Translasi/Mutasi) ke Universe tertentu.
-     * Mengandung FISIKA DOMINO EFEK (Entanglement / Collision Detection).
+     * Menerapkan Multi-Tier Physics Engine untuk komputasi asimetris O(1) -> O(N).
      */
-    public applyAxiom(universeId: number, axiomVector: TensorVector, deltaX: number, deltaY: number, isSwarmAxiom: boolean = false): void {
+    public applyAxiom(universeId: number, axiomVector: TensorVector, deltaX: number, deltaY: number, physicsTier: number = 0): void {
         const u = this.getUniverse(universeId);
 
-        // INTERUPSI: Jika ini adalah Swarm Axiom (misal gravitasi turun)
-        if (isSwarmAxiom) {
-            SwarmDynamics.applySwarmGravity(u, deltaX, deltaY);
-            return;
-        }
+        switch (physicsTier) {
+            case 2: // SWARM TIER (Granular/Fluid)
+                SwarmDynamics.applySwarmGravity(u, deltaX, deltaY);
+                break;
 
+            case 1: // DOMINO TIER (Chain Reaction)
+                this.applyDominoPhysics(u, axiomVector, deltaX, deltaY);
+                break;
+
+            case 0: // INSTANT TIER (Teleportasi Murni 0ms)
+            default:
+                for (let e = 0; e < u.activeCount; e++) {
+                    if (u.masses[e] === 0.0) continue;
+
+                    // Tensor Binding (Mutasi Warna & Translasi Spasial)
+                    const entityTensor = u.getTensor(e);
+                    const futureState = FHRR.bind(entityTensor, axiomVector);
+                    entityTensor.set(futureState);
+
+                    // Skalar Update (Instant 0ms tanpa tabrakan)
+                    u.centersX[e] += deltaX;
+                    u.centersY[e] += deltaY;
+                }
+                break;
+        }
+    }
+
+    /**
+     * Fisika Efek Domino (Entanglement / Collision Detection).
+     * Mengecek dan menjerat entitas lain jika saling bertabrakan saat translasi.
+     */
+    private applyDominoPhysics(u: EntityManifold, axiomVector: TensorVector, deltaX: number, deltaY: number): void {
         const width = u.globalWidth;
         const height = u.globalHeight;
-
-        // Fase 1: Terapkan perubahan pada agen utama dan catat pergerakan absolutnya
         const movedEntities: number[] = [];
 
         for (let e = 0; e < u.activeCount; e++) {
             if (u.masses[e] === 0.0) continue;
 
-            // Terapkan translasi ke Tensor entitas
             const entityTensor = u.getTensor(e);
             const futureState = FHRR.bind(entityTensor, axiomVector);
             entityTensor.set(futureState);
 
-            // OPTIMASI DOSA 2: Eksekusi Skalar Kinetik
             if (deltaX !== 0.0 || deltaY !== 0.0) {
                 u.centersX[e] += deltaX;
                 u.centersY[e] += deltaY;
@@ -159,35 +181,29 @@ export class MultiverseSandbox {
             }
         }
 
-        // Fase 2: Pengecekan Tabrakan (AABB Collision) & Transfer Entanglement (Domino Effect)
+        // Pengecekan Tabrakan (AABB Collision) & Transfer Entanglement
         for (let m = 0; m < movedEntities.length; m++) {
             const e1 = movedEntities[m]!;
 
-            // Konversi dari relatif (0.0-1.0) ke koordinat absolut Piksel
             const cX1 = u.centersX[e1]! * (width - 1);
             const cY1 = u.centersY[e1]! * (height - 1);
             const spanX1 = u.spansX[e1]!;
             const spanY1 = u.spansY[e1]!;
 
-            // Radius Bounding Box A
             const rx1 = spanX1 / 2.0;
             const ry1 = spanY1 / 2.0;
 
             for (let e2 = 0; e2 < u.activeCount; e2++) {
-                // Jangan cek dengan diri sendiri atau yang sudah mati
                 if (e1 === e2 || u.masses[e2] === 0.0) continue;
 
-                // Konversi agen kedua ke absolut
                 const cX2 = u.centersX[e2]! * (width - 1);
                 const cY2 = u.centersY[e2]! * (height - 1);
                 const spanX2 = u.spansX[e2]!;
                 const spanY2 = u.spansY[e2]!;
 
-                // Radius Bounding Box B
                 const rx2 = spanX2 / 2.0;
                 const ry2 = spanY2 / 2.0;
 
-                // Branchless AABB Collision Check
                 const overlapX = (rx1 + rx2) - Math.abs(cX1 - cX2);
                 const overlapY = (ry1 + ry2) - Math.abs(cY1 - cY2);
 
@@ -196,23 +212,17 @@ export class MultiverseSandbox {
                 if (isColliding === 1) {
                     const isAlreadyMoved = movedEntities.includes(e2);
                     if (!isAlreadyMoved) {
-                        // Entitas e2 terjerat oleh e1
                         u.entanglementStatus[e2] = 1.0;
                         u.entanglementStatus[e1] = 1.0;
 
-                        // Pindahkan secara spasial
                         u.centersX[e2] += deltaX;
                         u.centersY[e2] += deltaY;
 
-                        // BANGKITKAN TENSOR TRANSLASI MURNI (Seed Bank Pattern)
-                        // Karena Sandbox sekarang memiliki akses O(1) ke CoreSeeds,
-                        // kita bisa menghasilkan fasa pergeseran tanpa UniversalManifold!
                         const dominoShiftTensor = AxiomGenerator.generateTranslationAxiom(
                             deltaX, deltaY,
                             CoreSeeds.X_AXIS_SEED, CoreSeeds.Y_AXIS_SEED
                         );
 
-                        // Ikat entitas e2 dengan translasi spasial ini
                         const e2Tensor = u.getTensor(e2);
                         const futureE2State = FHRR.bind(e2Tensor, dominoShiftTensor);
                         e2Tensor.set(futureE2State);
@@ -225,8 +235,9 @@ export class MultiverseSandbox {
     /**
      * 🧠 KARL FRISTON'S FREE ENERGY EVALUATION 🧠
      * Seberapa berantakan alam semesta ini jika dibandingkan dengan kenyataan target?
+     * Mendukung "Thermal Noise" (Quantum Annealing) agar agen bisa bermimpi dan keluar dari Local Minima.
      */
-    public calculateFreeEnergy(universeId: number, targetReality: EntityManifold): number {
+    public calculateFreeEnergy(universeId: number, targetReality: EntityManifold, thermalNoise: number = 0.0): number {
         const u = this.getUniverse(universeId);
         let totalSurprise = 0.0;
         let evaluatedEntities = 0;
@@ -251,13 +262,17 @@ export class MultiverseSandbox {
             // Jika tidak ada target (bestResonance masih -999), set ke -1 agar surprisenya = 2.0 (Kacau Maksimal)
             if (bestResonance === -999.0) bestResonance = -1.0;
 
-            const surprise = 1.0 - bestResonance;
+            // Injeksi Thermal Noise: Membuat batas "kesalahan" menjadi blur
+            // Noise 0.05 berarti kemiripan 95% bisa dianggap 100% sempurna di suhu tinggi.
+            const annealedResonance = Math.min(1.0, bestResonance + (Math.random() * thermalNoise));
+
+            const surprise = 1.0 - annealedResonance;
             totalSurprise += surprise;
             evaluatedEntities++;
         }
 
         if (evaluatedEntities === 0) return 1.0;
 
-        return totalSurprise / evaluatedEntities;
+        return Math.max(0.0, totalSurprise / evaluatedEntities);
     }
 }

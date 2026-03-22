@@ -8,6 +8,7 @@ export interface Hypothesis {
     deltaX: number; // Kinetika translasi X
     deltaY: number; // Kinetika translasi Y
     energy: number;
+    physicsTier: number; // 0: INSTANT, 1: DOMINO, 2: SWARM
 }
 
 /**
@@ -26,10 +27,13 @@ export class HamiltonianPruner {
     private ruleDeltaY: Float32Array = new Float32Array(MAX_HYPOTHESES);
     private ruleTensors: Float32Array = new Float32Array(MAX_HYPOTHESES * GLOBAL_DIMENSION);
 
+    // Menambahkan array untuk menampung flag Physics Tier
+    private rulePhysicsTier: Int8Array = new Int8Array(MAX_HYPOTHESES);
+
     /**
      * Memasukkan tebakan rule baru ke dalam memori kerja sementara.
      */
-    public injectHypothesis(id: string, rule: TensorVector, deltaX: number = 0.0, deltaY: number = 0.0, initialEnergy: number = 1.0, decayRate: number = 0.15): void {
+    public injectHypothesis(id: string, rule: TensorVector, deltaX: number = 0.0, deltaY: number = 0.0, initialEnergy: number = 1.0, decayRate: number = 0.15, physicsTier: number = 0): void {
         if (this.activeCount >= MAX_HYPOTHESES) {
             PDRLogger.trace("[HamiltonianPruner] Arena kepenuhan. Menolak hipotesis baru.");
             return;
@@ -37,6 +41,7 @@ export class HamiltonianPruner {
 
         const idx = this.activeCount;
         this.ids[idx] = id;
+        this.rulePhysicsTier[idx] = physicsTier;
         this.energies[idx] = initialEnergy;
         this.decayRates[idx] = decayRate;
         this.ruleDeltaX[idx] = deltaX;
@@ -147,7 +152,8 @@ export class HamiltonianPruner {
                     tensor_rule: this.getTensor(i),
                     deltaX: this.ruleDeltaX[i]!,
                     deltaY: this.ruleDeltaY[i]!,
-                    energy: this.energies[i]!
+                    energy: this.energies[i]!,
+                    physicsTier: this.rulePhysicsTier[i]!
                 });
             }
         }
