@@ -44,10 +44,12 @@ export class EntitySegmenter {
         for (let i = 0; i < entries.length; i++) {
             const [key, tensor] = entries[i]!;
             const parsed = parseKey(key);
-            if (!tokenGroups.has(parsed.token)) {
-                tokenGroups.set(parsed.token, []);
+            let group = tokenGroups.get(parsed.token);
+            if (!group) {
+                group = [];
+                tokenGroups.set(parsed.token, group);
             }
-            tokenGroups.get(parsed.token)!.push({ key, tensor, parsed });
+            group[group.length] = { key, tensor, parsed }; // DOSA 2 PENGAMANAN: Index-based assignment daripada push() untuk engine hotpath
 
             globalWidth = Math.max(globalWidth, parsed.x + 1);
             globalHeight = Math.max(globalHeight, parsed.y + 1);

@@ -68,8 +68,12 @@ class LSHIndex {
         for (let projIdx = 0; projIdx < this.numProjections; projIdx++) {
             const hash = hashes[projIdx]!;
             const bucket = this.buckets[projIdx]!;
-            if (!bucket.has(hash)) bucket.set(hash, []);
-            bucket.get(hash)!.push(index);
+            let arr = bucket.get(hash);
+            if (!arr) {
+                arr = [];
+                bucket.set(hash, arr);
+            }
+            arr[arr.length] = index; // DOSA 2 PENGAMANAN: Index-based assignment daripada push()
         }
     }
 

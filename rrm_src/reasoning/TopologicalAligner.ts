@@ -159,10 +159,13 @@ export class TopologicalAligner {
                 // Kalkulus Makro Sejati (Axiom Extraction)
                 // Ini secara matematis berisi: Translasi ⊛ Geometri ⊛ Mutasi Warna (jika ada)
                 // Dieksekusi 1x di luar inner-loop untuk mempertahankan kecepatan V8.
+                // PENGECUALIAN SUCI (DOSA 3): FHRR.inverse DIPERBOLEHKAN DI SINI UNTUK EKSTRAKSI AKSIOMA MAKRO (Target - Source).
+                // Meng-inverse source tensor secara utuh memang membalikkan warna (Color Inverse), tapi itu PERSIS
+                // yang kita butuhkan untuk mencari "delta" warna antara source dan target.
                 delta = FHRR.bind(tgtTensor, FHRR.inverse(srcTensor));
             }
 
-            matches.push({
+            matches[matches.length] = { // DOSA 2 PENGAMANAN: Index-based assignment daripada push()
                 sourceIndex: sIdx,
                 targetIndex: bestTargetIdx,
                 similarity: bestSim,
@@ -171,7 +174,7 @@ export class TopologicalAligner {
                 deltaY: bestDy,
                 axiomType: bestAxiomType,
                 physicsTier: 0 // Default to INSTANT
-            });
+            };
         }
 
         this.applyMultiTierPhysicsDetection(matches, sourceManifold);

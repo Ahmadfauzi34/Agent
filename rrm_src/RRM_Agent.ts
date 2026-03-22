@@ -212,7 +212,7 @@ export class RRM_Agent {
             }
         }
 
-        let lowestEnergySumFallback = Infinity;
+        let lowestEnergySumFallback = 9999.0;
 
         // 3B. =======================================================
         // RUTE A: RETROCAUSAL UNBINDING (Menarik Rumus Bersih dari Trajectory)
@@ -248,12 +248,13 @@ export class RRM_Agent {
             const maxDepthReached = winner.depth;
 
             for (let d = 1; d <= maxDepthReached; d++) {
-                const timePhase = FHRR.fractionalBind(this.TIME_SEED, d);
-                const timeInverse = FHRR.inverse(timePhase);
+                // PENGAMANAN DOSA 3 (Mencegah Color Phase Annihilation)
+                // Alih-alih meng-inverse timePhase, kita men-generate phase waktu mundur (-d).
+                const timeInverse = FHRR.fractionalBind(this.TIME_SEED, -d);
                 const noisyAxiom = FHRR.bind(trajectoryTensor, timeInverse);
 
                 let bestMatch: any | null = null;
-                let highestSim = -Infinity;
+                let highestSim = -999.0;
 
                 for (const rule of activeRules) {
                     const sim = FHRR.similarity(noisyAxiom, rule.tensor_rule);
@@ -318,7 +319,7 @@ export class RRM_Agent {
 
             this.pruner.clearAllHypotheses();
 
-            if (bestFallbackRule && lowestEnergySumFallback < Infinity) {
+            if (bestFallbackRule && lowestEnergySumFallback < 9999.0) {
                 this.pruner.injectHypothesis(`CLEAN_AXIOM_FALLBACK`, bestFallbackRule.tensor_rule, bestFallbackRule.deltaX, bestFallbackRule.deltaY, 1.0, 0.0, bestFallbackRule.physicsTier);
             }
         }
