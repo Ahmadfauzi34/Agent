@@ -126,14 +126,7 @@ export class TopologicalAligner {
 
                 // 🚨 KOREKSI ARSITEK: Branchless Mass Ratio
                 const massRatio = Math.min(srcMass, tgtMass) / (Math.max(srcMass, tgtMass) + 1e-15);
-                let combinedScore = (maxSim * 0.7) + (massRatio * 0.3);
-
-                // Thermal Noise Injection (Quantum Annealing) pada fase Resonance
-                // Jika sistem sedang "mabuk/bermimpi" (Advanced Physics On) di mana insting dasar gagal,
-                // beri sedikit toleransi noise (hingga 2%) pada pencocokan agar entitas mau bergerak meski tidak 100% cocok.
-                if (enableAdvancedPhysics) {
-                    combinedScore += (Math.random() * 0.02);
-                }
+                const combinedScore = (maxSim * 0.7) + (massRatio * 0.3);
 
                 if (combinedScore > bestSim) {
                     bestSim = combinedScore;
@@ -216,53 +209,14 @@ export class TopologicalAligner {
             const count = momentumCounts.get(key) || 0;
 
             if (count >= SWARM_THRESHOLD) {
-                // TIER 2: SWARM
+                // TIER 2: SWARM (Kecerdasan Gerombolan dihidupkan jika ada konsensus kuat)
                 match.physicsTier = 2;
                 if (!match.axiomType.startsWith("SWARM_")) match.axiomType = `SWARM_${match.axiomType}`;
             } else {
-                // TIER 1 vs TIER 0: Cek apakah ada potensi rintangan di jalur gerakan (AABB Raycast Sederhana)
-                const isBlocked = this.checkPotentialCollision(sourceManifold, match.sourceIndex, match.deltaX, match.deltaY);
-                if (isBlocked) {
-                    match.physicsTier = 1; // TIER 1: DOMINO
-                    if (!match.axiomType.startsWith("DOMINO_")) match.axiomType = `DOMINO_${match.axiomType}`;
-                } else {
-                    match.physicsTier = 0; // TIER 0: INSTANT
-                }
+                // TIER 1: DOMINO (Default fisika untuk 1-2 objek yang memindahkan benda lain di Sandbox)
+                // Menghemat O(N^2) Raycast di TopologicalAligner dengan membebankan tabrakan ke Sandbox langsung.
+                match.physicsTier = 1;
             }
         }
-    }
-
-    /**
-     * Mengecek apakah jalur pergerakan entitas terhalang oleh entitas lain.
-     * Menggunakan O(N) AABB raycast/sweep aproksimasi kasar.
-     */
-    private checkPotentialCollision(u: EntityManifold, entityIdx: number, deltaX: number, deltaY: number): boolean {
-        const cX1 = u.centersX[entityIdx]!;
-        const cY1 = u.centersY[entityIdx]!;
-        const rx1 = u.spansX[entityIdx]! / 2.0;
-        const ry1 = u.spansY[entityIdx]! / 2.0;
-
-        const nextX = cX1 + deltaX;
-        const nextY = cY1 + deltaY;
-
-        for (let j = 0; j < u.activeCount; j++) {
-            if (entityIdx === j || u.masses[j] === 0.0) continue;
-
-            const cX2 = u.centersX[j]!;
-            const cY2 = u.centersY[j]!;
-            const rx2 = u.spansX[j]! / 2.0;
-            const ry2 = u.spansY[j]! / 2.0;
-
-            // Cek apakah tujuan akhir menimpa/menabrak entitas lain
-            const overlapX = (rx1 + rx2) - Math.abs(nextX - cX2);
-            const overlapY = (ry1 + ry2) - Math.abs(nextY - cY2);
-
-            // Kita juga sebaiknya mengecek jalur, tapi untuk ARC, tujuan akhir cukup representatif
-            // untuk mengaktifkan Domino
-            if (overlapX >= -0.01 && overlapY >= -0.01) {
-                return true;
-            }
-        }
-        return false;
     }
 }
