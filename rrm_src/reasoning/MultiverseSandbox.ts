@@ -131,13 +131,23 @@ export class MultiverseSandbox {
     public applyAxiom(universeId: number, axiomVector: TensorVector, deltaX: number, deltaY: number, physicsTier: number = 0): void {
         const u = this.getUniverse(universeId);
 
+        // PENGAMANAN ALIGNMENT (Konversi Piksel Absolut -> Koordinat Relatif)
+        // deltaX dan deltaY dari TopologicalAligner adalah piksel absolut (misal: +2 piksel).
+        // Sedangkan centersX dan centersY adalah koordinat relatif (0.0 - 1.0).
+        const relDeltaX = deltaX / Math.max(1, u.globalWidth - 1);
+        const relDeltaY = deltaY / Math.max(1, u.globalHeight - 1);
+
         switch (physicsTier) {
             case 2: // SWARM TIER (Granular/Fluid)
+                // Implementasi SwarmDynamics sudah menggunakan resolusi piksel absolut di dalamnya,
+                // tapi pusatnya (centersX/Y) perlu update relatif jika kita ubah.
+                // Namun, karena `applySwarmGravity` memutasi centersX/Y sebagai nilai relatif di akhir iterasi pikselnya,
+                // kita pass nilai absolut deltaX/deltaY as is.
                 SwarmDynamics.applySwarmGravity(u, deltaX, deltaY);
                 break;
 
             case 1: // DOMINO TIER (Chain Reaction)
-                this.applyDominoPhysics(u, axiomVector, deltaX, deltaY);
+                this.applyDominoPhysics(u, axiomVector, deltaX, deltaY, relDeltaX, relDeltaY);
                 break;
 
             case 0: // INSTANT TIER (Teleportasi Murni 0ms)
@@ -150,9 +160,9 @@ export class MultiverseSandbox {
                     const futureState = FHRR.bind(entityTensor, axiomVector);
                     entityTensor.set(futureState);
 
-                    // Skalar Update (Instant 0ms tanpa tabrakan)
-                    u.centersX[e] += deltaX;
-                    u.centersY[e] += deltaY;
+                    // Skalar Update (Instant 0ms tanpa tabrakan) menggunakan Relative Delta
+                    u.centersX[e]! += relDeltaX;
+                    u.centersY[e]! += relDeltaY;
                 }
                 break;
         }
@@ -162,7 +172,7 @@ export class MultiverseSandbox {
      * Fisika Efek Domino (Entanglement / Collision Detection).
      * Mengecek dan menjerat entitas lain jika saling bertabrakan saat translasi.
      */
-    private applyDominoPhysics(u: EntityManifold, axiomVector: TensorVector, deltaX: number, deltaY: number): void {
+    private applyDominoPhysics(u: EntityManifold, axiomVector: TensorVector, deltaX: number, deltaY: number, relDeltaX: number, relDeltaY: number): void {
         const width = u.globalWidth;
         const height = u.globalHeight;
         const movedEntities: number[] = [];
@@ -215,8 +225,8 @@ export class MultiverseSandbox {
                         u.entanglementStatus[e2] = 1.0;
                         u.entanglementStatus[e1] = 1.0;
 
-                        u.centersX[e2] += deltaX;
-                        u.centersY[e2] += deltaY;
+                        u.centersX[e2]! += relDeltaX;
+                        u.centersY[e2]! += relDeltaY;
 
                         const dominoShiftTensor = AxiomGenerator.generateTranslationAxiom(
                             deltaX, deltaY,

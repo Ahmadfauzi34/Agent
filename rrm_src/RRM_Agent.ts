@@ -125,14 +125,19 @@ export class RRM_Agent {
         const is2D = Array.isArray(testInput[0]);
 
         if (is2D) {
-            const grid = testInput as number[][];
-            const height = grid.length;
-            const width = grid[0]?.length || 0;
+            // PENGAMANAN GRID RESIZING: Ambil ukuran akhir dari winningUniverse,
+            // karena MCTS / Sandbox mungkin telah memprediksi perubahan ukuran (Cropping / Amplification)
+            // melalui Axiom yang dipelajari. Jika tidak ada perubahan, ukurannya sama dengan testInput.
+            const targetWidth = winningUniverse.globalWidth > 0 ? winningUniverse.globalWidth : (testInput[0]?.length || 0);
+            const targetHeight = winningUniverse.globalHeight > 0 ? winningUniverse.globalHeight : testInput.length;
 
             // Memproyeksikan EntityManifold yang sudah runtuh kembali ke grid piksel
-            const collapsedGrid = this.decoder.collapseToGrid(testManifold, width, height, 0.35);
+            // TURUNAN THRESHOLD (0.35 -> 0.05)
+            // Karena noise kuantum saat color mutation, amplitudo Tensor sering jatuh di bawah 0.35
+            // Menurunkan threshold memungkinkan sinyal lemah dari objek bermutasi tetap tergambar.
+            const collapsedGrid = this.decoder.collapseToGrid(testManifold, targetWidth, targetHeight, 0.05);
 
-            log(`   ✅ REALITAS TERBENTUK: Grid (${width}x${height}) dirender ulang dari Memcpy Collapse secara branchless ECS.`);
+            log(`   ✅ REALITAS TERBENTUK: Grid (${targetWidth}x${targetHeight}) dirender ulang dari Memcpy Collapse secara branchless ECS.`);
             return collapsedGrid;
         } else {
             return testInput;

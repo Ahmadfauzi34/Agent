@@ -302,7 +302,7 @@ export class LogicSeedBank {
         for (let dc = 1; dc <= 9; dc++) {
             const name = `L2_COLOR_SHIFT_+${dc}`;
             const seed = 2000 + dc;
-            const phasor = FHRR.fractionalBind(this.perceiver.COLOR_SEED, dc);
+            const phasor = FHRR.fractionalBind(CoreSeeds.COLOR_SEED, dc);
             this.normalizeL2InPlaceFast(phasor);
             this.registerSkill(name, seed, phasor);
         }

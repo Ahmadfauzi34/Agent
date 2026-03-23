@@ -11,12 +11,10 @@ import { CoreSeeds } from '../core/CoreSeeds.js';
 export class UniversalManifold {
     // Sumbu Spasial Dasar untuk VSA
     public readonly R_AXIS_SEED: TensorVector; // 🌟 KESADARAN RADIAL (Jarak dari Pusat)
-    public readonly COLOR_SEED: TensorVector; // Alias "Token Seed"
 
     constructor() {
         // Membuat seed ortogonal dasar (Holographic Axioms)
         this.R_AXIS_SEED = FHRR.create();
-        this.COLOR_SEED  = FHRR.create();
     }
 
     /**
@@ -90,7 +88,7 @@ export class UniversalManifold {
         // Disini kita gunakan pseudo L1/Chebyshev (Octagonal approximation)
         const xTensor = this.encodeCoordinate(CoreSeeds.X_AXIS_SEED, relX);
         const yTensor = this.encodeCoordinate(CoreSeeds.Y_AXIS_SEED, relY);
-        const colorTensor = this.encodeCoordinate(this.COLOR_SEED, token);
+        const colorTensor = this.encodeCoordinate(CoreSeeds.COLOR_SEED, token);
 
         // BINDING HOLOGRAFIK: Kembali ke arsitektur tercepat
         // Mengikat hanya X, Y, dan Color menghemat waktu O(N * 8192) untuk properti tambahan
