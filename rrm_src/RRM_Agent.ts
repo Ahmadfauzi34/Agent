@@ -125,14 +125,19 @@ export class RRM_Agent {
         const is2D = Array.isArray(testInput[0]);
 
         if (is2D) {
-            const grid = testInput as number[][];
-            const height = grid.length;
-            const width = grid[0]?.length || 0;
+            // PENGAMANAN GRID RESIZING: Ambil ukuran akhir dari winningUniverse,
+            // karena MCTS / Sandbox mungkin telah memprediksi perubahan ukuran (Cropping / Amplification)
+            // melalui Axiom yang dipelajari. Jika tidak ada perubahan, ukurannya sama dengan testInput.
+            const targetWidth = winningUniverse.globalWidth > 0 ? winningUniverse.globalWidth : (testInput[0]?.length || 0);
+            const targetHeight = winningUniverse.globalHeight > 0 ? winningUniverse.globalHeight : testInput.length;
 
             // Memproyeksikan EntityManifold yang sudah runtuh kembali ke grid piksel
-            const collapsedGrid = this.decoder.collapseToGrid(testManifold, width, height, 0.35);
+            // TURUNAN THRESHOLD (0.35 -> 0.05)
+            // Karena noise kuantum saat color mutation, amplitudo Tensor sering jatuh di bawah 0.35
+            // Menurunkan threshold memungkinkan sinyal lemah dari objek bermutasi tetap tergambar.
+            const collapsedGrid = this.decoder.collapseToGrid(testManifold, targetWidth, targetHeight, 0.05);
 
-            log(`   ✅ REALITAS TERBENTUK: Grid (${width}x${height}) dirender ulang dari Memcpy Collapse secara branchless ECS.`);
+            log(`   ✅ REALITAS TERBENTUK: Grid (${targetWidth}x${targetHeight}) dirender ulang dari Memcpy Collapse secara branchless ECS.`);
             return collapsedGrid;
         } else {
             return testInput;
@@ -212,7 +217,7 @@ export class RRM_Agent {
             }
         }
 
-        let lowestEnergySumFallback = Infinity;
+        let lowestEnergySumFallback = 9999.0;
 
         // 3B. =======================================================
         // RUTE A: RETROCAUSAL UNBINDING (Menarik Rumus Bersih dari Trajectory)
@@ -248,12 +253,13 @@ export class RRM_Agent {
             const maxDepthReached = winner.depth;
 
             for (let d = 1; d <= maxDepthReached; d++) {
-                const timePhase = FHRR.fractionalBind(this.TIME_SEED, d);
-                const timeInverse = FHRR.inverse(timePhase);
+                // PENGAMANAN DOSA 3 (Mencegah Color Phase Annihilation)
+                // Alih-alih meng-inverse timePhase, kita men-generate phase waktu mundur (-d).
+                const timeInverse = FHRR.fractionalBind(this.TIME_SEED, -d);
                 const noisyAxiom = FHRR.bind(trajectoryTensor, timeInverse);
 
                 let bestMatch: any | null = null;
-                let highestSim = -Infinity;
+                let highestSim = -999.0;
 
                 for (const rule of activeRules) {
                     const sim = FHRR.similarity(noisyAxiom, rule.tensor_rule);
@@ -318,7 +324,7 @@ export class RRM_Agent {
 
             this.pruner.clearAllHypotheses();
 
-            if (bestFallbackRule && lowestEnergySumFallback < Infinity) {
+            if (bestFallbackRule && lowestEnergySumFallback < 9999.0) {
                 this.pruner.injectHypothesis(`CLEAN_AXIOM_FALLBACK`, bestFallbackRule.tensor_rule, bestFallbackRule.deltaX, bestFallbackRule.deltaY, 1.0, 0.0, bestFallbackRule.physicsTier);
             }
         }

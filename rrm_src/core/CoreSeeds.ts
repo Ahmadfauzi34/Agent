@@ -14,4 +14,5 @@ import { TensorVector } from './config.js';
 export class CoreSeeds {
     public static readonly X_AXIS_SEED: TensorVector = FHRR.create();
     public static readonly Y_AXIS_SEED: TensorVector = FHRR.create();
+    public static readonly COLOR_SEED: TensorVector = FHRR.create(); // Ortogonal Token Seed
 }

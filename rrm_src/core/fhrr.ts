@@ -6,7 +6,8 @@ const fft = new FFT(DIMENSION);
 
 // Seeded Random untuk Determinisme (Penting untuk Reproducibility)
 let seed = 42; 
-const seededRandom = () => {
+const seededRandom = (customSeed?: number) => {
+    if (customSeed !== undefined) seed = customSeed;
     seed = (seed * 16807) % 2147483647;
     return (seed - 1) / 2147483646;
 };
@@ -25,12 +26,15 @@ export const FHRR = {
   /**
    * 1. CREATE: Membuat Vektor Unitary (Flat-Spectrum)
    */
-  create: (): Float32Array => {
+  create: (customSeed?: number): Float32Array => {
     // DC (0) & Nyquist (N/2) harus Real
     _sharedcRes[0] = 1.0; _sharedcRes[1] = 0.0;
     _sharedcRes[DIMENSION] = 1.0; _sharedcRes[DIMENSION + 1] = 0.0;
 
     // Isi frekuensi dengan fase acak (Unit Magnitude)
+    // Jika customSeed diberikan, ia mereset PRNG agar deterministik sesuai seed
+    if (customSeed !== undefined) seededRandom(customSeed);
+
     for (let k = 1; k < DIMENSION / 2; k++) {
       const phase = seededRandom() * Math.PI * 2;
       const cosP = Math.cos(phase);

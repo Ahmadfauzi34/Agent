@@ -68,8 +68,12 @@ class LSHIndex {
         for (let projIdx = 0; projIdx < this.numProjections; projIdx++) {
             const hash = hashes[projIdx]!;
             const bucket = this.buckets[projIdx]!;
-            if (!bucket.has(hash)) bucket.set(hash, []);
-            bucket.get(hash)!.push(index);
+            let arr = bucket.get(hash);
+            if (!arr) {
+                arr = [];
+                bucket.set(hash, arr);
+            }
+            arr[arr.length] = index; // DOSA 2 PENGAMANAN: Index-based assignment daripada push()
         }
     }
 
@@ -298,7 +302,7 @@ export class LogicSeedBank {
         for (let dc = 1; dc <= 9; dc++) {
             const name = `L2_COLOR_SHIFT_+${dc}`;
             const seed = 2000 + dc;
-            const phasor = FHRR.fractionalBind(this.perceiver.COLOR_SEED, dc);
+            const phasor = FHRR.fractionalBind(CoreSeeds.COLOR_SEED, dc);
             this.normalizeL2InPlaceFast(phasor);
             this.registerSkill(name, seed, phasor);
         }

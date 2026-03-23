@@ -154,15 +154,31 @@ export class TopologicalAligner {
 
             if (bestTargetIdx !== -1) {
                 usedTargets.add(bestTargetIdx);
-                const tgtTensor = targetManifold.getTensor(bestTargetIdx);
 
-                // Kalkulus Makro Sejati (Axiom Extraction)
-                // Ini secara matematis berisi: Translasi ⊛ Geometri ⊛ Mutasi Warna (jika ada)
-                // Dieksekusi 1x di luar inner-loop untuk mempertahankan kecepatan V8.
-                delta = FHRR.bind(tgtTensor, FHRR.inverse(srcTensor));
+                // PRISTINE AXIOM SYNTHESIS
+                // Kita tidak lagi mem-inverse keseluruhan Source Tensor (yang bisa menyebabkan Noise Annihilation).
+                // Alih-alih, Axiom delta kita bentuk murni dari komponen terisolasi (Gerak + Mutasi Warna).
+
+                // 1. Sintesis Mutasi Warna (Jika ada perubahan warna)
+                const srcToken = sourceManifold.tokens[sIdx]!;
+                const tgtToken = targetManifold.tokens[bestTargetIdx]!;
+
+                if (srcToken !== tgtToken) {
+                    const srcColorPhase = FHRR.fractionalBind(CoreSeeds.COLOR_SEED, srcToken);
+                    const tgtColorPhase = FHRR.fractionalBind(CoreSeeds.COLOR_SEED, tgtToken);
+                    // Delta Warna Murni = TargetColor ⊛ Inverse(SourceColor)
+                    delta = FHRR.bind(tgtColorPhase, FHRR.inverse(srcColorPhase));
+                } else {
+                    // Identity Tensor (Semua Real=1, Imag=0). Menggunakan FHRR.bind dengan buffer 0 tidak akan mengubah data.
+                    // Tapi di MultiverseSandbox, kita tidak selalu memerlukan Delta Warna.
+                    // Jika delta null, itu berarti ini adalah murni translasi skalar.
+                    // Namun kita akan assign Tensor identitas agar seragam.
+                    delta = new Float32Array(GLOBAL_DIMENSION);
+                    delta[0] = 1.0; delta[GLOBAL_DIMENSION] = 1.0; // Identity at DC & Nyquist
+                }
             }
 
-            matches.push({
+            matches[matches.length] = { // DOSA 2 PENGAMANAN: Index-based assignment daripada push()
                 sourceIndex: sIdx,
                 targetIndex: bestTargetIdx,
                 similarity: bestSim,
@@ -171,7 +187,7 @@ export class TopologicalAligner {
                 deltaY: bestDy,
                 axiomType: bestAxiomType,
                 physicsTier: 0 // Default to INSTANT
-            });
+            };
         }
 
         this.applyMultiTierPhysicsDetection(matches, sourceManifold);

@@ -1,0 +1,164 @@
+[
+  {
+    "filename": "007bbfb7.json",
+    "duration": 5506.362011,
+    "success": false,
+    "gridSize": "3x3",
+    "entityCount": 7,
+    "iterations": 0,
+    "freeEnergyFinal": 0
+  },
+  {
+    "filename": "00d62c1b.json",
+    "duration": 8526.309817,
+    "success": false,
+    "gridSize": "6x6",
+    "entityCount": 6,
+    "iterations": 0,
+    "freeEnergyFinal": 0
+  },
+  {
+    "filename": "017c7c7b.json",
+    "duration": 4839.66583,
+    "success": false,
+    "gridSize": "6x3",
+    "entityCount": 9,
+    "iterations": 0,
+    "freeEnergyFinal": 0
+  },
+  {
+    "filename": "025d127b.json",
+    "duration": 13126.291279000005,
+    "success": false,
+    "gridSize": "14x9",
+    "entityCount": 20,
+    "iterations": 0,
+    "freeEnergyFinal": 0
+  },
+  {
+    "filename": "045e512c.json",
+    "duration": 2576.2759799999985,
+    "success": false,
+    "gridSize": "21x21",
+    "entityCount": 14,
+    "iterations": 0,
+    "freeEnergyFinal": 0
+  },
+  {
+    "filename": "0520fde7.json",
+    "duration": 15960.860547000004,
+    "success": false,
+    "gridSize": "3x7",
+    "entityCount": 10,
+    "iterations": 0,
+    "freeEnergyFinal": 0
+  },
+  {
+    "filename": "05269061.json",
+    "duration": 16130.386586,
+    "success": false,
+    "gridSize": "7x7",
+    "entityCount": 6,
+    "iterations": 0,
+    "freeEnergyFinal": 0
+  },
+  {
+    "filename": "05f2a901.json",
+    "duration": 1595.8631469999964,
+    "success": false,
+    "gridSize": "14x9",
+    "entityCount": 10,
+    "iterations": 0,
+    "freeEnergyFinal": 0
+  },
+  {
+    "filename": "06df4c85.json",
+    "duration": 27205.916066000005,
+    "success": false,
+    "gridSize": "20x20",
+    "entityCount": 228,
+    "iterations": 0,
+    "freeEnergyFinal": 0
+  },
+  {
+    "filename": "08ed6ac7.json",
+    "duration": 6520.519024000008,
+    "success": false,
+    "gridSize": "9x9",
+    "entityCount": 26,
+    "iterations": 0,
+    "freeEnergyFinal": 0
+  },
+  {
+    "filename": "09629e4f.json",
+    "duration": 35141.71209799999,
+    "success": false,
+    "gridSize": "11x11",
+    "entityCount": 84,
+    "iterations": 0,
+    "freeEnergyFinal": 0
+  },
+  {
+    "filename": "0962bcdd.json",
+    "duration": 9093.291792000004,
+    "success": false,
+    "gridSize": "12x12",
+    "entityCount": 10,
+    "iterations": 0,
+    "freeEnergyFinal": 0
+  },
+  {
+    "filename": "0a938d79.json",
+    "duration": 4082.813949000003,
+    "success": false,
+    "gridSize": "10x25",
+    "entityCount": 2,
+    "iterations": 0,
+    "freeEnergyFinal": 0
+  },
+  {
+    "filename": "0b148d64.json",
+    "duration": 13657.78901800001,
+    "success": false,
+    "gridSize": "21x21",
+    "entityCount": 223,
+    "iterations": 0,
+    "freeEnergyFinal": 0
+  },
+  {
+    "filename": "0ca9ddb6.json",
+    "duration": 2764.835227000003,
+    "success": false,
+    "gridSize": "9x9",
+    "entityCount": 2,
+    "iterations": 0,
+    "freeEnergyFinal": 0
+  },
+  {
+    "filename": "0d3d703e.json",
+    "duration": 46824.928780999995,
+    "success": false,
+    "gridSize": "3x3",
+    "entityCount": 9,
+    "iterations": 0,
+    "freeEnergyFinal": 0
+  },
+  {
+    "filename": "0dfd9992.json",
+    "duration": 132807.11860599997,
+    "success": false,
+    "gridSize": "21x21",
+    "entityCount": 395,
+    "iterations": 0,
+    "freeEnergyFinal": 0
+  },
+  {
+    "filename": "0e206a2e.json",
+    "duration": 4872.578891000012,
+    "success": false,
+    "gridSize": "14x18",
+    "entityCount": 22,
+    "iterations": 0,
+    "freeEnergyFinal": 0
+  }
+]
