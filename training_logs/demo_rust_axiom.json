@@ -1,0 +1,19 @@
+{
+  "axiom_type": "TRANSLATE_1.0_0.0+COLOR(X->RED)",
+  "composition": [
+    {
+      "seed": "X_AXIS_SEED",
+      "weight": 1.0,
+      "phase": 1.0
+    },
+    {
+      "seed": "COLOR_SEED",
+      "weight": 1.0,
+      "phase": 2.0
+    }
+  ],
+  "entropy_at_creation": 0.0,
+  "timestamp": 0,
+  "version": "v1.0",
+  "dimension_at_creation": 8192
+}

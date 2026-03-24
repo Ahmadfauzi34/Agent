@@ -38,8 +38,11 @@ export class TopologicalAligner {
      * Mencocokkan Entitas dari Manifold Sumber dengan Manifold Target.
      * Menggunakan Imajinasi Kuantum (Probing 4 Skenario Geometri) untuk Resonance Search.
      */
+    private _matchesBuffer: AlignmentMatch[] = new Array(MAX_ENTITIES);
+
     public align(sourceManifold: EntityManifold, targetManifold: EntityManifold, enableAdvancedPhysics: boolean = false): AlignmentMatch[] {
-        const matches: AlignmentMatch[] = [];
+        let matchCount = 0;
+        const matches = this._matchesBuffer;
         const usedTargets = new Set<number>();
 
         // 🚨 KOREKSI ARSITEK (Non-Determinisme Sort & Zero-GC):
@@ -178,7 +181,7 @@ export class TopologicalAligner {
                 }
             }
 
-            matches[matches.length] = { // DOSA 2 PENGAMANAN: Index-based assignment daripada push()
+            matches[matchCount++] = { // True Zero-GC Buffer Re-use
                 sourceIndex: sIdx,
                 targetIndex: bestTargetIdx,
                 similarity: bestSim,
@@ -190,9 +193,10 @@ export class TopologicalAligner {
             };
         }
 
-        this.applyMultiTierPhysicsDetection(matches, sourceManifold);
+        const finalMatches = matches.slice(0, matchCount);
+        this.applyMultiTierPhysicsDetection(finalMatches, sourceManifold);
 
-        return matches;
+        return finalMatches;
     }
 
     /**

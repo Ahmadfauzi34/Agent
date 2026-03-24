@@ -172,10 +172,14 @@ export class MultiverseSandbox {
      * Fisika Efek Domino (Entanglement / Collision Detection).
      * Mengecek dan menjerat entitas lain jika saling bertabrakan saat translasi.
      */
+    private _sharedMovedEntitiesBuffer = new Int32Array(MAX_ENTITIES);
+
     private applyDominoPhysics(u: EntityManifold, axiomVector: TensorVector, deltaX: number, deltaY: number, relDeltaX: number, relDeltaY: number): void {
         const width = u.globalWidth;
         const height = u.globalHeight;
-        const movedEntities: number[] = [];
+
+        let movedCount = 0;
+        const movedEntities = this._sharedMovedEntitiesBuffer;
 
         for (let e = 0; e < u.activeCount; e++) {
             if (u.masses[e] === 0.0) continue;
@@ -185,14 +189,14 @@ export class MultiverseSandbox {
             entityTensor.set(futureState);
 
             if (deltaX !== 0.0 || deltaY !== 0.0) {
-                u.centersX[e] += deltaX;
-                u.centersY[e] += deltaY;
-                movedEntities.push(e);
+                u.centersX[e]! += relDeltaX;
+                u.centersY[e]! += relDeltaY;
+                movedEntities[movedCount++] = e; // True Zero-GC
             }
         }
 
         // Pengecekan Tabrakan (AABB Collision) & Transfer Entanglement
-        for (let m = 0; m < movedEntities.length; m++) {
+        for (let m = 0; m < movedCount; m++) {
             const e1 = movedEntities[m]!;
 
             const cX1 = u.centersX[e1]! * (width - 1);
@@ -220,7 +224,14 @@ export class MultiverseSandbox {
                 const isColliding = Number(overlapX >= 0 && overlapY >= 0);
 
                 if (isColliding === 1) {
-                    const isAlreadyMoved = movedEntities.includes(e2);
+                    let isAlreadyMoved = false;
+                    for (let k = 0; k < movedCount; k++) {
+                        if (movedEntities[k] === e2) {
+                            isAlreadyMoved = true;
+                            break;
+                        }
+                    }
+
                     if (!isAlreadyMoved) {
                         u.entanglementStatus[e2] = 1.0;
                         u.entanglementStatus[e1] = 1.0;
