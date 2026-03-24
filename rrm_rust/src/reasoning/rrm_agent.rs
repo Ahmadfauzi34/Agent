@@ -74,9 +74,17 @@ impl RrmAgent {
             }
         }
 
-        let width = if test_manifold.global_width > 0.0 { test_manifold.global_width as usize } else { test_in[0].len() };
-        let height = if test_manifold.global_height > 0.0 { test_manifold.global_height as usize } else { test_in.len() };
+        // Di Rust, kita asumsikan output grid ARC tidak berubah ukuran (10x10)
+        // Jika ada Axiom Resize, itu harus diekstrak sebagai Rule.
+        let width = test_in[0].len();
+        let height = test_in.len();
 
+        // Threshold untuk memotong noise kuantum dari bentuk relatif.
+        // Berdasarkan Normalisasi Blueprint Shape Tensor (1 / sqrt(magnitude)), benda besar akan membagi
+        // energi probabilitasnya ke seluruh pikselnya (amplitudo individu turun seiring ukuran benda).
+        // Untuk mendeteksi 'materi' yang benar di dalam wireframe yang menyebar, Sinar Probe
+        // cukup menangkap riak energi di atas nol absolut (Threshold: > 0.05).
+        // Titik vakum (lubang tengah) tetap akan mengalami destructive interference sehingga nilainya < 0.0.
         self.decoder.collapse_to_grid(&test_manifold, width, height, 0.05)
     }
 
@@ -91,8 +99,14 @@ impl RrmAgent {
                     continue;
                 }
 
-                let rel_x = x as f32 / f32::max(1.0, width as f32 - 1.0);
-                let rel_y = y as f32 / f32::max(1.0, height as f32 - 1.0);
+                // MENGHAPUS SUB-PIXEL MISALIGNMENT (Skala Absolut untuk ARC)
+                // ARC bergantung pada grid integer yang pasti (0, 1, 2, 3...)
+                // Mengubahnya jadi pecahan berdasarkan width/height (0.5, 0.3) membuat fasa menjadi tidak bisa diprediksi
+                // jika grid hasil ukurannya beda atau kita mengekstrak shape lokal.
+                // Kita akan gunakan kordinat piksel murni sebagai fasa, asalkan ia tidak terlalu besar.
+                // Jika ingin fractional_bind stabil, kita pakai x as f32 secara absolut.
+                let rel_x = x as f32;
+                let rel_y = y as f32;
 
                 let global_spatial = self.perceiver.build_global_spatial_tensor(rel_x, rel_y);
                 let semantic = self.perceiver.build_semantic_tensor(token);

@@ -22,8 +22,9 @@ impl MultiverseSandbox {
         delta_y: f32,
         physics_tier: u8,
     ) {
-        let rel_dx = delta_x / f32::max(1.0, u.global_width - 1.0);
-        let rel_dy = delta_y / f32::max(1.0, u.global_height - 1.0);
+        // Karena `centers_x/y` di Rust sekarang menggunakan Absolut Piksel, delta juga murni Absolut Piksel
+        let abs_dx = delta_x;
+        let abs_dy = delta_y;
 
         match physics_tier {
             0 => {
@@ -44,9 +45,9 @@ impl MultiverseSandbox {
                     let future_sem = FHRR::bind(&original_sem, delta_semantic);
                     sem_tensor.assign(&future_sem);
 
-                    // 3. Scalar Momentum Update (Kecepatan O(1))
-                    u.centers_x[e] += rel_dx;
-                    u.centers_y[e] += rel_dy;
+                    // 3. Scalar Momentum Update (Piksel Absolut)
+                    u.centers_x[e] += abs_dx;
+                    u.centers_y[e] += abs_dy;
                 }
             }
             _ => {

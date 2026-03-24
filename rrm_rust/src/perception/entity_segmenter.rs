@@ -115,9 +115,10 @@ impl EntitySegmenter {
                     max_y = f32::max(max_y, *cy as f32);
                 }
 
-                // Pusat Massa (Relatif ke Kanvas Global)
-                let center_x = ((min_x + max_x) / 2.0) / f32::max(1.0, manifold.global_width - 1.0);
-                let center_y = ((min_y + max_y) / 2.0) / f32::max(1.0, manifold.global_height - 1.0);
+                // Pusat Massa (Kordinat Piksel Absolut)
+                // Tidak lagi menormalkan terhadap width/height kanvas untuk mencegah fasa yang tidak sinkron
+                let center_x = (min_x + max_x) / 2.0;
+                let center_y = (min_y + max_y) / 2.0;
 
                 // Tensor Spasial Global dari Pusat Massa (Ini mewakili "Posisi" Benda Secara Keseluruhan)
                 let global_center_tensor = perceiver.build_global_spatial_tensor(center_x, center_y);
@@ -128,13 +129,14 @@ impl EntitySegmenter {
                 let mut super_sem_tensor = Array1::zeros(GLOBAL_DIMENSION);
 
                 for (_, _, c_sem, cx, cy, _) in current_cluster.iter() {
-                    // Normalisasi Koordinat ke skala global
-                    let rel_cx = *cx as f32 / f32::max(1.0, manifold.global_width - 1.0);
-                    let rel_cy = *cy as f32 / f32::max(1.0, manifold.global_height - 1.0);
+                    // Kordinat Piksel Absolut
+                    let abs_cx = *cx as f32;
+                    let abs_cy = *cy as f32;
 
                     // Jarak/Offset dari Pusat Massa Benda (Shape Lokal)
-                    let local_dx = rel_cx - center_x;
-                    let local_dy = rel_cy - center_y;
+                    // Fasa relatif ini 100% invarian terhadap ukuran kanvas global
+                    let local_dx = abs_cx - center_x;
+                    let local_dy = abs_cy - center_y;
 
                     let local_shape = perceiver.build_local_shape_tensor(local_dx, local_dy);
 
