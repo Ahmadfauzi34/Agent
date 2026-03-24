@@ -28,14 +28,18 @@ impl HologramDecoder {
                 continue;
             }
 
-            let sp_tensor = manifold.get_spatial_tensor(e);
+            let shape_tensor = manifold.get_shape_tensor(e);
             let sem_tensor = manifold.get_semantic_tensor(e);
 
             let span_x = manifold.spans_x[e];
             let span_y = manifold.spans_y[e];
 
-            let center_x = (manifold.centers_x[e] * (width as f32 - 1.0)).floor() as i32;
-            let center_y = (manifold.centers_y[e] * (height as f32 - 1.0)).floor() as i32;
+            // Posisi absolut dari Pusat Massa
+            let center_x_abs = manifold.centers_x[e] * f32::max(1.0, width as f32 - 1.0);
+            let center_y_abs = manifold.centers_y[e] * f32::max(1.0, height as f32 - 1.0);
+
+            let center_x = center_x_abs.floor() as i32;
+            let center_y = center_y_abs.floor() as i32;
 
             let half_x = (span_x / 2.0).floor() as i32 + 1;
             let half_y = (span_y / 2.0).floor() as i32 + 1;
@@ -47,29 +51,33 @@ impl HologramDecoder {
 
             for y in start_y..=end_y {
                 for x in start_x..=end_x {
+                    // Koordinat absolut (Relatif ke Kanvas Global)
                     let rel_x = x as f32 / f32::max(1.0, width as f32 - 1.0);
                     let rel_y = y as f32 / f32::max(1.0, height as f32 - 1.0);
 
-                    // 1. Uji Kedalaman Visual (Spasial Resonance)
-                    // Apakah di titik x,y ini ada gelombang bentuk/spasial dari entitas ini?
-                    let (probe_sp, _) =
-                        self.manifold_perceiver.build_pixel_tensors(rel_x, rel_y, 0); // token tidak dipakai untuk spatial
+                    // Koordinat Relatif Lokal (Jarak dari Pusat Massa)
+                    let local_dx = rel_x - manifold.centers_x[e];
+                    let local_dy = rel_y - manifold.centers_y[e];
 
-                    let mut spatial_coherence = 0.0;
+                    // 1. Uji Kedalaman Visual (Holographic Shape Resonance)
+                    // Apakah di titik lokal ini ada bagian dari kerangka bentuk benda?
+                    let probe_shape = self.manifold_perceiver.build_local_shape_tensor(local_dx, local_dy);
+
+                    let mut shape_coherence = 0.0;
                     for d in 0..GLOBAL_DIMENSION {
-                        spatial_coherence += sp_tensor[d] * probe_sp[d];
+                        shape_coherence += shape_tensor[d] * probe_shape[d];
                     }
 
-                    // Kondisi Z-Buffer (Quantum Collapse)
-                    if spatial_coherence > threshold && spatial_coherence > z_buffer[y][x] {
+                    // Kondisi Z-Buffer (Quantum Collapse / Stamping)
+                    // Karena kita menggunakan local shape yang sangat presisi, wireframe berlubang akan diabaikan!
+                    if shape_coherence > threshold && shape_coherence > z_buffer[y][x] {
+
                         // 2. Uji Mutasi Warna (Semantic Resonance)
-                        // Karena kita YAKIN ada objek spasial di titik ini, kita tanya "Warna apa ini?" ke Subspace Semantik
                         let mut best_color = 0;
                         let mut best_sem_coherence = -999.0;
 
                         for c in 0..10 {
-                            let (_, probe_sem) =
-                                self.manifold_perceiver.build_pixel_tensors(rel_x, rel_y, c);
+                            let probe_sem = self.manifold_perceiver.build_semantic_tensor(c);
 
                             let mut sem_coherence = 0.0;
                             for d in 0..GLOBAL_DIMENSION {
@@ -77,20 +85,13 @@ impl HologramDecoder {
                             }
 
                             // Branchless Max
-                            let is_better = if sem_coherence > best_sem_coherence {
-                                1.0
-                            } else {
-                                0.0
-                            };
-                            best_sem_coherence = (best_sem_coherence * (1.0 - is_better))
-                                + (sem_coherence * is_better);
-                            best_color = (best_color as f32 * (1.0 - is_better)
-                                + (c as f32 * is_better))
-                                as i32;
+                            let is_better = if sem_coherence > best_sem_coherence { 1.0 } else { 0.0 };
+                            best_sem_coherence = (best_sem_coherence * (1.0 - is_better)) + (sem_coherence * is_better);
+                            best_color = (best_color as f32 * (1.0 - is_better) + (c as f32 * is_better)) as i32;
                         }
 
                         // Eksekusi Kolaps
-                        z_buffer[y][x] = spatial_coherence;
+                        z_buffer[y][x] = shape_coherence;
                         grid[y][x] = best_color;
                     }
                 }
