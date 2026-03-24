@@ -1,12 +1,12 @@
 pub mod core;
 pub mod memory;
-pub mod perception;
 pub mod reasoning;
+pub mod perception;
 
-use reasoning::rrm_agent::RrmAgent;
-use serde_json::Value;
 use std::fs;
 use std::time::Instant;
+use serde_json::Value;
+use reasoning::rrm_agent::RrmAgent;
 
 fn main() {
     println!("🌌 RRM Quantum Sandbox (Rust Edition) Initialized.");
@@ -23,17 +23,9 @@ fn main() {
     let test = json["test"].as_array().unwrap();
 
     let parse_grid = |arr: &Value| -> Vec<Vec<i32>> {
-        arr.as_array()
-            .unwrap()
-            .iter()
-            .map(|row| {
-                row.as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|v| v.as_i64().unwrap() as i32)
-                    .collect()
-            })
-            .collect()
+        arr.as_array().unwrap().iter().map(|row| {
+            row.as_array().unwrap().iter().map(|v| v.as_i64().unwrap() as i32).collect()
+        }).collect()
     };
 
     let mut train_in = Vec::new();

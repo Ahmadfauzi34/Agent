@@ -47,44 +47,23 @@ impl RrmAgent {
         let mut test_manifold = EntityManifold::new();
         EntitySegmenter::segment_stream(&stream_test, &mut test_manifold, 0.85, &self.perceiver);
 
-        for (man_in, man_out) in &train_states {
-            let matches = TopologicalAligner::align(man_in, man_out);
+        // TRUE SWARM ALIGNMENT:
+        let first_train = &train_states[0];
+        let matches = TopologicalAligner::align(&first_train.0, &first_train.1);
 
-            for m in matches {
-                if m.similarity > 0.6 {
-                    self.pruner.inject_hypothesis(
-                        &m.axiom_type,
-                        &m.delta_spatial,
-                        m.delta_x,
-                        m.delta_y,
-                        1.0 - m.similarity,
-                        0,
-                        m.physics_tier,
-                    );
-
-                    MultiverseSandbox::apply_axiom(
-                        &mut test_manifold,
-                        &m.delta_spatial,
-                        &m.delta_semantic,
-                        m.delta_x,
-                        m.delta_y,
-                        m.physics_tier,
-                    );
-                }
+        for m in matches {
+            let e = m.source_index;
+            if e < test_manifold.active_count {
+                test_manifold.centers_x[e] += m.delta_x.round();
+                test_manifold.centers_y[e] += m.delta_y.round();
             }
         }
 
         // Di Rust, kita asumsikan output grid ARC tidak berubah ukuran (10x10)
-        // Jika ada Axiom Resize, itu harus diekstrak sebagai Rule.
         let width = test_in[0].len();
         let height = test_in.len();
 
-        // Threshold untuk memotong noise kuantum dari bentuk relatif.
-        // Berdasarkan Normalisasi Blueprint Shape Tensor (1 / sqrt(magnitude)), benda besar akan membagi
-        // energi probabilitasnya ke seluruh pikselnya (amplitudo individu turun seiring ukuran benda).
-        // Untuk mendeteksi 'materi' yang benar di dalam wireframe yang menyebar, Sinar Probe
-        // cukup menangkap riak energi di atas nol absolut (Threshold: > 0.05).
-        // Titik vakum (lubang tengah) tetap akan mengalami destructive interference sehingga nilainya < 0.0.
+        // Threshold untuk Swarm murni tidak peduli fasa relativ (sekarang Z-Buffer 1.0 murni)
         self.decoder.collapse_to_grid(&test_manifold, width, height, 0.05)
     }
 
@@ -99,12 +78,6 @@ impl RrmAgent {
                     continue;
                 }
 
-                // MENGHAPUS SUB-PIXEL MISALIGNMENT (Skala Absolut untuk ARC)
-                // ARC bergantung pada grid integer yang pasti (0, 1, 2, 3...)
-                // Mengubahnya jadi pecahan berdasarkan width/height (0.5, 0.3) membuat fasa menjadi tidak bisa diprediksi
-                // jika grid hasil ukurannya beda atau kita mengekstrak shape lokal.
-                // Kita akan gunakan kordinat piksel murni sebagai fasa, asalkan ia tidak terlalu besar.
-                // Jika ingin fractional_bind stabil, kita pakai x as f32 secara absolut.
                 let rel_x = x as f32;
                 let rel_y = y as f32;
 
