@@ -25,11 +25,24 @@ impl HamiltonianPruner {
         }
     }
 
-    pub fn inject_hypothesis(&mut self, desc: &str, tensor: &Array1<f32>, dx: f32, dy: f32, energy: f32, depth: u32, physics_tier: u8) {
+    pub fn inject_hypothesis(
+        &mut self,
+        desc: &str,
+        tensor: &Array1<f32>,
+        dx: f32,
+        dy: f32,
+        energy: f32,
+        depth: u32,
+        physics_tier: u8,
+    ) {
         // Cek duplikasi
         for hyp in &self.hypotheses {
             let sim = FHRR::similarity(&hyp.tensor_rule, tensor);
-            if sim > 0.99 && hyp.delta_x == dx && hyp.delta_y == dy && hyp.physics_tier == physics_tier {
+            if sim > 0.99
+                && hyp.delta_x == dx
+                && hyp.delta_y == dy
+                && hyp.physics_tier == physics_tier
+            {
                 return; // Sudah ada
             }
         }
@@ -47,13 +60,23 @@ impl HamiltonianPruner {
         self.enforce_dissipation();
     }
 
-    pub fn apply_active_cross_validation(&mut self, test_tensor: &Array1<f32>, test_dx: f32, test_dy: f32, is_entangled: bool) {
+    pub fn apply_active_cross_validation(
+        &mut self,
+        test_tensor: &Array1<f32>,
+        test_dx: f32,
+        test_dy: f32,
+        is_entangled: bool,
+    ) {
         for hyp in &mut self.hypotheses {
             // Evaluasi Kesamaan (Cos Sim)
             let sim = FHRR::similarity(&hyp.tensor_rule, test_tensor);
 
             // Cek kesamaan momentum (dx, dy)
-            let momentum_match = if hyp.delta_x == test_dx && hyp.delta_y == test_dy { 1.0 } else { 0.0 };
+            let momentum_match = if hyp.delta_x == test_dx && hyp.delta_y == test_dy {
+                1.0
+            } else {
+                0.0
+            };
 
             // The Eraser: Jika gerakan tidak match (padahal seharusnya), hancurkan energinya
             if momentum_match == 0.0 && !is_entangled {
@@ -73,7 +96,8 @@ impl HamiltonianPruner {
 
     fn enforce_dissipation(&mut self) {
         // Sort ascending by energy
-        self.hypotheses.sort_by(|a, b| a.free_energy.partial_cmp(&b.free_energy).unwrap());
+        self.hypotheses
+            .sort_by(|a, b| a.free_energy.partial_cmp(&b.free_energy).unwrap());
 
         // Buang yang lebih dari max branches atau energy tinggi
         self.hypotheses.retain(|h| h.free_energy < 50.0);

@@ -1,14 +1,14 @@
+use crate::core::config::GLOBAL_DIMENSION;
 use crate::core::entity_manifold::EntityManifold;
 use crate::core::fhrr::FHRR;
-use crate::core::core_seeds::CoreSeeds;
-use crate::core::config::GLOBAL_DIMENSION;
 use ndarray::Array1;
 
 pub struct TopologicalMatch {
     pub source_index: usize,
     pub target_index: i32, // -1 jika tidak ada
     pub similarity: f32,
-    pub delta_tensor: Array1<f32>,
+    pub delta_spatial: Array1<f32>,
+    pub delta_semantic: Array1<f32>,
     pub delta_x: f32,
     pub delta_y: f32,
     pub axiom_type: String,
@@ -18,7 +18,10 @@ pub struct TopologicalMatch {
 pub struct TopologicalAligner;
 
 impl TopologicalAligner {
-    pub fn align(source_manifold: &EntityManifold, target_manifold: &EntityManifold) -> Vec<TopologicalMatch> {
+    pub fn align(
+        source_manifold: &EntityManifold,
+        target_manifold: &EntityManifold,
+    ) -> Vec<TopologicalMatch> {
         let mut matches = Vec::with_capacity(source_manifold.active_count);
         let mut used_targets = vec![false; target_manifold.active_count];
 
@@ -27,7 +30,9 @@ impl TopologicalAligner {
                 continue;
             }
 
-            let src_tensor = source_manifold.get_tensor(s_idx);
+            // Gunakan Spatial Tensor murni untuk Topologi Shape/Posisi
+            let src_spatial = source_manifold.get_spatial_tensor(s_idx);
+            let src_semantic = source_manifold.get_semantic_tensor(s_idx);
             let src_cx = source_manifold.centers_x[s_idx];
             let src_cy = source_manifold.centers_y[s_idx];
             let src_token = source_manifold.tokens[s_idx];
@@ -43,12 +48,13 @@ impl TopologicalAligner {
                     continue;
                 }
 
-                let tgt_tensor = target_manifold.get_tensor(t_idx);
+                let tgt_spatial = target_manifold.get_spatial_tensor(t_idx);
                 let tgt_cx = target_manifold.centers_x[t_idx];
                 let tgt_cy = target_manifold.centers_y[t_idx];
 
-                // Cek kesamaan tensor absolut (Termasuk Warna & Ruang aslinya)
-                let sim = FHRR::similarity(&src_tensor, &tgt_tensor);
+                // MURNI KESAMAAN SPASIAL (BENTUK DAN POSISI)
+                // Warnanya tidak lagi mempengaruhi kemungkinan objek ini adalah objek yang sama!
+                let sim = FHRR::similarity(&src_spatial, &tgt_spatial);
 
                 if sim > best_sim {
                     best_sim = sim;
@@ -58,27 +64,39 @@ impl TopologicalAligner {
 
                     let tgt_token = target_manifold.tokens[t_idx];
                     best_axiom_type = if src_token != tgt_token {
-                        format!("TRANS_{}_{}+COLOR({}->{})", best_dx, best_dy, src_token, tgt_token)
+                        format!(
+                            "TRANS_{}_{}+COLOR({}->{})",
+                            best_dx, best_dy, src_token, tgt_token
+                        )
                     } else {
                         format!("TRANS_{}_{}", best_dx, best_dy)
                     };
                 }
             }
 
-            let mut delta = Array1::<f32>::zeros(GLOBAL_DIMENSION);
-            delta[0] = 1.0;
-            delta[GLOBAL_DIMENSION - 1] = 1.0; // Minimal Identity
+            let mut d_spatial = Array1::<f32>::zeros(GLOBAL_DIMENSION);
+            let mut d_semantic = Array1::<f32>::zeros(GLOBAL_DIMENSION);
+            d_spatial[0] = 1.0;
+            d_spatial[GLOBAL_DIMENSION - 1] = 1.0; // Identity Tensor
+            d_semantic[0] = 1.0;
+            d_semantic[GLOBAL_DIMENSION - 1] = 1.0; // Identity Tensor
 
             if best_target_idx != -1 {
                 used_targets[best_target_idx as usize] = true;
 
-                let tgt_token = target_manifold.tokens[best_target_idx as usize];
-                if src_token != tgt_token {
-                    // Pristine Axiom Extraction (Ortogonal Delta Warna)
-                    let src_color = FHRR::fractional_bind(CoreSeeds::color_seed(), src_token as f32);
-                    let tgt_color = FHRR::fractional_bind(CoreSeeds::color_seed(), tgt_token as f32);
+                let tgt_spatial = target_manifold.get_spatial_tensor(best_target_idx as usize);
+                let tgt_semantic = target_manifold.get_semantic_tensor(best_target_idx as usize);
 
-                    delta = FHRR::bind(&tgt_color, &FHRR::inverse(&src_color));
+                let tgt_token = target_manifold.tokens[best_target_idx as usize];
+
+                // 1. Ekstraksi Delta Spasial (Mirror / Rotasi jika ada, disini kita default Identity untuk test base)
+                // Seharusnya diekstrak dari Probe Geometric Axiom seperti di TS.
+                // Untuk simulasi ini kita biarkan Identity karena `delta_x/y` skalar momentum yang memindahkan objek.
+                // (Atau bisa d_spatial = FHRR::bind(&tgt_spatial, &FHRR::inverse(&src_spatial)) jika mau Full VSA Translation).
+
+                // 2. Ekstraksi Delta Semantik (Warna murni, 100% bebas dari Spasial)
+                if src_token != tgt_token {
+                    d_semantic = FHRR::bind(&tgt_semantic, &FHRR::inverse(&src_semantic));
                 }
             }
 
@@ -86,7 +104,8 @@ impl TopologicalAligner {
                 source_index: s_idx,
                 target_index: best_target_idx,
                 similarity: best_sim,
-                delta_tensor: delta,
+                delta_spatial: d_spatial,
+                delta_semantic: d_semantic,
                 delta_x: best_dx,
                 delta_y: best_dy,
                 axiom_type: best_axiom_type,

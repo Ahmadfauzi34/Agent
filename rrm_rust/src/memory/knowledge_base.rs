@@ -1,10 +1,10 @@
+use crate::core::config::GLOBAL_DIMENSION;
+use crate::core::core_seeds::CoreSeeds;
+use crate::core::fhrr::FHRR;
+use ndarray::Array1;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use ndarray::Array1;
-use crate::core::config::GLOBAL_DIMENSION;
-use crate::core::fhrr::FHRR;
-use crate::core::core_seeds::CoreSeeds;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SymbolicComponent {
@@ -37,7 +37,14 @@ impl KnowledgeBase {
         }
     }
 
-    pub fn save_axiom(&self, base_name: &str, axiom_type: &str, composition: Vec<SymbolicComponent>, tensor: &Array1<f32>, entropy: f32) {
+    pub fn save_axiom(
+        &self,
+        base_name: &str,
+        axiom_type: &str,
+        composition: Vec<SymbolicComponent>,
+        tensor: &Array1<f32>,
+        entropy: f32,
+    ) {
         let trace_path = Path::new(&self.memory_dir).join(format!("{}.json", base_name));
         let bin_path = Path::new(&self.memory_dir).join(format!("{}.bin", base_name));
 
@@ -55,9 +62,15 @@ impl KnowledgeBase {
         fs::write(trace_path, json_str).unwrap();
 
         // Save Bin (Float32Array bytes equivalent)
-        let bytes: Vec<u8> = tensor.iter().flat_map(|&f| f.to_ne_bytes().to_vec()).collect();
+        let bytes: Vec<u8> = tensor
+            .iter()
+            .flat_map(|&f| f.to_ne_bytes().to_vec())
+            .collect();
         fs::write(bin_path, bytes).unwrap();
 
-        println!("[Rust KnowledgeBase] Eksport Axiom '{}' berhasil.", axiom_type);
+        println!(
+            "[Rust KnowledgeBase] Eksport Axiom '{}' berhasil.",
+            axiom_type
+        );
     }
 }

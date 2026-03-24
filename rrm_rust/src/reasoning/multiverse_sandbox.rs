@@ -13,10 +13,11 @@ impl MultiverseSandbox {
         }
     }
 
-    /// Terapkan Aksioma (Translasi/Mutasi) ke Universe
+    /// Terapkan Dual-Axiom (Translasi Spasial + Mutasi Semantik) ke Universe
     pub fn apply_axiom(
         u: &mut EntityManifold,
-        axiom_vector: &Array1<f32>,
+        delta_spatial: &Array1<f32>,
+        delta_semantic: &Array1<f32>,
         delta_x: f32,
         delta_y: f32,
         physics_tier: u8,
@@ -31,22 +32,28 @@ impl MultiverseSandbox {
                         continue;
                     }
 
-                    // Tensor Binding
-                    let mut entity_tensor = u.get_tensor_mut(e);
-                    // Karena entity_tensor adalah view mutable 1D, kita ambil salinannya untuk argumen pertama
-                    let original = entity_tensor.to_owned();
-                    let future_state = FHRR::bind(&original, axiom_vector);
+                    // 1. Spasial Tensor Binding
+                    let mut sp_tensor = u.get_spatial_tensor_mut(e);
+                    let original_sp = sp_tensor.to_owned();
+                    let future_sp = FHRR::bind(&original_sp, delta_spatial);
+                    sp_tensor.assign(&future_sp);
 
-                    entity_tensor.assign(&future_state);
+                    // 2. Semantik Tensor Binding
+                    let mut sem_tensor = u.get_semantic_tensor_mut(e);
+                    let original_sem = sem_tensor.to_owned();
+                    let future_sem = FHRR::bind(&original_sem, delta_semantic);
+                    sem_tensor.assign(&future_sem);
 
-                    // Scalar Momentum Update
+                    // 3. Scalar Momentum Update (Kecepatan O(1))
                     u.centers_x[e] += rel_dx;
                     u.centers_y[e] += rel_dy;
                 }
             }
             _ => {
-                // Tier 1 & 2 (Domino / Swarm) will be implemented here for continuous paths
-                println!("[Rust Sandbox] Warning: Advanced Physics Tier {} not implemented yet.", physics_tier);
+                println!(
+                    "[Rust Sandbox] Warning: Advanced Physics Tier {} not implemented yet.",
+                    physics_tier
+                );
             }
         }
     }

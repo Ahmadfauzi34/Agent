@@ -1,11 +1,11 @@
-use std::sync::Arc;
+use crate::core::config::GLOBAL_DIMENSION;
 use ndarray::Array1;
-use rustfft::{FftPlanner, Fft};
 use rustfft::num_complex::Complex;
 use rustfft::num_traits::Zero;
-use std::f32::consts::PI;
+use rustfft::{Fft, FftPlanner};
 use std::cell::RefCell;
-use crate::core::config::GLOBAL_DIMENSION;
+use std::f32::consts::PI;
+use std::sync::Arc;
 
 thread_local! {
     static SEED: RefCell<u64> = RefCell::new(42);
@@ -81,7 +81,8 @@ impl FHRR {
             fft_fwd.process(&mut cx_b);
         });
 
-        let mut freqs: Vec<Complex<f32>> = cx_a.iter().zip(cx_b.iter()).map(|(a, b)| a * b).collect();
+        let mut freqs: Vec<Complex<f32>> =
+            cx_a.iter().zip(cx_b.iter()).map(|(a, b)| a * b).collect();
 
         PLANNER.with(|p| {
             let mut planner = p.borrow_mut();

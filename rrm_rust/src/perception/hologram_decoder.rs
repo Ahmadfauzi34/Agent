@@ -28,7 +28,9 @@ impl HologramDecoder {
                 continue;
             }
 
-            let e_tensor = manifold.get_tensor(e);
+            let sp_tensor = manifold.get_spatial_tensor(e);
+            let sem_tensor = manifold.get_semantic_tensor(e);
+
             let span_x = manifold.spans_x[e];
             let span_y = manifold.spans_y[e];
 
@@ -48,30 +50,49 @@ impl HologramDecoder {
                     let rel_x = x as f32 / f32::max(1.0, width as f32 - 1.0);
                     let rel_y = y as f32 / f32::max(1.0, height as f32 - 1.0);
 
-                    let mut best_color = 0;
-                    let mut best_coherence = -999.0;
+                    // 1. Uji Kedalaman Visual (Spasial Resonance)
+                    // Apakah di titik x,y ini ada gelombang bentuk/spasial dari entitas ini?
+                    let (probe_sp, _) =
+                        self.manifold_perceiver.build_pixel_tensors(rel_x, rel_y, 0); // token tidak dipakai untuk spatial
 
-                    // Sensor Multi-Spektrum
-                    for c in 0..10 {
-                        let probe_phasor = self.manifold_perceiver.build_pixel_tensor(rel_x, rel_y, c);
-                        let mut coherence = 0.0;
-                        for d in 0..GLOBAL_DIMENSION {
-                            coherence += e_tensor[d] * probe_phasor[d];
-                        }
-
-                        // Branchless Max
-                        let is_better = if coherence > best_coherence { 1.0 } else { 0.0 };
-                        best_coherence = (best_coherence * (1.0 - is_better)) + (coherence * is_better);
-                        best_color = (best_color as f32 * (1.0 - is_better) + (c as f32 * is_better)) as i32;
+                    let mut spatial_coherence = 0.0;
+                    for d in 0..GLOBAL_DIMENSION {
+                        spatial_coherence += sp_tensor[d] * probe_sp[d];
                     }
 
-                    // Kondisi Kolaps
-                    let is_visible = if best_coherence > threshold { 1.0 } else { 0.0 };
-                    let is_front = if best_coherence > z_buffer[y][x] { 1.0 } else { 0.0 };
-                    let should_overwrite = is_visible * is_front;
+                    // Kondisi Z-Buffer (Quantum Collapse)
+                    if spatial_coherence > threshold && spatial_coherence > z_buffer[y][x] {
+                        // 2. Uji Mutasi Warna (Semantic Resonance)
+                        // Karena kita YAKIN ada objek spasial di titik ini, kita tanya "Warna apa ini?" ke Subspace Semantik
+                        let mut best_color = 0;
+                        let mut best_sem_coherence = -999.0;
 
-                    z_buffer[y][x] = (z_buffer[y][x] * (1.0 - should_overwrite)) + (best_coherence * should_overwrite);
-                    grid[y][x] = (grid[y][x] as f32 * (1.0 - should_overwrite) + (best_color as f32 * should_overwrite)) as i32;
+                        for c in 0..10 {
+                            let (_, probe_sem) =
+                                self.manifold_perceiver.build_pixel_tensors(rel_x, rel_y, c);
+
+                            let mut sem_coherence = 0.0;
+                            for d in 0..GLOBAL_DIMENSION {
+                                sem_coherence += sem_tensor[d] * probe_sem[d];
+                            }
+
+                            // Branchless Max
+                            let is_better = if sem_coherence > best_sem_coherence {
+                                1.0
+                            } else {
+                                0.0
+                            };
+                            best_sem_coherence = (best_sem_coherence * (1.0 - is_better))
+                                + (sem_coherence * is_better);
+                            best_color = (best_color as f32 * (1.0 - is_better)
+                                + (c as f32 * is_better))
+                                as i32;
+                        }
+
+                        // Eksekusi Kolaps
+                        z_buffer[y][x] = spatial_coherence;
+                        grid[y][x] = best_color;
+                    }
                 }
             }
         }

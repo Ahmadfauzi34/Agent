@@ -27,7 +27,10 @@ impl AxiomGenerator {
         let geom_mod = match name {
             "MIRROR_X" => FHRR::fractional_bind(x_seed, -1.0),
             "MIRROR_Y" => FHRR::fractional_bind(y_seed, -1.0),
-            "MIRROR_XY" => FHRR::bind(&FHRR::fractional_bind(x_seed, -1.0), &FHRR::fractional_bind(y_seed, -1.0)),
+            "MIRROR_XY" => FHRR::bind(
+                &FHRR::fractional_bind(x_seed, -1.0),
+                &FHRR::fractional_bind(y_seed, -1.0),
+            ),
             _ => {
                 let mut identity = Array1::zeros(GLOBAL_DIMENSION);
                 identity[0] = 1.0;
