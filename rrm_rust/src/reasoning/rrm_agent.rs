@@ -5,13 +5,17 @@ use crate::perception::hologram_decoder::HologramDecoder;
 use crate::reasoning::topological_aligner::TopologicalAligner;
 use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
+use crate::reasoning::async_runtime::MiniExecutor;
+use crate::reasoning::quantum_search::{AsyncWaveSearch, WaveNode};
+
 use std::collections::HashMap;
+use std::sync::Arc;
 use ndarray::Array1;
 
 pub struct RrmAgent {
     perceiver: UniversalManifold,
     decoder: HologramDecoder,
-    pruner: HamiltonianPruner,
+    pruner: HamiltonianPruner, // Akan di-deprecate karena diganti AsyncWaveSearch, tapi biarkan untuk fallback
 }
 
 impl RrmAgent {
@@ -24,10 +28,8 @@ impl RrmAgent {
     }
 
     pub fn solve_task(&mut self, train_in: &Vec<Vec<Vec<i32>>>, train_out: &Vec<Vec<Vec<i32>>>, test_in: &Vec<Vec<i32>>) -> Vec<Vec<i32>> {
-        self.pruner.clear_all();
         let mut train_states: Vec<(EntityManifold, EntityManifold)> = Vec::new();
 
-        // 1. Perceive All Training Pairs
         for (i, o) in train_in.iter().zip(train_out.iter()) {
             let mut stream_in = HashMap::new();
             let mut stream_out = HashMap::new();
@@ -44,83 +46,73 @@ impl RrmAgent {
             train_states.push((man_in, man_out));
         }
 
-        // 2. RESONATE (Topological Alignment / Generator Hipotesis Awal)
-        // Kita biarkan Aligner mengekstrak Hebbian Consensus dari SEMUA Training Pair
-        // Ini menciptakan Seed Hypothesis
-        for (_idx, (man_in, man_out)) in train_states.iter().enumerate() {
-            let matches = TopologicalAligner::align(man_in, man_out);
-
-            for m in matches {
-                // Masukkan ke MCTS Oracle dengan Energy Awal 0.0 (Sebelum Evaluasi)
-                self.pruner.inject_hypothesis(
-                    &m.axiom_type,
-                    m.condition_tensor.clone(),
-                    &m.delta_spatial,
-                    &m.delta_semantic,
-                    m.delta_x,
-                    m.delta_y,
-                    0.0,
-                    0,
-                    m.physics_tier,
-                );
-            }
-        }
-
-        // 3. EVOLVE (MCTS Oracle / Free Energy Minimization)
-        // Sekarang, untuk setiap hipotesis, kita terapkan ke SEMUA Training In
-        // dan kita ukur seberapa hancur/berantakan alam semestanya (Free Energy) dibandingkan Training Out.
-        for hyp in &mut self.pruner.hypotheses {
-            let mut total_free_energy = 0.0;
-
-            for (idx, (man_in, _)) in train_states.iter().enumerate() {
-                // Kloning Universe awal (O(1) Copy)
-                let mut trial_manifold: EntityManifold = man_in.clone();
-                let expected_grid = &train_out[idx];
-
-                // Terapkan Hypothesis/Axiom (Physics Sandbox)
-                // Di True Swarm, kita mengandalkan MultiverseSandbox karena ia mem-bind Semantic/Color Tensors
-                // secara aman, di samping melakukan scalar momentum translations.
-                MultiverseSandbox::apply_axiom(
-                    &mut trial_manifold,
-                    &hyp.condition_tensor,
-                    &hyp.tensor_spatial,
-                    &hyp.tensor_semantic,
-                    hyp.delta_x,
-                    hyp.delta_y,
-                    hyp.physics_tier,
-                );
-
-                // Kolaps (Hologram Decoder)
-                // ARC biasanya mengubah ukuran grid (misal Cropping/Scaling).
-                // Di PoC MCTS sederhana ini, kita asumsikan grid konstan ukurannya dengan target.
-                let width = expected_grid[0].len();
-                let height = expected_grid.len();
-
-                let collapsed_grid = self.decoder.collapse_to_grid(&trial_manifold, width, height, 0.50);
-
-                // Ukur Energi Karl Friston (Kesalahan Prediksi)
-                let energy = HamiltonianPruner::calculate_free_energy(&collapsed_grid, expected_grid);
-                total_free_energy += energy;
-            }
-
-            // Simpan skor
-            hyp.free_energy = total_free_energy;
-        }
-
-        // Sortir & Dissipasi (Hanya sisakan yang paling mendekati Free Energy 0.0)
-        self.pruner.enforce_dissipation();
-
-        // 4. COLLAPSE (Test Phase)
         let mut stream_test = HashMap::new();
         self.encode_grid(test_in, &mut stream_test);
         let mut test_manifold = EntityManifold::new();
         EntitySegmenter::segment_stream(&stream_test, &mut test_manifold, 0.85, &self.perceiver);
 
-        // Ekstrak Hukum Paling Akurat (Ground State)
-        let best_rule = self.pruner.extract_ground_state();
+        // 2. RESONATE
+        let mut seed_axioms: Vec<WaveNode> = Vec::new();
+        let expected_grids: Vec<Vec<Vec<i32>>> = train_out.clone();
 
+        for (idx, (man_in, man_out)) in train_states.iter().enumerate() {
+            let matches = TopologicalAligner::align(man_in, man_out);
+            for m in matches {
+                // Kita ekstrak initial state_manifolds (Sama untuk semua Node awal)
+                let initial_manifolds: Vec<EntityManifold> = train_states.iter().map(|s| s.0.clone()).collect();
+
+                seed_axioms.push(WaveNode {
+                    axiom_type: m.axiom_type,
+                    condition_tensor: m.condition_tensor,
+                    tensor_spatial: m.delta_spatial,
+                    tensor_semantic: m.delta_semantic,
+                    delta_x: m.delta_x,
+                    delta_y: m.delta_y,
+                    physics_tier: m.physics_tier,
+                    state_manifolds: initial_manifolds,
+                    probability: 1.0,
+                    depth: 0,
+                });
+            }
+            // Kita cukup ambil hipotesis dari contoh pertama saja untuk mengefisienkan tree search
+            // (Karena rule sejati harus bisa bekerja/beresonansi di semua training states anyway)
+            break;
+        }
+
+        // 3. EVOLVE (Asynchronous Wave Search)
+        let search = Arc::new(AsyncWaveSearch::new(expected_grids, 1));
+        let executor = MiniExecutor::new();
+        let decoder_clone = HologramDecoder::new();
+
+        for axiom_node in seed_axioms {
+            let s_clone = Arc::clone(&search);
+            let d_clone = HologramDecoder::new();
+            // Semua Axioms yang memungkinkan tidak diperlukan di loop pertama
+            let all_axioms: Vec<WaveNode> = vec![];
+
+            executor.spawn(async move {
+                s_clone.propagate_wave(axiom_node, d_clone, all_axioms).await;
+            });
+        }
+
+        // Block & Jalankan hingga semua gelombang runtuh (Pruned/Selesai)
+        executor.run();
+
+        // Ambil Ground State yang selamat
+        let ground_states = search.ground_states.read().unwrap();
+        let mut best_rule: Option<WaveNode> = None;
+        let mut max_prob = -1.0;
+
+        for state in ground_states.iter() {
+            if state.probability > max_prob {
+                max_prob = state.probability;
+                best_rule = Some(state.clone());
+            }
+        }
+
+        // 4. COLLAPSE (Test Phase)
         if let Some(rule) = best_rule {
-            println!("   [Rust MCTS] Ground State Ditemukan: {} (Free Energy: {})", rule.description, rule.free_energy);
+            println!("   [Rust MCTS] Ground State Ditemukan: {} (Energy = 0.0)", rule.axiom_type);
 
             MultiverseSandbox::apply_axiom(
                 &mut test_manifold,
@@ -132,13 +124,11 @@ impl RrmAgent {
                 rule.physics_tier,
             );
         } else {
-            println!("[Rust MCTS] WARNING: Tidak ada Hipotesis yang selamat!");
+            println!("   [Rust MCTS] WARNING: Semua gelombang hancur! (Halusinasi/Meleset)");
         }
 
         let test_width = test_in[0].len();
         let test_height = test_in.len();
-
-        // Threshold 0.5 untuk True Swarm (menghindari blob noise)
         self.decoder.collapse_to_grid(&test_manifold, test_width, test_height, 0.50)
     }
 
