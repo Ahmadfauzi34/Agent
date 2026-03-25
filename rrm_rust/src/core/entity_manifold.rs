@@ -37,6 +37,12 @@ pub struct EntityManifold {
     pub entanglement_status: Vec<f32>,
 }
 
+impl Default for EntityManifold {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EntityManifold {
     pub fn new() -> Self {
         Self {

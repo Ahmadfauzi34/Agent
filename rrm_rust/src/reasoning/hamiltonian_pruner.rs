@@ -1,4 +1,3 @@
-use crate::core::config::GLOBAL_DIMENSION;
 use crate::core::fhrr::FHRR;
 use ndarray::Array1;
 
@@ -17,6 +16,12 @@ pub struct Hypothesis {
 pub struct HamiltonianPruner {
     pub hypotheses: Vec<Hypothesis>,
     pub max_branches: usize,
+}
+
+impl Default for HamiltonianPruner {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl HamiltonianPruner {
@@ -80,7 +85,7 @@ impl HamiltonianPruner {
     pub fn calculate_free_energy(actual: &Vec<Vec<i32>>, expected: &Vec<Vec<i32>>) -> f32 {
         let mut energy = 0.0;
 
-        if actual.len() != expected.len() || (actual.len() > 0 && actual[0].len() != expected[0].len()) {
+        if actual.len() != expected.len() || (!actual.is_empty() && actual[0].len() != expected[0].len()) {
             energy += 9999.0;
             return energy;
         }

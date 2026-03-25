@@ -1,10 +1,15 @@
-use crate::core::config::GLOBAL_DIMENSION;
 use crate::core::entity_manifold::EntityManifold;
 use crate::core::fhrr::FHRR;
 use ndarray::Array1;
 
 pub struct MultiverseSandbox {
     pub active_universes: usize,
+}
+
+impl Default for MultiverseSandbox {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MultiverseSandbox {
@@ -24,8 +29,8 @@ impl MultiverseSandbox {
         delta_y: f32,
         physics_tier: u8,
     ) {
-        let mut base_abs_dx = delta_x.round();
-        let mut base_abs_dy = delta_y.round();
+        let base_abs_dx = delta_x.round();
+        let base_abs_dy = delta_y.round();
 
         // Cari Objek Jangkar Relasional (Jika Tier 3)
         // Di Tier 3, delta_x berisi ID warna target (Target Color)

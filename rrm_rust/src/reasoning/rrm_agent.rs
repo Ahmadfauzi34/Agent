@@ -18,6 +18,12 @@ pub struct RrmAgent {
     pruner: HamiltonianPruner, // Akan di-deprecate karena diganti AsyncWaveSearch, tapi biarkan untuk fallback
 }
 
+impl Default for RrmAgent {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RrmAgent {
     pub fn new() -> Self {
         Self {
@@ -55,7 +61,7 @@ impl RrmAgent {
         let mut seed_axioms: Vec<WaveNode> = Vec::new();
         let expected_grids: Vec<Vec<Vec<i32>>> = train_out.clone();
 
-        for (idx, (man_in, man_out)) in train_states.iter().enumerate() {
+        for (man_in, man_out) in train_states.iter() {
             let matches = TopologicalAligner::align(man_in, man_out);
             for m in matches {
                 // Kita ekstrak initial state_manifolds (Sama untuk semua Node awal)
@@ -76,13 +82,13 @@ impl RrmAgent {
             }
             // Kita cukup ambil hipotesis dari contoh pertama saja untuk mengefisienkan tree search
             // (Karena rule sejati harus bisa bekerja/beresonansi di semua training states anyway)
-            break;
+
         }
 
         // 3. EVOLVE (Asynchronous Wave Search)
         let search = Arc::new(AsyncWaveSearch::new(expected_grids, 1));
         let executor = MiniExecutor::new();
-        let decoder_clone = HologramDecoder::new();
+        let _decoder_clone = HologramDecoder::new();
 
         for axiom_node in seed_axioms {
             let s_clone = Arc::clone(&search);
@@ -127,8 +133,9 @@ impl RrmAgent {
             println!("   [Rust MCTS] WARNING: Semua gelombang hancur! (Halusinasi/Meleset)");
         }
 
-        let test_width = test_in[0].len();
-        let test_height = test_in.len();
+        let test_width = if test_manifold.global_width > 0.0 { test_manifold.global_width as usize } else { test_in[0].len() };
+        let test_height = if test_manifold.global_height > 0.0 { test_manifold.global_height as usize } else { test_in.len() };
+
         self.decoder.collapse_to_grid(&test_manifold, test_width, test_height, 0.50)
     }
 

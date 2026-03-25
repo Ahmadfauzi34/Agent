@@ -5,10 +5,9 @@ use rustfft::num_traits::Zero;
 use rustfft::{Fft, FftPlanner};
 use std::cell::RefCell;
 use std::f32::consts::PI;
-use std::sync::Arc;
 
 thread_local! {
-    static SEED: RefCell<u64> = RefCell::new(42);
+    static SEED: RefCell<u64> = const { RefCell::new(42) };
     static PLANNER: RefCell<FftPlanner<f32>> = RefCell::new(FftPlanner::new());
 }
 

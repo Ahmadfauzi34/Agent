@@ -3,11 +3,14 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker, RawWaker, RawWakerVTable};
 
+type TaskBox = Pin<Box<dyn Future<Output = ()> + Send>>;
+
 /// Custom Async Minimalist Executor (Zero-Overhead / No Tokio needed)
 /// Mengeksekusi Future (Wave Propagation) secara kooperatif di dalam satu thread.
 /// Sangat efisien untuk perhitungan matematis berat (FHRR / VSA) yang CPU-bound.
+#[derive(Default)]
 pub struct MiniExecutor {
-    tasks: Arc<Mutex<Vec<Pin<Box<dyn Future<Output = ()> + Send>>>>>,
+    tasks: Arc<Mutex<Vec<TaskBox>>>,
 }
 
 impl MiniExecutor {
@@ -29,20 +32,15 @@ impl MiniExecutor {
             let mut tasks = self.tasks.lock().unwrap();
             if tasks.is_empty() { break; }
 
-            // Ambil task pertama dari antrean
             let mut task = tasks.remove(0);
-            drop(tasks); // Lepaskan lock agar task lain bisa di-spawn saat eksekusi
+            drop(tasks);
 
             let waker = dummy_waker();
             let mut context = Context::from_waker(&waker);
 
-            // Polling task (mengeksekusi 1 iterasi gelombang)
             match task.as_mut().poll(&mut context) {
-                Poll::Ready(()) => {
-                    // Task selesai (Gelombang runtuh / menemukan jawaban)
-                }
+                Poll::Ready(()) => {}
                 Poll::Pending => {
-                    // Task belum selesai (Masih merambat), kembalikan ke antrean
                     self.tasks.lock().unwrap().push(task);
                 }
             }
@@ -50,7 +48,6 @@ impl MiniExecutor {
     }
 }
 
-/// Dummy Waker untuk sinkronisasi Polling di Custom Executor
 fn dummy_waker() -> Waker {
     unsafe fn clone(_: *const ()) -> RawWaker {
         RawWaker::new(std::ptr::null(), &VTABLE)
@@ -63,9 +60,6 @@ fn dummy_waker() -> Waker {
     unsafe { Waker::from_raw(RawWaker::new(std::ptr::null(), &VTABLE)) }
 }
 
-/// Fungsi manual yield untuk Cooperative Multitasking
-/// Memaksa Future untuk mengembalikan Poll::Pending agar Executor bisa
-/// berpindah mengerjakan gelombang/task lain (Mencegah blocking).
 pub fn async_yield() -> impl Future<Output = ()> {
     struct YieldFuture(bool);
     impl Future for YieldFuture {

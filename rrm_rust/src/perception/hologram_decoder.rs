@@ -1,9 +1,14 @@
-use crate::core::config::GLOBAL_DIMENSION;
 use crate::core::entity_manifold::EntityManifold;
 use crate::perception::universal_manifold::UniversalManifold;
 
 pub struct HologramDecoder {
     pub manifold_perceiver: UniversalManifold,
+}
+
+impl Default for HologramDecoder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl HologramDecoder {

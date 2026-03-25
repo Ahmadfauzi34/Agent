@@ -1,7 +1,4 @@
 use std::sync::{Arc, RwLock};
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use ndarray::Array1;
 
 use crate::core::entity_manifold::EntityManifold;
