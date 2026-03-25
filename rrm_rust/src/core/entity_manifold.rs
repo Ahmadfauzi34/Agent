@@ -4,6 +4,7 @@ use crate::core::config::{GLOBAL_DIMENSION, MAX_ENTITIES};
 /// Struktur SoA (Structure of Arrays) untuk Quantum Entity Manifold.
 /// Didesain untuk Zero-GC dan cache locality di L1/L2.
 /// Menggunakan sistem Tri-Tensor: Spatial (Pusat Global), Shape (Pola Lokal), dan Semantic (Warna).
+#[derive(Clone)]
 pub struct EntityManifold {
     pub active_count: usize,
     pub global_width: f32,
