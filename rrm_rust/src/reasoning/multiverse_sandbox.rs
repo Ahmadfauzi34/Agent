@@ -24,8 +24,26 @@ impl MultiverseSandbox {
         delta_y: f32,
         physics_tier: u8,
     ) {
-        let abs_dx = delta_x.round();
-        let abs_dy = delta_y.round();
+        let mut base_abs_dx = delta_x.round();
+        let mut base_abs_dy = delta_y.round();
+
+        // Cari Objek Jangkar Relasional (Jika Tier 3)
+        // Di Tier 3, delta_x berisi ID warna target (Target Color)
+        let mut anchor_found = false;
+        let mut anchor_cx = 0.0;
+        let mut anchor_cy = 0.0;
+
+        if physics_tier == 3 {
+            let target_color = delta_x as i32;
+            for a in 0..u.active_count {
+                if u.masses[a] > 0.0 && u.tokens[a] == target_color {
+                    anchor_cx = u.centers_x[a];
+                    anchor_cy = u.centers_y[a];
+                    anchor_found = true;
+                    break; // Ambil jangkar pertama yang cocok (Naive Swarm anchor)
+                }
+            }
+        }
 
         for e in 0..u.active_count {
             if u.masses[e] == 0.0 {
@@ -33,8 +51,6 @@ impl MultiverseSandbox {
             }
 
             // QUANTUM IF-STATEMENT (Conditional Resonance)
-            // Jika ada condition_tensor, pastikan entitas ini beresonansi dengannya.
-            // Karena condition_tensor saat ini di-extract dari warna, kita cek semantic_tensor.
             let mut matches_condition = true;
             if let Some(cond) = condition_tensor {
                 let sem = u.get_semantic_tensor(e);
@@ -45,7 +61,33 @@ impl MultiverseSandbox {
             }
 
             if matches_condition {
+                let mut apply_dx = base_abs_dx;
+                let mut apply_dy = base_abs_dy;
+
+                // Hitung Dynamic Delta jika ini adalah Relational Move
+                if physics_tier == 3 {
+                    if anchor_found {
+                        // Menuju Jangkar, kita asumsikan geser mendekat (misal -1 jika jangkar di atas)
+                        // Untuk titik tepat sasaran, ini sangat heuristik, tapi kita coba:
+                        apply_dx = anchor_cx - u.centers_x[e];
+                        apply_dy = anchor_cy - u.centers_y[e];
+
+                        // Batasi gerakan ke arah objek (jangan menimpa tepat di atasnya jika kita memindah ke sebelahnya)
+                        // Biasanya di ARC gerakannya adalah 1 langkah sebelum nabrak.
+                        if apply_dx > 0.0 { apply_dx -= 1.0; }
+                        else if apply_dx < 0.0 { apply_dx += 1.0; }
+
+                        if apply_dy > 0.0 { apply_dy -= 1.0; }
+                        else if apply_dy < 0.0 { apply_dy += 1.0; }
+                    } else {
+                        // Jangkar tidak ditemukan di map ini, skip pergerakan.
+                        continue;
+                    }
+                }
+
                 // 1. Spasial Tensor Binding
+                // Di Swarm, kita bypass Tensor math untuk kecepatan murni karena kita tidak pakai Macro Tensor.
+                // Tapi kita tetep re-bind untuk konsistensi VSA.
                 let mut sp_tensor = u.get_spatial_tensor_mut(e);
                 let original_sp = sp_tensor.to_owned();
                 let future_sp = FHRR::bind(&original_sp, delta_spatial);
@@ -58,19 +100,15 @@ impl MultiverseSandbox {
                 sem_tensor.assign(&future_sem);
 
                 // 3. Scalar Momentum Update (Piksel Absolut)
-                u.centers_x[e] += abs_dx;
-                u.centers_y[e] += abs_dy;
+                u.centers_x[e] += apply_dx;
+                u.centers_y[e] += apply_dy;
 
                 // MURNI UNTUK SWARM: Update token untuk Decoder
                 // Karena kita langsung nge-print token dari list di decoder Swarm
-                // Untuk POC ini kita override secara manual:
-                // (Idealnya ini pakai Hologram Decoder + Multi Spectrum Probe 100%)
-                if delta_semantic[0] < 0.99 || delta_semantic[GLOBAL_DIMENSION - 1] < 0.99 {
-                    // Berarti ini bukan Identity (ada mutasi warna).
-                    // Kita harus decode warnanya ke token.
-                    // Untuk kesederhanaan POC Swarm saat ini, kita akan decode warnanya
-                    // dengan menembak Sinar Probe ke semantic_tensor yang baru.
-                    // Ini diimplementasi di luar (decoder), jadi kita biarkan saja.
+                // Untuk POC ini kita override secara manual jika mutasi warna (tidak dipakai untuk translasi):
+                if physics_tier == 0 && (delta_semantic[0] < 0.99 || delta_semantic[crate::core::config::GLOBAL_DIMENSION - 1] < 0.99) {
+                    // Logic pembaruan warna token tidak tercover di sini tanpa Oracle Inverse.
+                    // Biarkan kosong untuk POC Relasional Translation.
                 }
             }
         }
