@@ -140,6 +140,7 @@ impl RrmAgent {
             // So we need to apply ALL axioms in the history to the `test_manifold`.
             // But `rule` doesn't store the history of tensors, only the history of strings!
             // Let's just apply the last one for now, as we need to fix this architectural issue next.
+            let current_axiom_str = rule.axiom_type.last().map(|s| s.as_str()).unwrap_or("IDENTITY_STATIC");
             MultiverseSandbox::apply_axiom(
                 &mut test_manifold,
                 &rule.condition_tensor,
@@ -148,6 +149,7 @@ impl RrmAgent {
                 rule.delta_x,
                 rule.delta_y,
                 rule.physics_tier,
+                current_axiom_str,
             );
         } else {
             println!("   [Rust MCTS] WARNING: Semua gelombang hancur! (Halusinasi/Meleset)");

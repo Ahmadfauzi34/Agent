@@ -19,7 +19,7 @@ impl MultiverseSandbox {
         }
     }
 
-    /// Terapkan Dual-Axiom (Translasi Spasial + Mutasi Semantik) ke Universe
+    /// Terapkan Dual-Axiom (Translasi Spasial + Mutasi Semantik + Geometri) ke Universe
     pub fn apply_axiom(
         u: &mut EntityManifold,
         condition_tensor: &Option<Array1<f32>>,
@@ -28,6 +28,7 @@ impl MultiverseSandbox {
         delta_x: f32,
         delta_y: f32,
         physics_tier: u8,
+        axiom_type: &str, // Digunakan untuk parsing operator geometri jika Tier 4
     ) {
         let base_abs_dx = delta_x.round();
         let base_abs_dy = delta_y.round();
@@ -47,6 +48,24 @@ impl MultiverseSandbox {
                     anchor_found = true;
                     break; // Ambil jangkar pertama yang cocok (Naive Swarm anchor)
                 }
+            }
+        }
+
+        // Hitung bounding box universe jika ada operasi geometri
+        let mut min_x = 9999.0;
+        let mut max_x = -9999.0;
+        let mut min_y = 9999.0;
+        let mut max_y = -9999.0;
+
+        if physics_tier == 4 {
+            for e in 0..u.active_count {
+                if u.masses[e] == 0.0 { continue; }
+                let cx = u.centers_x[e];
+                let cy = u.centers_y[e];
+                if cx < min_x { min_x = cx; }
+                if cx > max_x { max_x = cx; }
+                if cy < min_y { min_y = cy; }
+                if cy > max_y { max_y = cy; }
             }
         }
 
@@ -90,6 +109,45 @@ impl MultiverseSandbox {
                     }
                 }
 
+                // GEOMETRY TIER
+                if physics_tier == 4 {
+                    let cx = u.centers_x[e];
+                    let cy = u.centers_y[e];
+                    if axiom_type.contains("MIRROR_X") {
+                        // Mirror horizontal: flip sumbu X
+                        // x_baru = max_x - (cx - min_x)
+                        u.centers_x[e] = max_x - (cx - min_x);
+                    } else if axiom_type.contains("MIRROR_Y") {
+                        u.centers_y[e] = max_y - (cy - min_y);
+                    } else if axiom_type.contains("ROTATE_90") {
+                        // Asumsi putar kanan terhadap center bbox
+                        let center_x = (min_x + max_x) / 2.0;
+                        let center_y = (min_y + max_y) / 2.0;
+                        let rx = cx - center_x;
+                        let ry = cy - center_y;
+                        u.centers_x[e] = center_x - ry;
+                        u.centers_y[e] = center_y + rx;
+                    } else if axiom_type.contains("ROTATE_180") {
+                        let center_x = (min_x + max_x) / 2.0;
+                        let center_y = (min_y + max_y) / 2.0;
+                        let rx = cx - center_x;
+                        let ry = cy - center_y;
+                        u.centers_x[e] = center_x - rx;
+                        u.centers_y[e] = center_y - ry;
+                    } else if axiom_type.contains("ROTATE_270") {
+                        let center_x = (min_x + max_x) / 2.0;
+                        let center_y = (min_y + max_y) / 2.0;
+                        let rx = cx - center_x;
+                        let ry = cy - center_y;
+                        u.centers_x[e] = center_x + ry;
+                        u.centers_y[e] = center_y - rx;
+                    }
+
+                    // Pastikan tetap bilangan bulat
+                    u.centers_x[e] = u.centers_x[e].round();
+                    u.centers_y[e] = u.centers_y[e].round();
+                }
+
                 // 1. Spasial Tensor Binding
                 // Di Swarm, kita bypass Tensor math untuk kecepatan murni karena kita tidak pakai Macro Tensor.
                 // Tapi kita tetep re-bind untuk konsistensi VSA.
@@ -105,8 +163,10 @@ impl MultiverseSandbox {
                 sem_tensor.assign(&future_sem);
 
                 // 3. Scalar Momentum Update (Piksel Absolut)
-                u.centers_x[e] += apply_dx;
-                u.centers_y[e] += apply_dy;
+                if physics_tier != 4 {
+                    u.centers_x[e] += apply_dx;
+                    u.centers_y[e] += apply_dy;
+                }
 
                 // MURNI UNTUK SWARM: Update token untuk Decoder
                 // Karena kita langsung nge-print token dari list di decoder Swarm

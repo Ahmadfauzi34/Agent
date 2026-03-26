@@ -170,6 +170,49 @@ impl TopologicalAligner {
             });
         }
 
+        // Generate Hypothesis: GEOMETRI GLOBAL & KONDISIONAL
+        // Kita suntikkan aksioma geometri statis untuk dicoba oleh MCTS
+        let geometry_ops = vec!["MIRROR_X", "MIRROR_Y", "ROTATE_90", "ROTATE_180", "ROTATE_270"];
+
+        // Coba apply secara global (tanpa kondisi warna)
+        for (i, op) in geometry_ops.iter().enumerate() {
+            matches.push(TopologicalMatch {
+                source_index: 0,
+                target_index: -1,
+                similarity: 0.5 - (i as f32 * 0.01),
+                condition_tensor: None, // Berlaku untuk semua objek
+                delta_spatial: id_tensor.clone(),
+                delta_semantic: id_tensor.clone(),
+                delta_x: 0.0,
+                delta_y: 0.0,
+                axiom_type: format!("GLOBAL_{}", op),
+                physics_tier: 4, // Tier 4 = Geometri
+            });
+        }
+
+        // Coba apply secara kondisional untuk setiap warna dominan di source
+        let mut colors: Vec<i32> = source_manifold.tokens.iter().cloned().filter(|&c| c > 0).collect();
+        colors.sort_unstable();
+        colors.dedup();
+
+        for color in colors.iter().take(3) {
+            let condition_phase = FHRR::fractional_bind(CoreSeeds::color_seed(), *color as f32);
+            for op in geometry_ops.iter() {
+                matches.push(TopologicalMatch {
+                    source_index: 0,
+                    target_index: -1,
+                    similarity: 0.4,
+                    condition_tensor: Some(condition_phase.clone()),
+                    delta_spatial: id_tensor.clone(),
+                    delta_semantic: id_tensor.clone(),
+                    delta_x: 0.0,
+                    delta_y: 0.0,
+                    axiom_type: format!("IF_COLOR({})_THEN_{}", color, op),
+                    physics_tier: 4, // Tier 4 = Geometri
+                });
+            }
+        }
+
         matches.push(TopologicalMatch {
             source_index: 0,
             target_index: -1,

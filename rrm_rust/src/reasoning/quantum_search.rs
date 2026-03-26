@@ -98,6 +98,9 @@ impl AsyncWaveSearch {
         Box::pin(async move {
         // 1. Terapkan Aksioma (Fisika) ke seluruh state dalam gelombang ini
         for manifold in &mut wave.state_manifolds {
+            // Kita gunakan aksioma terakhir yang di-push ke dalam history path
+            let current_axiom_str = wave.axiom_type.last().map(|s| s.as_str()).unwrap_or("IDENTITY_STATIC");
+
             MultiverseSandbox::apply_axiom(
                 manifold,
                 &wave.condition_tensor,
@@ -106,6 +109,7 @@ impl AsyncWaveSearch {
                 wave.delta_x,
                 wave.delta_y,
                 wave.physics_tier,
+                current_axiom_str,
             );
         }
 
