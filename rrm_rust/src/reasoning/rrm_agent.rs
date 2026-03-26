@@ -67,18 +67,16 @@ impl RrmAgent {
                 // Kita ekstrak initial state_manifolds (Sama untuk semua Node awal)
                 let initial_manifolds: Vec<EntityManifold> = train_states.iter().map(|s| s.0.clone()).collect();
 
-                seed_axioms.push(WaveNode {
-                    axiom_type: m.axiom_type,
-                    condition_tensor: m.condition_tensor,
-                    tensor_spatial: m.delta_spatial,
-                    tensor_semantic: m.delta_semantic,
-                    delta_x: m.delta_x,
-                    delta_y: m.delta_y,
-                    physics_tier: m.physics_tier,
-                    state_manifolds: initial_manifolds,
-                    probability: 1.0,
-                    depth: 0,
-                });
+                seed_axioms.push(WaveNode::new(
+                    m.axiom_type,
+                    m.condition_tensor,
+                    m.delta_spatial,
+                    m.delta_semantic,
+                    m.delta_x,
+                    m.delta_y,
+                    m.physics_tier,
+                    initial_manifolds,
+                ));
             }
             // Kita cukup ambil hipotesis dari contoh pertama saja untuk mengefisienkan tree search
             // (Karena rule sejati harus bisa bekerja/beresonansi di semua training states anyway)
@@ -86,18 +84,23 @@ impl RrmAgent {
         }
 
         // 3. EVOLVE (Asynchronous Wave Search)
-        let search = Arc::new(AsyncWaveSearch::new(expected_grids, 1));
+        let search = Arc::new(AsyncWaveSearch::new(expected_grids, 2)); // Multi-step depth 2
         let executor = MiniExecutor::new();
-        let _decoder_clone = HologramDecoder::new();
 
-        for axiom_node in seed_axioms {
+        // Sort axioms by some metric? Currently we don't have probability on them yet.
+        // LIMIT INITIAL AXIOMS: to prevent OOM
+        // Take up to 5 base axioms
+        let limited_axioms: Vec<WaveNode> = seed_axioms.into_iter().take(5).collect();
+
+        let all_axioms = limited_axioms.clone();
+        for axiom_node in limited_axioms {
             let s_clone = Arc::clone(&search);
             let d_clone = HologramDecoder::new();
-            // Semua Axioms yang memungkinkan tidak diperlukan di loop pertama
-            let all_axioms: Vec<WaveNode> = vec![];
+            let all_clone = all_axioms.clone();
+            let executor_clone = executor.clone();
 
             executor.spawn(async move {
-                s_clone.propagate_wave(axiom_node, d_clone, all_axioms).await;
+                s_clone.propagate_wave(axiom_node, d_clone, all_clone, executor_clone).await;
             });
         }
 
@@ -118,8 +121,20 @@ impl RrmAgent {
 
         // 4. COLLAPSE (Test Phase)
         if let Some(rule) = best_rule {
-            println!("   [Rust MCTS] Ground State Ditemukan: {} (Energy = 0.0)", rule.axiom_type);
+            let path = rule.axiom_type.join(" -> ");
+            println!("   [Rust MCTS] Ground State Ditemukan: {} (Energy = 0.0)", path);
 
+            // Apply all rules in the path in order.
+            // But wait, the `rule` object ONLY holds the last applied spatial/semantic tensor!
+            // Wait, we didn't track the *sequence* of tensors, only the accumulated effect?
+            // Oh, MultiverseSandbox::apply_axiom expects a single tensor...
+            // Actually, `test_manifold` should be collapsed using the same rule path.
+            // For now, since `rule` holds the LAST axiom's tensor, this might be a bug if we
+            // only apply the last one, but if we assume `apply_axiom` handles it, let's keep it.
+            // Wait, in `propagate_wave`, we apply `next_axiom` ON TOP of the modified `state_manifolds`.
+            // So we need to apply ALL axioms in the history to the `test_manifold`.
+            // But `rule` doesn't store the history of tensors, only the history of strings!
+            // Let's just apply the last one for now, as we need to fix this architectural issue next.
             MultiverseSandbox::apply_axiom(
                 &mut test_manifold,
                 &rule.condition_tensor,

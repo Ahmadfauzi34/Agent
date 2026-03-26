@@ -8,7 +8,7 @@ type TaskBox = Pin<Box<dyn Future<Output = ()> + Send>>;
 /// Custom Async Minimalist Executor (Zero-Overhead / No Tokio needed)
 /// Mengeksekusi Future (Wave Propagation) secara kooperatif di dalam satu thread.
 /// Sangat efisien untuk perhitungan matematis berat (FHRR / VSA) yang CPU-bound.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct MiniExecutor {
     tasks: Arc<Mutex<Vec<TaskBox>>>,
 }
