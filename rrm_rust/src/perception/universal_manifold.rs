@@ -1,10 +1,15 @@
-use crate::core::config::GLOBAL_DIMENSION;
 use crate::core::fhrr::FHRR;
 use crate::core::core_seeds::CoreSeeds;
 use ndarray::Array1;
 
 pub struct UniversalManifold {
     pub r_axis_seed: Array1<f32>,
+}
+
+impl Default for UniversalManifold {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl UniversalManifold {

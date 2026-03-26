@@ -5,13 +5,23 @@ use crate::perception::hologram_decoder::HologramDecoder;
 use crate::reasoning::topological_aligner::TopologicalAligner;
 use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
+use crate::reasoning::async_runtime::MiniExecutor;
+use crate::reasoning::quantum_search::{AsyncWaveSearch, WaveNode};
+
 use std::collections::HashMap;
+use std::sync::Arc;
 use ndarray::Array1;
 
 pub struct RrmAgent {
     perceiver: UniversalManifold,
     decoder: HologramDecoder,
-    pruner: HamiltonianPruner,
+    pruner: HamiltonianPruner, // Akan di-deprecate karena diganti AsyncWaveSearch, tapi biarkan untuk fallback
+}
+
+impl Default for RrmAgent {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RrmAgent {
@@ -47,24 +57,86 @@ impl RrmAgent {
         let mut test_manifold = EntityManifold::new();
         EntitySegmenter::segment_stream(&stream_test, &mut test_manifold, 0.85, &self.perceiver);
 
-        // TRUE SWARM ALIGNMENT:
-        let first_train = &train_states[0];
-        let matches = TopologicalAligner::align(&first_train.0, &first_train.1);
+        // 2. RESONATE
+        let mut seed_axioms: Vec<WaveNode> = Vec::new();
+        let expected_grids: Vec<Vec<Vec<i32>>> = train_out.clone();
 
-        for m in matches {
-            let e = m.source_index;
-            if e < test_manifold.active_count {
-                test_manifold.centers_x[e] += m.delta_x.round();
-                test_manifold.centers_y[e] += m.delta_y.round();
+        for (man_in, man_out) in train_states.iter() {
+            let matches = TopologicalAligner::align(man_in, man_out);
+            for m in matches {
+                // Kita ekstrak initial state_manifolds (Sama untuk semua Node awal)
+                let initial_manifolds: Vec<EntityManifold> = train_states.iter().map(|s| s.0.clone()).collect();
+
+                seed_axioms.push(WaveNode {
+                    axiom_type: m.axiom_type,
+                    condition_tensor: m.condition_tensor,
+                    tensor_spatial: m.delta_spatial,
+                    tensor_semantic: m.delta_semantic,
+                    delta_x: m.delta_x,
+                    delta_y: m.delta_y,
+                    physics_tier: m.physics_tier,
+                    state_manifolds: initial_manifolds,
+                    probability: 1.0,
+                    depth: 0,
+                });
+            }
+            // Kita cukup ambil hipotesis dari contoh pertama saja untuk mengefisienkan tree search
+            // (Karena rule sejati harus bisa bekerja/beresonansi di semua training states anyway)
+
+        }
+
+        // 3. EVOLVE (Asynchronous Wave Search)
+        let search = Arc::new(AsyncWaveSearch::new(expected_grids, 1));
+        let executor = MiniExecutor::new();
+        let _decoder_clone = HologramDecoder::new();
+
+        for axiom_node in seed_axioms {
+            let s_clone = Arc::clone(&search);
+            let d_clone = HologramDecoder::new();
+            // Semua Axioms yang memungkinkan tidak diperlukan di loop pertama
+            let all_axioms: Vec<WaveNode> = vec![];
+
+            executor.spawn(async move {
+                s_clone.propagate_wave(axiom_node, d_clone, all_axioms).await;
+            });
+        }
+
+        // Block & Jalankan hingga semua gelombang runtuh (Pruned/Selesai)
+        executor.run();
+
+        // Ambil Ground State yang selamat
+        let ground_states = search.ground_states.read().unwrap();
+        let mut best_rule: Option<WaveNode> = None;
+        let mut max_prob = -1.0;
+
+        for state in ground_states.iter() {
+            if state.probability > max_prob {
+                max_prob = state.probability;
+                best_rule = Some(state.clone());
             }
         }
 
-        // Di Rust, kita asumsikan output grid ARC tidak berubah ukuran (10x10)
-        let width = test_in[0].len();
-        let height = test_in.len();
+        // 4. COLLAPSE (Test Phase)
+        if let Some(rule) = best_rule {
+            println!("   [Rust MCTS] Ground State Ditemukan: {} (Energy = 0.0)", rule.axiom_type);
 
-        // Threshold untuk Swarm murni tidak peduli fasa relativ (sekarang Z-Buffer 1.0 murni)
-        self.decoder.collapse_to_grid(&test_manifold, width, height, 0.05)
+            MultiverseSandbox::apply_axiom(
+                &mut test_manifold,
+                &rule.condition_tensor,
+                &rule.tensor_spatial,
+                &rule.tensor_semantic,
+                rule.delta_x,
+                rule.delta_y,
+                rule.physics_tier,
+            );
+        } else {
+            println!("   [Rust MCTS] WARNING: Semua gelombang hancur! (Halusinasi/Meleset)");
+        }
+
+        let test_width = if test_manifold.global_width > 0.0 { test_manifold.global_width as usize } else { test_in[0].len() };
+        let test_height = if test_manifold.global_height > 0.0 { test_manifold.global_height as usize } else { test_in.len() };
+
+        self.decoder.collapse_to_grid(&test_manifold, test_width, test_height, 0.50)
     }
 
     fn encode_grid(&self, grid: &Vec<Vec<i32>>, stream: &mut HashMap<String, (Array1<f32>, Array1<f32>)>) {
