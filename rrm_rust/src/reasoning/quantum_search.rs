@@ -5,7 +5,7 @@ use crate::core::entity_manifold::EntityManifold;
 use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
 use crate::perception::hologram_decoder::HologramDecoder;
-use crate::reasoning::async_runtime::async_yield;
+use futures_lite::future;
 
 /// Struktur untuk satu Node di dalam Pencarian Gelombang
 #[derive(Clone)]
@@ -93,8 +93,7 @@ impl AsyncWaveSearch {
         self: Arc<Self>,
         mut wave: WaveNode,
         decoder: HologramDecoder,
-        all_possible_axioms: Vec<WaveNode>, // Digunakan untuk depth > 1 (Branching)
-        executor: crate::reasoning::async_runtime::MiniExecutor
+        all_possible_axioms: Vec<WaveNode> // Digunakan untuk depth > 1 (Branching)
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> {
         Box::pin(async move {
         // 1. Terapkan Aksioma (Fisika) ke seluruh state dalam gelombang ini
@@ -110,9 +109,9 @@ impl AsyncWaveSearch {
             );
         }
 
-        // Cooperative Yield: Beri kesempatan gelombang lain untuk dieksekusi oleh MiniExecutor
+        // Cooperative Yield: Beri kesempatan gelombang lain untuk dieksekusi oleh Executor
         // karena simulasi Sandbox dan Decoder memakan waktu CPU.
-        async_yield().await;
+        future::yield_now().await;
 
         // Optimization: Early exit if a perfect solution was already found
         if self.ground_states.read().unwrap().len() > 0 {
@@ -139,21 +138,20 @@ impl AsyncWaveSearch {
         // Hanya cabang dengan error (Free Energy) yang sangat kecil
         // prob > 0.1 berarti energy < 9.0
         // Mari kita izinkan prob > 0.05 (energy < 19.0)
-        // UPDATE: For multi-step ARC, sometimes the first step looks COMPLETELY wrong (energy high).
-        // Let's relax this back to > 0.005 for Depth 2 specifically.
-        // Extremely tight threshold to avoid OOM
+        // UPDATE: With true async futures-lite, we can afford slightly wider branching
+        // without instantly OOMing, but we still want to prune bad paths.
+        // Let's allow branches that have some partial match (prob > 0.05) to avoid combinatoric OOM.
         if wave.probability > 0.05 && wave.depth < self.max_depth {
-            // Optimization: limits branch count
-            // Take top 5 best branches, but here we just take all, maybe we can limit it.
+            let mut branch_futures = Vec::new();
             let mut branch_count = 0;
+
             for next_axiom in all_possible_axioms.iter() {
-                // Optimisasi: Jangan branch ke rule yang sama dua kali (opsional, tapi berguna untuk ARC)
+                // Optimisasi: Jangan branch ke rule yang sama dua kali berurut
                 if wave.axiom_type.last() == next_axiom.axiom_type.last() {
                     continue;
                 }
-                // To avoid OOM in our primitive executor, limit branches to 1 max
                 branch_count += 1;
-                if branch_count > 1 {
+                if branch_count > 2 {
                     break;
                 }
 
@@ -176,11 +174,15 @@ impl AsyncWaveSearch {
                 let s_clone = Arc::clone(&self);
                 let d_clone = HologramDecoder::new();
                 let all_clone = all_possible_axioms.clone();
-                let ex_clone = executor.clone();
 
-                executor.spawn(async move {
-                    s_clone.propagate_wave(child_wave, d_clone, all_clone, ex_clone).await;
+                branch_futures.push(async move {
+                    s_clone.propagate_wave(child_wave, d_clone, all_clone).await;
                 });
+            }
+
+            // Await all branches concurrently
+            for f in branch_futures {
+                f.await;
             }
         }
 

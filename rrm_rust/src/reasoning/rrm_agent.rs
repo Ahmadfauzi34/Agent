@@ -5,12 +5,12 @@ use crate::perception::hologram_decoder::HologramDecoder;
 use crate::reasoning::topological_aligner::TopologicalAligner;
 use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
-use crate::reasoning::async_runtime::MiniExecutor;
 use crate::reasoning::quantum_search::{AsyncWaveSearch, WaveNode};
 
 use std::collections::HashMap;
 use std::sync::Arc;
 use ndarray::Array1;
+use futures_lite::future;
 
 pub struct RrmAgent {
     perceiver: UniversalManifold,
@@ -85,27 +85,32 @@ impl RrmAgent {
 
         // 3. EVOLVE (Asynchronous Wave Search)
         let search = Arc::new(AsyncWaveSearch::new(expected_grids, 2)); // Multi-step depth 2
-        let executor = MiniExecutor::new();
 
-        // Sort axioms by some metric? Currently we don't have probability on them yet.
-        // LIMIT INITIAL AXIOMS: to prevent OOM
-        // Take up to 5 base axioms
+        // LIMIT INITIAL AXIOMS: With futures-lite, we can afford slightly more branching.
+        // Even with `pollster`, taking 20 axioms across all training states means OOM on massive depth 2 fan-out.
+        // Let's cap at 5 again, but allow deeper exploration.
         let limited_axioms: Vec<WaveNode> = seed_axioms.into_iter().take(5).collect();
 
         let all_axioms = limited_axioms.clone();
+        let mut top_level_futures = Vec::new();
+
         for axiom_node in limited_axioms {
             let s_clone = Arc::clone(&search);
             let d_clone = HologramDecoder::new();
             let all_clone = all_axioms.clone();
-            let executor_clone = executor.clone();
 
-            executor.spawn(async move {
-                s_clone.propagate_wave(axiom_node, d_clone, all_clone, executor_clone).await;
+            top_level_futures.push(async move {
+                s_clone.propagate_wave(axiom_node, d_clone, all_clone).await;
             });
         }
 
         // Block & Jalankan hingga semua gelombang runtuh (Pruned/Selesai)
-        executor.run();
+        // using futures_lite and pollster
+        pollster::block_on(async {
+            for f in top_level_futures {
+                f.await;
+            }
+        });
 
         // Ambil Ground State yang selamat
         let ground_states = search.ground_states.read().unwrap();
