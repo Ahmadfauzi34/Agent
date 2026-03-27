@@ -144,8 +144,7 @@ impl AsyncWaveSearch {
         // Mari kita izinkan prob > 0.05 (energy < 19.0)
         // UPDATE: With true async futures-lite, we can afford slightly wider branching
         // without instantly OOMing, but we still want to prune bad paths.
-        // Let's allow branches that have some partial match (prob > 0.1) to avoid combinatoric OOM.
-        // Tighter constraint due to the huge space with Geometry, Spawn, Crop, Destroy
+        // TIGHTENED due to Geometry/Spawn/Crop taking massive memory on depth=2
         if wave.probability > 0.1 && wave.depth < self.max_depth {
             let mut branch_futures = Vec::new();
             let mut branch_count = 0;
@@ -156,10 +155,15 @@ impl AsyncWaveSearch {
                     continue;
                 }
 
-                // Super tight constraint: Only pick the absolute 1 best branch per depth for testing.
+                // Limit to 1 branch max for validation bounds
                 branch_count += 1;
                 if branch_count > 1 {
                     break;
+                }
+
+                // Jangan branch ke operasi geometry / crop / spawn secara rekursif terus menerus untuk menghindari ledakan OOM ekstrim
+                if next_axiom.physics_tier >= 3 && wave.physics_tier >= 3 {
+                    continue;
                 }
 
                 let mut child_wave = wave.clone();
