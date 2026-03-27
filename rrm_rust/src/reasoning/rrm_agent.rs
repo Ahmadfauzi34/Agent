@@ -64,8 +64,10 @@ impl RrmAgent {
         for (man_in, man_out) in train_states.iter() {
             let matches = TopologicalAligner::align(man_in, man_out);
             for m in matches {
-                // Kita ekstrak initial state_manifolds (Sama untuk semua Node awal)
-                let initial_manifolds: Vec<EntityManifold> = train_states.iter().map(|s| s.0.clone()).collect();
+                // Gunakan Arc<Vec<RwLock>> (Copy-on-Write) untuk menghindari memory bloat
+                let initial_manifolds: Arc<Vec<std::sync::RwLock<EntityManifold>>> = Arc::new(
+                    train_states.iter().map(|s| std::sync::RwLock::new(s.0.clone())).collect()
+                );
 
                 seed_axioms.push(WaveNode::new(
                     m.axiom_type,
@@ -80,7 +82,7 @@ impl RrmAgent {
             }
             // Kita cukup ambil hipotesis dari contoh pertama saja untuk mengefisienkan tree search
             // (Karena rule sejati harus bisa bekerja/beresonansi di semua training states anyway)
-
+            break; // <- Optimisasi: Hanya ekstrak dari pasangan training pertama.
         }
 
         // 3. EVOLVE (Asynchronous Wave Search) - Meta-Reactive Orchestrator
