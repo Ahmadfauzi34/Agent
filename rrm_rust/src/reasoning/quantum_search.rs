@@ -5,12 +5,12 @@ use crate::core::entity_manifold::EntityManifold;
 use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
 use crate::perception::hologram_decoder::HologramDecoder;
-use crate::reasoning::async_runtime::async_yield;
+use futures_lite::future;
 
 /// Struktur untuk satu Node di dalam Pencarian Gelombang
 #[derive(Clone)]
 pub struct WaveNode {
-    pub axiom_type: String,
+    pub axiom_type: Vec<String>, // Now tracks the path of axioms applied
     pub condition_tensor: Option<Array1<f32>>,
     pub tensor_spatial: Array1<f32>,
     pub tensor_semantic: Array1<f32>,
@@ -24,6 +24,32 @@ pub struct WaveNode {
     // Amplitudo kelangsungan hidup (1.0 = sempurna, 0.0 = hancur/pruned)
     pub probability: f32,
     pub depth: usize,
+}
+
+impl WaveNode {
+    pub fn new(
+        axiom_type: String,
+        condition_tensor: Option<Array1<f32>>,
+        tensor_spatial: Array1<f32>,
+        tensor_semantic: Array1<f32>,
+        delta_x: f32,
+        delta_y: f32,
+        physics_tier: u8,
+        state_manifolds: Vec<EntityManifold>,
+    ) -> Self {
+        Self {
+            axiom_type: vec![axiom_type],
+            condition_tensor,
+            tensor_spatial,
+            tensor_semantic,
+            delta_x,
+            delta_y,
+            physics_tier,
+            state_manifolds,
+            probability: 1.0,
+            depth: 1,
+        }
+    }
 }
 
 pub struct AsyncWaveSearch {
@@ -63,14 +89,18 @@ impl AsyncWaveSearch {
     /// Menjalankan perambatan gelombang secara Asinkron
     /// Future ini akan mengembalikan Poll::Ready ketika gelombang runtuh (Pruned)
     /// atau menemukan Ground State.
-    pub async fn propagate_wave(
-        &self,
+    pub fn propagate_wave(
+        self: Arc<Self>,
         mut wave: WaveNode,
         decoder: HologramDecoder,
-        _all_possible_axioms: Vec<WaveNode> // Digunakan untuk depth > 1 (Branching)
-    ) {
+        all_possible_axioms: Vec<WaveNode> // Digunakan untuk depth > 1 (Branching)
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> {
+        Box::pin(async move {
         // 1. Terapkan Aksioma (Fisika) ke seluruh state dalam gelombang ini
         for manifold in &mut wave.state_manifolds {
+            // Kita gunakan aksioma terakhir yang di-push ke dalam history path
+            let current_axiom_str = wave.axiom_type.last().map(|s| s.as_str()).unwrap_or("IDENTITY_STATIC");
+
             MultiverseSandbox::apply_axiom(
                 manifold,
                 &wave.condition_tensor,
@@ -79,12 +109,18 @@ impl AsyncWaveSearch {
                 wave.delta_x,
                 wave.delta_y,
                 wave.physics_tier,
+                current_axiom_str,
             );
         }
 
-        // Cooperative Yield: Beri kesempatan gelombang lain untuk dieksekusi oleh MiniExecutor
+        // Cooperative Yield: Beri kesempatan gelombang lain untuk dieksekusi oleh Executor
         // karena simulasi Sandbox dan Decoder memakan waktu CPU.
-        async_yield().await;
+        future::yield_now().await;
+
+        // Optimization: Early exit if a perfect solution was already found
+        if self.ground_states.read().unwrap().len() > 0 {
+            return;
+        }
 
         // 2. Evaluasi Quantum Oracle (Menghitung Free Energy)
         let energy = self.evaluate_energy(&wave.state_manifolds, &decoder);
@@ -102,13 +138,66 @@ impl AsyncWaveSearch {
         }
 
         // Jika probabilitas masih cukup tinggi (Threshold Pruning)
+        // Kita perketat threshold pruning untuk mencegah ledakan cabang!
+        // Hanya cabang dengan error (Free Energy) yang sangat kecil
+        // prob > 0.1 berarti energy < 9.0
+        // Mari kita izinkan prob > 0.05 (energy < 19.0)
+        // UPDATE: With true async futures-lite, we can afford slightly wider branching
+        // without instantly OOMing, but we still want to prune bad paths.
+        // TIGHTENED due to Geometry/Spawn/Crop taking massive memory on depth=2
         if wave.probability > 0.1 && wave.depth < self.max_depth {
-            // Spawn cabang baru untuk kedalaman selanjutnya (MCTS Expansion)
-            // Di sini kita bisa loop over `_all_possible_axioms` dan men-spawn
-            // `propagate_wave` baru ke dalam Executor.
-            // Untuk saat ini, kita prune jika energy > 0 (karena ini Depth 1 PoC)
+            let mut branch_futures = Vec::new();
+            let mut branch_count = 0;
+
+            for next_axiom in all_possible_axioms.iter() {
+                // Optimisasi: Jangan branch ke rule yang sama dua kali berurut
+                if wave.axiom_type.last() == next_axiom.axiom_type.last() {
+                    continue;
+                }
+
+                // Limit to 1 branch max for validation bounds
+                branch_count += 1;
+                if branch_count > 1 {
+                    break;
+                }
+
+                // Jangan branch ke operasi geometry / crop / spawn secara rekursif terus menerus untuk menghindari ledakan OOM ekstrim
+                if next_axiom.physics_tier >= 3 && wave.physics_tier >= 3 {
+                    continue;
+                }
+
+                let mut child_wave = wave.clone();
+
+                // Track Path
+                child_wave.axiom_type.push(next_axiom.axiom_type[0].clone());
+                child_wave.depth += 1;
+
+                // Pada depth > 1, fisika diakumulasi (berurut).
+                // Sandbox akan menerapkan `next_axiom` ke atas `state_manifolds` yang
+                // SUDAH diubah oleh axiom sebelumnya.
+                child_wave.condition_tensor = next_axiom.condition_tensor.clone();
+                child_wave.tensor_spatial = next_axiom.tensor_spatial.clone();
+                child_wave.tensor_semantic = next_axiom.tensor_semantic.clone();
+                child_wave.delta_x = next_axiom.delta_x;
+                child_wave.delta_y = next_axiom.delta_y;
+                child_wave.physics_tier = next_axiom.physics_tier;
+
+                let s_clone = Arc::clone(&self);
+                let d_clone = HologramDecoder::new();
+                let all_clone = all_possible_axioms.clone();
+
+                branch_futures.push(async move {
+                    s_clone.propagate_wave(child_wave, d_clone, all_clone).await;
+                });
+            }
+
+            // Await all branches concurrently
+            for f in branch_futures {
+                f.await;
+            }
         }
 
         // Jika sampai di sini, gelombang hancur (Destructive Interference)
+        })
     }
 }

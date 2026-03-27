@@ -55,6 +55,8 @@ impl EntityManifold {
             semantic_tensors: vec![0.0; MAX_ENTITIES * GLOBAL_DIMENSION],
 
             ids: vec![String::new(); MAX_ENTITIES],
+            // Inisialisasi masses dengan 0.0 menjadikan seluruh buffer ini sebagai "Dark Matter"
+            // Saat segmenter mengisi partikel awal, masses akan di-set menjadi > 0.0
             masses: vec![0.0; MAX_ENTITIES],
             tokens: vec![0; MAX_ENTITIES],
 

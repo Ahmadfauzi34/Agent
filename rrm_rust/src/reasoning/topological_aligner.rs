@@ -170,6 +170,110 @@ impl TopologicalAligner {
             });
         }
 
+        // Generate Hypothesis: GEOMETRI GLOBAL & KONDISIONAL
+        // Kita suntikkan aksioma geometri statis untuk dicoba oleh MCTS
+        let geometry_ops = vec!["MIRROR_X", "MIRROR_Y", "ROTATE_90", "ROTATE_180", "ROTATE_270"];
+
+        // Coba apply secara global (tanpa kondisi warna)
+        for (i, op) in geometry_ops.iter().enumerate() {
+            matches.push(TopologicalMatch {
+                source_index: 0,
+                target_index: -1,
+                similarity: 0.5 - (i as f32 * 0.01),
+                condition_tensor: None, // Berlaku untuk semua objek
+                delta_spatial: id_tensor.clone(),
+                delta_semantic: id_tensor.clone(),
+                delta_x: 0.0,
+                delta_y: 0.0,
+                axiom_type: format!("GLOBAL_{}", op),
+                physics_tier: 4, // Tier 4 = Geometri
+            });
+        }
+
+        // Coba apply secara kondisional untuk setiap warna dominan di source
+        let mut source_colors: Vec<i32> = source_manifold.tokens.iter().cloned().filter(|&c| c > 0).collect();
+        source_colors.sort_unstable();
+        source_colors.dedup();
+
+        for color in source_colors.iter().take(3) {
+            let condition_phase = FHRR::fractional_bind(CoreSeeds::color_seed(), *color as f32);
+            for op in geometry_ops.iter() {
+                matches.push(TopologicalMatch {
+                    source_index: 0,
+                    target_index: -1,
+                    similarity: 0.4,
+                    condition_tensor: Some(condition_phase.clone()),
+                    delta_spatial: id_tensor.clone(),
+                    delta_semantic: id_tensor.clone(),
+                    delta_x: 0.0,
+                    delta_y: 0.0,
+                    axiom_type: format!("IF_COLOR({})_THEN_{}", color, op),
+                    physics_tier: 4, // Tier 4 = Geometri
+                });
+            }
+        }
+
+        // Generate Hypothesis: DESTROY (Annihilation) & CROP
+        // Coba hancurkan atau jadikan crop target setiap warna yang ada
+        for color in source_colors.iter() {
+            let condition_phase = FHRR::fractional_bind(CoreSeeds::color_seed(), *color as f32);
+
+            // Aksioma ERASE (Hancurkan warna ini)
+            matches.push(TopologicalMatch {
+                source_index: 0,
+                target_index: -1,
+                similarity: 0.35,
+                condition_tensor: Some(condition_phase.clone()),
+                delta_spatial: id_tensor.clone(),
+                delta_semantic: id_tensor.clone(),
+                delta_x: 0.0,
+                delta_y: 0.0,
+                axiom_type: format!("IF_COLOR({})_THEN_ERASE", color),
+                physics_tier: 5, // Tier 5 = Destroy
+            });
+
+            // Aksioma CROP (Crop universe ke batas warna ini)
+            matches.push(TopologicalMatch {
+                source_index: 0,
+                target_index: -1,
+                similarity: 0.35,
+                condition_tensor: Some(condition_phase.clone()),
+                delta_spatial: id_tensor.clone(),
+                delta_semantic: id_tensor.clone(),
+                delta_x: 0.0,
+                delta_y: 0.0,
+                axiom_type: format!("CROP_TO_COLOR({})", color),
+                physics_tier: 7, // Tier 7 = Crop
+            });
+        }
+
+        // Generate Hypothesis: SPAWN
+        // Jika ada warna di target yang TIDAK ADA di source (Warna baru muncul)
+        let mut target_colors: Vec<i32> = target_manifold.tokens.iter().cloned().filter(|&c| c > 0).collect();
+        target_colors.sort_unstable();
+        target_colors.dedup();
+
+        for t_color in target_colors.iter() {
+            if !source_colors.contains(t_color) {
+                // Warna baru ini pasti di-spawn. Coba tebak bounding box warna apa yang dia tempati.
+                for s_color in source_colors.iter() {
+                    let condition_phase = FHRR::fractional_bind(CoreSeeds::color_seed(), *s_color as f32);
+                    matches.push(TopologicalMatch {
+                        source_index: 0,
+                        target_index: -1,
+                        similarity: 0.6, // Prioritas cukup tinggi jika memang warna baru
+                        condition_tensor: Some(condition_phase.clone()),
+                        delta_spatial: id_tensor.clone(),
+                        delta_semantic: id_tensor.clone(),
+                        delta_x: *t_color as f32, // Target color disimpan di delta_x
+                        delta_y: 0.0,
+                        axiom_type: format!("IF_COLOR({})_THEN_SPAWN_COLOR({})", s_color, t_color),
+                        physics_tier: 6, // Tier 6 = Spawn
+                    });
+                }
+            }
+        }
+
         matches.push(TopologicalMatch {
             source_index: 0,
             target_index: -1,
