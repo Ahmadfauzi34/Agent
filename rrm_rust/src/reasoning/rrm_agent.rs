@@ -61,7 +61,7 @@ impl RrmAgent {
         let mut seed_axioms: Vec<WaveNode> = Vec::new();
         let expected_grids: Vec<Vec<Vec<i32>>> = train_out.clone();
 
-        for (man_in, man_out) in train_states.iter() {
+        if let Some((man_in, man_out)) = train_states.iter().next() {
             let matches = TopologicalAligner::align(man_in, man_out);
             for m in matches {
                 // Gunakan Arc<Vec<RwLock>> (Copy-on-Write) untuk menghindari memory bloat
@@ -82,7 +82,6 @@ impl RrmAgent {
             }
             // Kita cukup ambil hipotesis dari contoh pertama saja untuk mengefisienkan tree search
             // (Karena rule sejati harus bisa bekerja/beresonansi di semua training states anyway)
-            break; // <- Optimisasi: Hanya ekstrak dari pasangan training pertama.
         }
 
         // 3. EVOLVE (Asynchronous Wave Search) - Meta-Reactive Orchestrator
@@ -92,10 +91,18 @@ impl RrmAgent {
         let fast_pass_axioms: Vec<WaveNode> = seed_axioms.iter().filter(|a| a.physics_tier <= 2).cloned().take(3).collect();
         let mut search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 1)); // Depth 1 for Fast Pass
 
+        // Simpan Initial Manifolds untuk perhitungan Epistemic Value di Fast Pass
+        let initial_manifolds_fast = if let Some(first) = fast_pass_axioms.first() {
+            Arc::clone(&first.state_manifolds)
+        } else {
+            Arc::new(vec![])
+        };
+
         for axiom_node in fast_pass_axioms {
             let s_clone = Arc::clone(&search);
             let all_clone = vec![]; // Kosongkan all_clone pada fast pass depth 1 agar tidak mengalokasi memori berlebih
-            pollster::block_on(async move { s_clone.propagate_wave(axiom_node, all_clone).await; });
+            let init_clone = Arc::clone(&initial_manifolds_fast);
+            pollster::block_on(async move { s_clone.propagate_wave(axiom_node, init_clone, all_clone).await; });
         }
 
         let mut best_rule: Option<WaveNode> = None;
@@ -120,13 +127,21 @@ impl RrmAgent {
             search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 2)); // Depth 2 for Advanced Pass
 
             // Ambil campuran aksioma tier atas dan bawah, dengan limit masuk akal karena Memory Pool / Streaming Eval aktif!
-            let advanced_axioms: Vec<WaveNode> = seed_axioms.into_iter().filter(|a| a.physics_tier >= 3).take(3).collect();
+            // Dengan Expected Free Energy (EFE), MCTS bisa menoleransi lebih banyak aksioma awal tanpa memangkas jalan buntu terlalu dini.
+            let advanced_axioms: Vec<WaveNode> = seed_axioms.into_iter().filter(|a| a.physics_tier >= 3).take(5).collect();
             let all_adv_axioms = advanced_axioms.clone();
+
+            let initial_manifolds_adv = if let Some(first) = advanced_axioms.first() {
+                Arc::clone(&first.state_manifolds)
+            } else {
+                Arc::new(vec![])
+            };
 
             for axiom_node in advanced_axioms {
                 let s_clone = Arc::clone(&search);
                 let all_clone = all_adv_axioms.clone();
-                pollster::block_on(async move { s_clone.propagate_wave(axiom_node, all_clone).await; });
+                let init_clone = Arc::clone(&initial_manifolds_adv);
+                pollster::block_on(async move { s_clone.propagate_wave(axiom_node, init_clone, all_clone).await; });
             }
 
             let ground_states = search.ground_states.read().unwrap();

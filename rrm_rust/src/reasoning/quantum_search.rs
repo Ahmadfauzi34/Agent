@@ -84,24 +84,60 @@ impl AsyncWaveSearch {
         }
     }
 
-    /// Evaluasi Free Energy dari sebuah state terhadap Ground Truth
-    fn evaluate_energy_streaming(&self, state_manifolds: &Arc<Vec<RwLock<EntityManifold>>>) -> f32 {
-        let mut total_energy = 0.0;
+    /// Evaluasi EXPECTED Free Energy: (Pragmatic Error, Epistemic Value)
+    /// Pragmatic Error: Seberapa jauh dari Ground Truth (Makin kecil makin baik)
+    /// Epistemic Value: Seberapa banyak information gain/perubahan state yang relevan (Makin besar makin baik)
+    fn evaluate_efe_streaming(
+        &self,
+        state_manifolds: &Arc<Vec<RwLock<EntityManifold>>>,
+        initial_manifolds: &Arc<Vec<RwLock<EntityManifold>>>
+    ) -> (f32, f32) {
+        let mut total_pragmatic_error = 0.0;
+        let mut total_epistemic_value = 0.0;
+
         for (i, expected_grid) in self.expected_grids.iter().enumerate() {
             let width = expected_grid[0].len();
             let height = expected_grid.len();
 
-            // Baca Manifold
             let manifold_read = state_manifolds[i].read().unwrap();
+            let initial_read = initial_manifolds[i].read().unwrap();
 
-            // Hitung lebar dan tinggi makroskopis universe (jika dipengaruhi CROP)
+            // 1. Pragmatic Error (Seberapa beda dengan Ground Truth)
             let m_width = if manifold_read.global_width > 0.0 { manifold_read.global_width as usize } else { width };
             let m_height = if manifold_read.global_height > 0.0 { manifold_read.global_height as usize } else { height };
+            total_pragmatic_error += HamiltonianPruner::calculate_energy_streaming(&*manifold_read, expected_grid, m_width, m_height);
 
-            // Hitung Error Streaming (Tanpa alokasi memory Grid)
-            total_energy += HamiltonianPruner::calculate_energy_streaming(&*manifold_read, expected_grid, m_width, m_height);
+            // 2. Epistemic Value (Information Gain / Curiosity)
+            // Seberapa banyak partikel yang berubah state (posisi/warna/eksistensi) dibandingkan state awal?
+            let mut changed_particles: f32 = 0.0;
+            for e in 0..crate::core::config::MAX_ENTITIES {
+                let old_mass = initial_read.masses[e];
+                let new_mass = manifold_read.masses[e];
+
+                // Jika eksistensi berubah (Spawn/Destroy)
+                if old_mass != new_mass {
+                    changed_particles += 1.0;
+                    continue;
+                }
+
+                // Jika posisi / warna berubah (Translation/Geometry/Color Shift)
+                if new_mass > 0.0 {
+                    if (initial_read.centers_x[e] - manifold_read.centers_x[e]).abs() > 0.1 ||
+                       (initial_read.centers_y[e] - manifold_read.centers_y[e]).abs() > 0.1 ||
+                       initial_read.tokens[e] != manifold_read.tokens[e] {
+                        changed_particles += 1.0;
+                    }
+                }
+            }
+
+            // Epistemic value didiskon logaritmik agar tidak overshadow pragmatic error
+            // Log10 dari perubahan partikel memberi reward pelan tapi pasti untuk eksplorasi
+            if changed_particles > 0.0 {
+                total_epistemic_value += changed_particles.log10();
+            }
         }
-        total_energy
+
+        (total_pragmatic_error, total_epistemic_value)
     }
 
     /// Menjalankan perambatan gelombang secara Asinkron
@@ -110,6 +146,7 @@ impl AsyncWaveSearch {
     pub fn propagate_wave(
         self: Arc<Self>,
         mut wave: WaveNode,
+        initial_manifolds: Arc<Vec<RwLock<EntityManifold>>>, // Referensi ke state awal untuk menghitung Epistemic Value
         all_possible_axioms: Vec<WaveNode> // Digunakan untuk depth > 1 (Branching)
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> {
         Box::pin(async move {
@@ -146,17 +183,21 @@ impl AsyncWaveSearch {
             return;
         }
 
-        // 2. Evaluasi Quantum Oracle (Menghitung Free Energy secara Streaming/Zero-Alloc)
-        let energy = self.evaluate_energy_streaming(&wave.state_manifolds);
+        // 2. Evaluasi EXPECTED Free Energy (Active Inference: Pragmatic - Epistemic)
+        let (pragmatic_error, epistemic_value) = self.evaluate_efe_streaming(&wave.state_manifolds, &initial_manifolds);
 
-        // 3. The Quantum Eraser (Pruning)
-        // Semakin besar energy (kesalahan), semakin kecil probability.
-        // Jika energy 0, probability tetap 1.0 (Sempurna).
-        let interference = if energy == 0.0 { 1.0 } else { 1.0 / (energy + 1.0) };
+        // 3. The Quantum Eraser (Pruning) dengan Active Inference G(π)
+        // Expected Free Energy G(π) = Pragmatic Error - Epistemic Bonus
+        let expected_free_energy = pragmatic_error - epistemic_value;
+        let g_bounded = expected_free_energy.max(0.0); // G tidak boleh negatif
+
+        // Semakin besar G(π), semakin kecil probability.
+        // Jika pragmatic_error 0, probability otomatis 1.0 (Sempurna).
+        let interference = if pragmatic_error == 0.0 { 1.0 } else { 1.0 / (g_bounded + 1.0) };
         wave.probability *= interference;
 
-        if wave.probability >= 0.99 {
-            // Ground State Ditemukan! Simpan ke Results
+        if pragmatic_error == 0.0 {
+            // Ground State Ditemukan! (Zero pragmatic error) Simpan ke Results
             self.ground_states.write().unwrap().push(wave.clone());
             return; // Gelombang selesai dengan sukses
         }
@@ -168,9 +209,9 @@ impl AsyncWaveSearch {
         }
 
         // Prediksi sisa energi setelah N langkah ke depan
-        // Jika energi saat ini masih sangat tinggi (misal > 20) dan kita sudah di depth >= 1
+        // Jika energi pragmatis saat ini masih sangat tinggi (misal > 20) dan kita sudah di depth >= 1
         // asumsikan mustahil mencapai 0.0 di sisa sisa depth.
-        let predicted_min_energy = energy * 0.9f32.powi((self.max_depth as i32) - (wave.depth as i32));
+        let predicted_min_energy = pragmatic_error * 0.9f32.powi((self.max_depth as i32) - (wave.depth as i32));
         if predicted_min_energy > 5.0 && wave.depth >= 2 {
             return; // Mustahil mencapai Ground State
         }
@@ -219,13 +260,15 @@ impl AsyncWaveSearch {
 
                 let s_clone = Arc::clone(&self);
                 let all_clone = all_possible_axioms.clone();
+                let initial_manifolds_clone = Arc::clone(&initial_manifolds);
 
                 branch_futures.push(async move {
-                    s_clone.propagate_wave(child_wave, all_clone).await;
+                    s_clone.propagate_wave(child_wave, initial_manifolds_clone, all_clone).await;
                 });
             }
 
-            // Await all branches concurrently
+            // Await all branches (dijalankan berurutan saat ini untuk keamanan memori,
+            // jika kita punya executor parallel sungguhan, kita bisa spawn ke threadpool)
             for f in branch_futures {
                 f.await;
             }
