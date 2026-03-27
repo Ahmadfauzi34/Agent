@@ -4,7 +4,6 @@ use ndarray::Array1;
 use crate::core::entity_manifold::EntityManifold;
 use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
-use crate::perception::hologram_decoder::HologramDecoder;
 use futures_lite::future;
 
 /// Struktur untuk satu Node di dalam Pencarian Gelombang
@@ -86,18 +85,21 @@ impl AsyncWaveSearch {
     }
 
     /// Evaluasi Free Energy dari sebuah state terhadap Ground Truth
-    fn evaluate_energy(&self, state_manifolds: &Arc<Vec<RwLock<EntityManifold>>>, decoder: &HologramDecoder) -> f32 {
+    fn evaluate_energy_streaming(&self, state_manifolds: &Arc<Vec<RwLock<EntityManifold>>>) -> f32 {
         let mut total_energy = 0.0;
         for (i, expected_grid) in self.expected_grids.iter().enumerate() {
             let width = expected_grid[0].len();
             let height = expected_grid.len();
 
-            // Render Hologram
+            // Baca Manifold
             let manifold_read = state_manifolds[i].read().unwrap();
-            let collapsed_grid = decoder.collapse_to_grid(&*manifold_read, width, height, 0.50);
 
-            // Hitung Error (Oracle)
-            total_energy += HamiltonianPruner::calculate_free_energy(&collapsed_grid, expected_grid);
+            // Hitung lebar dan tinggi makroskopis universe (jika dipengaruhi CROP)
+            let m_width = if manifold_read.global_width > 0.0 { manifold_read.global_width as usize } else { width };
+            let m_height = if manifold_read.global_height > 0.0 { manifold_read.global_height as usize } else { height };
+
+            // Hitung Error Streaming (Tanpa alokasi memory Grid)
+            total_energy += HamiltonianPruner::calculate_energy_streaming(&*manifold_read, expected_grid, m_width, m_height);
         }
         total_energy
     }
@@ -108,7 +110,6 @@ impl AsyncWaveSearch {
     pub fn propagate_wave(
         self: Arc<Self>,
         mut wave: WaveNode,
-        decoder: HologramDecoder,
         all_possible_axioms: Vec<WaveNode> // Digunakan untuk depth > 1 (Branching)
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> {
         Box::pin(async move {
@@ -145,8 +146,8 @@ impl AsyncWaveSearch {
             return;
         }
 
-        // 2. Evaluasi Quantum Oracle (Menghitung Free Energy)
-        let energy = self.evaluate_energy(&wave.state_manifolds, &decoder);
+        // 2. Evaluasi Quantum Oracle (Menghitung Free Energy secara Streaming/Zero-Alloc)
+        let energy = self.evaluate_energy_streaming(&wave.state_manifolds);
 
         // 3. The Quantum Eraser (Pruning)
         // Semakin besar energy (kesalahan), semakin kecil probability.
@@ -217,11 +218,10 @@ impl AsyncWaveSearch {
                 child_wave.physics_tier = next_axiom.physics_tier;
 
                 let s_clone = Arc::clone(&self);
-                let d_clone = HologramDecoder::new();
                 let all_clone = all_possible_axioms.clone();
 
                 branch_futures.push(async move {
-                    s_clone.propagate_wave(child_wave, d_clone, all_clone).await;
+                    s_clone.propagate_wave(child_wave, all_clone).await;
                 });
             }
 

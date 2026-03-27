@@ -1,4 +1,5 @@
 use crate::core::fhrr::FHRR;
+use crate::core::entity_manifold::EntityManifold;
 use ndarray::Array1;
 
 pub struct Hypothesis {
@@ -97,6 +98,59 @@ impl HamiltonianPruner {
             for x in 0..width {
                 if actual[y][x] != expected[y][x] {
                     energy += 1.0;
+                }
+            }
+        }
+
+        energy
+    }
+
+    /// Menghitung Energy/Error murni tanpa pernah membuat grid intermediat (Zero-Allocation).
+    /// Menggunakan sistem sparse `covered` array di stack atau buffer re-use lokal.
+    pub fn calculate_energy_streaming(manifold: &EntityManifold, expected: &[Vec<i32>], m_width: usize, m_height: usize) -> f32 {
+        let mut energy = 0.0;
+        let expected_height = expected.len();
+        let expected_width = if expected_height > 0 { expected[0].len() } else { 0 };
+
+        // Hukum Pengecualian Pruner: Jika dimensi tidak cocok secara makroskopis,
+        // kita tambahkan pinalti berat
+        if m_width != expected_width || m_height != expected_height {
+            energy += 9999.0;
+            return energy;
+        }
+
+        // Flat array untuk menandai piksel mana saja di universe yang sudah tertutupi
+        let mut covered = vec![false; expected_width * expected_height];
+
+        // 1. Evaluasi Partikel di Universe terhadap Ground Truth
+        for e in 0..manifold.active_count {
+            if manifold.masses[e] == 0.0 { continue; }
+
+            let cx = manifold.centers_x[e].round() as isize;
+            let cy = manifold.centers_y[e].round() as isize;
+            let token = manifold.tokens[e];
+
+            if cx >= 0 && cx < expected_width as isize && cy >= 0 && cy < expected_height as isize {
+                let idx = (cy as usize) * expected_width + (cx as usize);
+                let expected_token = expected[cy as usize][cx as usize];
+
+                if expected_token != token {
+                    energy += 1.0; // Ada benda tapi warnanya beda (Mismatch)
+                }
+                covered[idx] = true;
+            } else {
+                energy += 1.0; // Ada partikel keluar angkasa (Luar dimensi)
+            }
+        }
+
+        // 2. Evaluasi Sisa Ruang Vakum (Apakah ada ruang yang seharusnya berisi objek tapi kita tidak merendernya?)
+        for y in 0..expected_height {
+            for x in 0..expected_width {
+                let idx = y * expected_width + x;
+                // Jika posisi ini tidak ter-cover oleh partikel universe KITA,
+                // tapi expected-nya BUKAN 0 (artinya seharusnya ada benda di sini!)
+                if !covered[idx] && expected[y][x] != 0 {
+                    energy += 1.0; // Pinalti karena hilangnya sebuah objek / partikel
                 }
             }
         }

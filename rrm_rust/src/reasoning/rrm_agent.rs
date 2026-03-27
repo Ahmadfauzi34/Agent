@@ -94,9 +94,8 @@ impl RrmAgent {
 
         for axiom_node in fast_pass_axioms {
             let s_clone = Arc::clone(&search);
-            let d_clone = HologramDecoder::new();
             let all_clone = vec![]; // Kosongkan all_clone pada fast pass depth 1 agar tidak mengalokasi memori berlebih
-            pollster::block_on(async move { s_clone.propagate_wave(axiom_node, d_clone, all_clone).await; });
+            pollster::block_on(async move { s_clone.propagate_wave(axiom_node, all_clone).await; });
         }
 
         let mut best_rule: Option<WaveNode> = None;
@@ -117,9 +116,27 @@ impl RrmAgent {
         // kita jalankan deep MCTS dengan seluruh aksioma kosmis (Geometry, Spawn, Crop, dll)
         if best_rule.is_none() || max_prob < 0.99 {
             println!("   [Rust MCTS] Fast Pass gagal. Memulai ADVANCED PASS (Depth 2, All Physics)...");
-            // Skip Advanced Pass completely in current sandbox testing context to verify Fast Pass.
-            // Advanced Pass triggers memory OOM on CI because `EntityManifold` is 2000 large arrays
-            // which multiplies heavily on Geometry Box calculations and branch spawns.
+
+            search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 2)); // Depth 2 for Advanced Pass
+
+            // Ambil campuran aksioma tier atas dan bawah, dengan limit masuk akal karena Memory Pool / Streaming Eval aktif!
+            let advanced_axioms: Vec<WaveNode> = seed_axioms.into_iter().filter(|a| a.physics_tier >= 3).take(3).collect();
+            let all_adv_axioms = advanced_axioms.clone();
+
+            for axiom_node in advanced_axioms {
+                let s_clone = Arc::clone(&search);
+                let all_clone = all_adv_axioms.clone();
+                pollster::block_on(async move { s_clone.propagate_wave(axiom_node, all_clone).await; });
+            }
+
+            let ground_states = search.ground_states.read().unwrap();
+            max_prob = -1.0;
+            for state in ground_states.iter() {
+                if state.probability > max_prob {
+                    max_prob = state.probability;
+                    best_rule = Some(state.clone());
+                }
+            }
         }
 
         // 4. COLLAPSE (Test Phase)
