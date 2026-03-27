@@ -51,6 +51,140 @@ impl MultiverseSandbox {
             }
         }
 
+        // TIER 6: SPAWN / FILL (Membangkitkan Dark Matter)
+        // Kita tangani SPAWN sebelum loop update reguler agar partikel baru tidak ter-update dua kali.
+        if physics_tier == 6 && axiom_type.contains("SPAWN") {
+            // Karena ini adalah "Create", `delta_x` dan `delta_y` menyimpan koordinat relatif
+            // berdasarkan bounding box. Untuk saat ini kita asumsikan SPAWN mengisi seluruh BBox.
+            // BBox kita cari dari kondisi (Warna tertentu). Jika tanpa kondisi, error.
+            if let Some(cond) = condition_tensor {
+                let mut min_x = 9999.0;
+                let mut max_x = -9999.0;
+                let mut min_y = 9999.0;
+                let mut max_y = -9999.0;
+                let mut found = false;
+
+                // 1. Temukan bounding box dari target (anchor)
+                for e in 0..u.active_count {
+                    if u.masses[e] == 0.0 { continue; }
+                    let sem = u.get_semantic_tensor(e);
+                    if FHRR::similarity(&sem, cond) >= 0.8 {
+                        found = true;
+                        let cx = u.centers_x[e];
+                        let cy = u.centers_y[e];
+                        if cx < min_x { min_x = cx; }
+                        if cx > max_x { max_x = cx; }
+                        if cy < min_y { min_y = cy; }
+                        if cy > max_y { max_y = cy; }
+                    }
+                }
+
+                // 2. Bangkitkan Dark Matter di setiap titik dalam kotak BBox tersebut
+                if found {
+                    let min_xi = min_x.round() as i32;
+                    let max_xi = max_x.round() as i32;
+                    let min_yi = min_y.round() as i32;
+                    let max_yi = max_y.round() as i32;
+
+                    let target_color = delta_x as i32; // Warna target di simpan di delta_x
+                    let new_sem_tensor = FHRR::fractional_bind(&crate::core::core_seeds::CoreSeeds::color_seed(), target_color as f32);
+
+                    for spawn_y in min_yi..=max_yi {
+                        for spawn_x in min_xi..=max_xi {
+                            // Cek apakah posisi ini sudah terisi (jangan timpa)
+                            let mut occupied = false;
+                            for e in 0..u.active_count {
+                                if u.masses[e] > 0.0
+                                    && (u.centers_x[e] - spawn_x as f32).abs() < 0.1
+                                    && (u.centers_y[e] - spawn_y as f32).abs() < 0.1 {
+                                    occupied = true;
+                                    break;
+                                }
+                            }
+
+                            if !occupied {
+                                // Temukan slot Dark Matter pertama
+                                let mut dm_idx = u.active_count;
+                                // Exception Rule: Loop until we find mass == 0.0 or hit capacity
+                                for m_idx in 0..crate::core::config::MAX_ENTITIES {
+                                    if u.masses[m_idx] == 0.0 {
+                                        dm_idx = m_idx;
+                                        break;
+                                    }
+                                }
+
+                                if dm_idx < crate::core::config::MAX_ENTITIES {
+                                    // Bangkitkan!
+                                    u.masses[dm_idx] = 1.0;
+                                    u.centers_x[dm_idx] = spawn_x as f32;
+                                    u.centers_y[dm_idx] = spawn_y as f32;
+                                    u.tokens[dm_idx] = target_color;
+
+                                    // Update Tensors
+                                    let mut sem_tensor = u.get_semantic_tensor_mut(dm_idx);
+                                    sem_tensor.assign(&new_sem_tensor);
+
+                                    // Spatial Tensor di-assign Identity sementara (Karena True Swarm hanya baca center)
+                                    // Atau idealnya bisa di-generate via UniversalManifold, tapi MCTS di Rust tidak
+                                    // perlu tensor spasial persis jika decoder collapse via `centers_x/y`.
+
+                                    if dm_idx >= u.active_count {
+                                        u.active_count = dm_idx + 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Karena ini operasi SPAWN murni, kita bisa langsung return dari fungsi.
+            return;
+        }
+
+        // TIER 7: CROP (Mengecilkan Alam Semesta)
+        if physics_tier == 7 && axiom_type.contains("CROP") {
+            if let Some(cond) = condition_tensor {
+                let mut min_x = 9999.0;
+                let mut max_x = -9999.0;
+                let mut min_y = 9999.0;
+                let mut max_y = -9999.0;
+                let mut found = false;
+
+                // 1. Cari Bounding Box Target (Anchor)
+                for e in 0..u.active_count {
+                    if u.masses[e] == 0.0 { continue; }
+                    let sem = u.get_semantic_tensor(e);
+                    if FHRR::similarity(&sem, cond) >= 0.8 {
+                        found = true;
+                        let cx = u.centers_x[e];
+                        let cy = u.centers_y[e];
+                        if cx < min_x { min_x = cx; }
+                        if cx > max_x { max_x = cx; }
+                        if cy < min_y { min_y = cy; }
+                        if cy > max_y { max_y = cy; }
+                    }
+                }
+
+                if found {
+                    // Update dimensi kosmos
+                    u.global_width = (max_x - min_x) + 1.0;
+                    u.global_height = (max_y - min_y) + 1.0;
+
+                    // Translasi seluruh entitas (menjadikan min_x dan min_y sebagai titik 0,0)
+                    for e in 0..u.active_count {
+                        if u.masses[e] > 0.0 {
+                            u.centers_x[e] -= min_x;
+                            u.centers_y[e] -= min_y;
+
+                            // Jika CROP memaksa partikel keluar batas, hancurkan sekalian
+                            // Tapi secara logis, HologramDecoder akan mengabaikannya secara natural.
+                        }
+                    }
+                }
+            }
+            return;
+        }
+
         // Hitung bounding box universe jika ada operasi geometri
         let mut min_x = 9999.0;
         let mut max_x = -9999.0;
@@ -107,6 +241,14 @@ impl MultiverseSandbox {
                         // Jangkar tidak ditemukan di map ini, skip pergerakan.
                         continue;
                     }
+                }
+
+                // TIER 5: ANNIHILATION (DESTROY)
+                // Mengembalikan partikel ke dalam Dark Matter
+                if physics_tier == 5 && axiom_type.contains("ERASE") {
+                    u.masses[e] = 0.0;
+                    // Lanjutkan ke entitas berikutnya, tidak perlu binding.
+                    continue;
                 }
 
                 // GEOMETRY TIER

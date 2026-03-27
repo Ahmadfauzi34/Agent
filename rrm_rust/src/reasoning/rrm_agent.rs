@@ -84,12 +84,10 @@ impl RrmAgent {
         }
 
         // 3. EVOLVE (Asynchronous Wave Search)
-        let search = Arc::new(AsyncWaveSearch::new(expected_grids, 2)); // Multi-step depth 2
+        let search = Arc::new(AsyncWaveSearch::new(expected_grids, 1)); // Back to depth 1 just for checking performance limits
 
-        // LIMIT INITIAL AXIOMS: With futures-lite, we can afford slightly more branching.
-        // Even with `pollster`, taking 20 axioms across all training states means OOM on massive depth 2 fan-out.
-        // Let's cap at 5 again, but allow deeper exploration.
-        let limited_axioms: Vec<WaveNode> = seed_axioms.into_iter().take(5).collect();
+        // LIMIT INITIAL AXIOMS
+        let limited_axioms: Vec<WaveNode> = seed_axioms.into_iter().take(2).collect();
 
         let all_axioms = limited_axioms.clone();
         let mut top_level_futures = Vec::new();
