@@ -11,18 +11,28 @@ const MAX_LOG_LINES = 5000; // Mencegah memory leak dari unlimited array push
 export class PDRLogger {
     static level: LogLevel = LogLevel.INFO;
     static listeners: ((msg: string) => void)[] = [];
-    static buffer: string[] = [];
+    static buffer: string[] = new Array(MAX_LOG_LINES);
+    static bufferIndex: number = 0;
+    static bufferCount: number = 0;
 
     static setLevel(level: LogLevel) {
         this.level = level;
     }
 
     static clearBuffer() {
-        this.buffer = [];
+        this.bufferIndex = 0;
+        this.bufferCount = 0;
     }
 
     static getBuffer(): string {
-        return this.buffer.join('\n');
+        // Gabungkan secara urut dari yang paling lama hingga terbaru
+        if (this.bufferCount < MAX_LOG_LINES) {
+            return this.buffer.slice(0, this.bufferCount).join('\n');
+        } else {
+            const firstPart = this.buffer.slice(this.bufferIndex);
+            const secondPart = this.buffer.slice(0, this.bufferIndex);
+            return firstPart.concat(secondPart).join('\n');
+        }
     }
 
     static addListener(listener: (msg: string) => void) {
@@ -34,11 +44,13 @@ export class PDRLogger {
     }
 
     private static notify(msg: string) {
-        // Bounded Array (GC friendly)
-        if (this.buffer.length >= MAX_LOG_LINES) {
-            this.buffer.shift(); // Buang yang paling lama
+        // Implementasi Circular Buffer O(1) (Mencegah shift() array O(N))
+        this.buffer[this.bufferIndex] = msg;
+        this.bufferIndex = (this.bufferIndex + 1) % MAX_LOG_LINES;
+
+        if (this.bufferCount < MAX_LOG_LINES) {
+            this.bufferCount++;
         }
-        this.buffer.push(msg);
 
         for (let i = 0; i < this.listeners.length; i++) {
             this.listeners[i]!(msg);

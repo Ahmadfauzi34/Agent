@@ -4,7 +4,7 @@ use ndarray::Array1;
 use crate::core::entity_manifold::EntityManifold;
 use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
-use crate::perception::hologram_decoder::HologramDecoder;
+use crate::shared::visualizer::{Visualizer, TransparencyLevel, MctsNodeInfo};
 use futures_lite::future;
 
 /// Struktur untuk satu Node di dalam Pencarian Gelombang
@@ -19,7 +19,9 @@ pub struct WaveNode {
     pub physics_tier: u8,
 
     // Status Sandbox yang terikat pada gelombang ini (Fisika saat ini)
-    pub state_manifolds: Vec<EntityManifold>,
+    // Menggunakan Copy-on-Write (CoW) untuk menghindari clone memori 39MB yang berlebihan!
+    pub state_manifolds: Arc<Vec<RwLock<EntityManifold>>>,
+    pub state_modified: bool,
 
     // Amplitudo kelangsungan hidup (1.0 = sempurna, 0.0 = hancur/pruned)
     pub probability: f32,
@@ -35,7 +37,7 @@ impl WaveNode {
         delta_x: f32,
         delta_y: f32,
         physics_tier: u8,
-        state_manifolds: Vec<EntityManifold>,
+        initial_manifolds: Arc<Vec<RwLock<EntityManifold>>>,
     ) -> Self {
         Self {
             axiom_type: vec![axiom_type],
@@ -45,9 +47,22 @@ impl WaveNode {
             delta_x,
             delta_y,
             physics_tier,
-            state_manifolds,
+            state_manifolds: initial_manifolds,
+            state_modified: false,
             probability: 1.0,
             depth: 1,
+        }
+    }
+
+    /// Lazy clone — hanya clone memory berat jika benar-benar akan dimodifikasi di Sandbox
+    pub fn ensure_unique_state(&mut self) {
+        if !self.state_modified {
+            let cloned: Vec<RwLock<EntityManifold>> = self.state_manifolds
+                .iter()
+                .map(|m| RwLock::new(m.read().unwrap().clone()))
+                .collect();
+            self.state_manifolds = Arc::new(cloned);
+            self.state_modified = true;
         }
     }
 }
@@ -70,20 +85,60 @@ impl AsyncWaveSearch {
         }
     }
 
-    /// Evaluasi Free Energy dari sebuah state terhadap Ground Truth
-    fn evaluate_energy(&self, state_manifolds: &Vec<EntityManifold>, decoder: &HologramDecoder) -> f32 {
-        let mut total_energy = 0.0;
+    /// Evaluasi EXPECTED Free Energy: (Pragmatic Error, Epistemic Value)
+    /// Pragmatic Error: Seberapa jauh dari Ground Truth (Makin kecil makin baik)
+    /// Epistemic Value: Seberapa banyak information gain/perubahan state yang relevan (Makin besar makin baik)
+    fn evaluate_efe_streaming(
+        &self,
+        state_manifolds: &Arc<Vec<RwLock<EntityManifold>>>,
+        initial_manifolds: &Arc<Vec<RwLock<EntityManifold>>>
+    ) -> (f32, f32) {
+        let mut total_pragmatic_error = 0.0;
+        let mut total_epistemic_value = 0.0;
+
         for (i, expected_grid) in self.expected_grids.iter().enumerate() {
             let width = expected_grid[0].len();
             let height = expected_grid.len();
 
-            // Render Hologram
-            let collapsed_grid = decoder.collapse_to_grid(&state_manifolds[i], width, height, 0.50);
+            let manifold_read = state_manifolds[i].read().unwrap();
+            let initial_read = initial_manifolds[i].read().unwrap();
 
-            // Hitung Error (Oracle)
-            total_energy += HamiltonianPruner::calculate_free_energy(&collapsed_grid, expected_grid);
+            // 1. Pragmatic Error (Seberapa beda dengan Ground Truth)
+            let m_width = if manifold_read.global_width > 0.0 { manifold_read.global_width as usize } else { width };
+            let m_height = if manifold_read.global_height > 0.0 { manifold_read.global_height as usize } else { height };
+            total_pragmatic_error += HamiltonianPruner::calculate_energy_streaming(&*manifold_read, expected_grid, m_width, m_height);
+
+            // 2. Epistemic Value (Information Gain / Curiosity)
+            // Seberapa banyak partikel yang berubah state (posisi/warna/eksistensi) dibandingkan state awal?
+            let mut changed_particles: f32 = 0.0;
+            for e in 0..crate::core::config::MAX_ENTITIES {
+                let old_mass = initial_read.masses[e];
+                let new_mass = manifold_read.masses[e];
+
+                // Jika eksistensi berubah (Spawn/Destroy)
+                if old_mass != new_mass {
+                    changed_particles += 1.0;
+                    continue;
+                }
+
+                // Jika posisi / warna berubah (Translation/Geometry/Color Shift)
+                if new_mass > 0.0 {
+                    if (initial_read.centers_x[e] - manifold_read.centers_x[e]).abs() > 0.1 ||
+                       (initial_read.centers_y[e] - manifold_read.centers_y[e]).abs() > 0.1 ||
+                       initial_read.tokens[e] != manifold_read.tokens[e] {
+                        changed_particles += 1.0;
+                    }
+                }
+            }
+
+            // Epistemic value didiskon logaritmik agar tidak overshadow pragmatic error
+            // Log10 dari perubahan partikel memberi reward pelan tapi pasti untuk eksplorasi
+            if changed_particles > 0.0 {
+                total_epistemic_value += changed_particles.log10();
+            }
         }
-        total_energy
+
+        (total_pragmatic_error, total_epistemic_value)
     }
 
     /// Menjalankan perambatan gelombang secara Asinkron
@@ -92,17 +147,24 @@ impl AsyncWaveSearch {
     pub fn propagate_wave(
         self: Arc<Self>,
         mut wave: WaveNode,
-        decoder: HologramDecoder,
+        initial_manifolds: Arc<Vec<RwLock<EntityManifold>>>, // Referensi ke state awal untuk menghitung Epistemic Value
         all_possible_axioms: Vec<WaveNode> // Digunakan untuk depth > 1 (Branching)
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> {
         Box::pin(async move {
+
+        // COPY-ON-WRITE: Hanya clone array raksasa ini ke memory JIKA kita menerapkan fisika!
+        // Di node pertama yang memodifikasi, array akan diclone. Child akan otomatis mewarisi pointer.
+        wave.ensure_unique_state();
+
         // 1. Terapkan Aksioma (Fisika) ke seluruh state dalam gelombang ini
-        for manifold in &mut wave.state_manifolds {
+        for manifold_lock in wave.state_manifolds.iter() {
+            let mut manifold = manifold_lock.write().unwrap();
+
             // Kita gunakan aksioma terakhir yang di-push ke dalam history path
             let current_axiom_str = wave.axiom_type.last().map(|s| s.as_str()).unwrap_or("IDENTITY_STATIC");
 
             MultiverseSandbox::apply_axiom(
-                manifold,
+                &mut *manifold,
                 &wave.condition_tensor,
                 &wave.tensor_spatial,
                 &wave.tensor_semantic,
@@ -122,29 +184,81 @@ impl AsyncWaveSearch {
             return;
         }
 
-        // 2. Evaluasi Quantum Oracle (Menghitung Free Energy)
-        let energy = self.evaluate_energy(&wave.state_manifolds, &decoder);
+        // 2. Evaluasi EXPECTED Free Energy (Active Inference: Pragmatic - Epistemic)
+        let (pragmatic_error, epistemic_value) = self.evaluate_efe_streaming(&wave.state_manifolds, &initial_manifolds);
 
-        // 3. The Quantum Eraser (Pruning)
-        // Semakin besar energy (kesalahan), semakin kecil probability.
-        // Jika energy 0, probability tetap 1.0 (Sempurna).
-        let interference = if energy == 0.0 { 1.0 } else { 1.0 / (energy + 1.0) };
+        // 3. The Quantum Eraser (Pruning) dengan Active Inference G(π)
+        // Expected Free Energy G(π) = Pragmatic Error - Epistemic Bonus
+        let expected_free_energy = pragmatic_error - epistemic_value;
+        let g_bounded = expected_free_energy.max(0.0); // G tidak boleh negatif
+
+        // Semakin besar G(π), semakin kecil probability.
+        // Jika pragmatic_error 0, probability otomatis 1.0 (Sempurna).
+        let interference = if pragmatic_error == 0.0 { 1.0 } else { 1.0 / (g_bounded + 1.0) };
         wave.probability *= interference;
 
-        if wave.probability >= 0.99 {
-            // Ground State Ditemukan! Simpan ke Results
+        let is_ground_state = pragmatic_error == 0.0;
+        let is_pruned = wave.probability < 0.05;
+
+        // VISUALIZER DIAGNOSTIC
+        // Tampilkan pohon MCTS dengan Visualizer v2.0
+        if wave.probability >= 0.0 {
+            let mcts_node = MctsNodeInfo {
+                id: 0, // Placeholder ID
+                depth: wave.depth,
+                probability: wave.probability,
+                pragmatic_error,
+                epistemic_value,
+                complexity: 0.0, // Belum ada penalty complexity
+                threshold: 0.05,
+                is_pruned,
+                is_ground_state,
+                is_expanding: !is_pruned && !is_ground_state && wave.depth < self.max_depth,
+                path: wave.axiom_type.clone(),
+                axiom_type: wave.axiom_type.last().cloned().unwrap_or_else(|| "UNKNOWN".to_string()),
+            };
+
+            // Beri mock siblings list agar visualizer menampilkan prob bar
+            let mut mock_siblings = vec![mcts_node.clone()];
+            mock_siblings.push(MctsNodeInfo { probability: 0.8, ..mcts_node.clone() });
+
+            Visualizer::print_mcts_transparent(&mcts_node, &mock_siblings, TransparencyLevel::Standard);
+
+            // Cetak Barcode & Memory Map untuk contoh universe pertama di node ini
+            let debug_manifold = wave.state_manifolds[0].read().unwrap();
+            Visualizer::print_particle_memory_map(&*debug_manifold);
+        }
+
+        if is_ground_state {
+            // Ground State Ditemukan! (Zero pragmatic error) Simpan ke Results
             self.ground_states.write().unwrap().push(wave.clone());
+
+            println!("\n🌟 === GROUND STATE DITEMUKAN (Zero Error) === 🌟");
+            let debug_manifold = wave.state_manifolds[0].read().unwrap();
+            Visualizer::print_tensor_quantum("Semantic T[0]", &debug_manifold.get_semantic_tensor(0), TransparencyLevel::Standard, None);
+            Visualizer::print_tensor_quantum("Spatial T[0]", &debug_manifold.get_spatial_tensor(0), TransparencyLevel::Standard, None);
+            println!("🌟 ===========================================\n");
+
             return; // Gelombang selesai dengan sukses
         }
 
-        // Jika probabilitas masih cukup tinggi (Threshold Pruning)
-        // Kita perketat threshold pruning untuk mencegah ledakan cabang!
-        // Hanya cabang dengan error (Free Energy) yang sangat kecil
-        // prob > 0.1 berarti energy < 9.0
-        // Mari kita izinkan prob > 0.05 (energy < 19.0)
+        // ENERGY PREDICTION PRUNING
+        // Hard prune branch yang probabilitasnya terlalu kecil untuk selamat
+        if wave.probability < 0.05 {
+            return;
+        }
+
+        // Prediksi sisa energi setelah N langkah ke depan
+        // Jika energi pragmatis saat ini masih sangat tinggi (misal > 20) dan kita sudah di depth >= 1
+        // asumsikan mustahil mencapai 0.0 di sisa sisa depth.
+        let predicted_min_energy = pragmatic_error * 0.9f32.powi((self.max_depth as i32) - (wave.depth as i32));
+        if predicted_min_energy > 5.0 && wave.depth >= 2 {
+            return; // Mustahil mencapai Ground State
+        }
+
         // UPDATE: With true async futures-lite, we can afford slightly wider branching
         // without instantly OOMing, but we still want to prune bad paths.
-        // TIGHTENED due to Geometry/Spawn/Crop taking massive memory on depth=2
+        // Let's allow branching if probability > 0.1 and it passed the prediction pruning.
         if wave.probability > 0.1 && wave.depth < self.max_depth {
             let mut branch_futures = Vec::new();
             let mut branch_count = 0;
@@ -167,6 +281,8 @@ impl AsyncWaveSearch {
                 }
 
                 let mut child_wave = wave.clone();
+                // RESET CoW Flag agar child memaksa clone sebelum memodifikasi `state_manifolds` dari parent!
+                child_wave.state_modified = false;
 
                 // Track Path
                 child_wave.axiom_type.push(next_axiom.axiom_type[0].clone());
@@ -183,15 +299,16 @@ impl AsyncWaveSearch {
                 child_wave.physics_tier = next_axiom.physics_tier;
 
                 let s_clone = Arc::clone(&self);
-                let d_clone = HologramDecoder::new();
                 let all_clone = all_possible_axioms.clone();
+                let initial_manifolds_clone = Arc::clone(&initial_manifolds);
 
                 branch_futures.push(async move {
-                    s_clone.propagate_wave(child_wave, d_clone, all_clone).await;
+                    s_clone.propagate_wave(child_wave, initial_manifolds_clone, all_clone).await;
                 });
             }
 
-            // Await all branches concurrently
+            // Await all branches (dijalankan berurutan saat ini untuk keamanan memori,
+            // jika kita punya executor parallel sungguhan, kita bisa spawn ke threadpool)
             for f in branch_futures {
                 f.await;
             }
