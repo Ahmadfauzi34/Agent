@@ -3,6 +3,7 @@ use crate::perception::universal_manifold::UniversalManifold;
 use crate::perception::entity_segmenter::EntitySegmenter;
 use crate::perception::hologram_decoder::HologramDecoder;
 use crate::reasoning::topological_aligner::TopologicalAligner;
+use crate::reasoning::top_down_axiomator::TopDownAxiomator;
 use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
 use crate::reasoning::quantum_search::{AsyncWaveSearch, WaveNode};
@@ -62,7 +63,13 @@ impl RrmAgent {
         let expected_grids: Vec<Vec<Vec<i32>>> = train_out.clone();
 
         if let Some((man_in, man_out)) = train_states.iter().next() {
-            let matches = TopologicalAligner::align(man_in, man_out);
+            // Kombinasikan tebakan cerdas dari HGM (Top-Down) dengan tebakan Partikel dari Hebbian Voting (Bottom-Up)
+            let mut matches = TopDownAxiomator::generate_axioms(man_in, man_out);
+            matches.extend(TopologicalAligner::align(man_in, man_out));
+
+            // Prioritaskan berdasarkan skor similarity (HGM biasanya >0.85)
+            matches.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap());
+
             for m in matches {
                 // Gunakan Arc<Vec<RwLock>> (Copy-on-Write) untuk menghindari memory bloat
                 let initial_manifolds: Arc<Vec<std::sync::RwLock<EntityManifold>>> = Arc::new(
