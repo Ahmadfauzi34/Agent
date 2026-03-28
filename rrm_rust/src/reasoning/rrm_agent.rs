@@ -76,7 +76,7 @@ impl RrmAgent {
                     train_states.iter().map(|s| std::sync::RwLock::new(s.0.clone())).collect()
                 );
 
-                seed_axioms.push(WaveNode::new(
+                let mut node = WaveNode::new(
                     m.axiom_type,
                     m.condition_tensor,
                     m.delta_spatial,
@@ -85,7 +85,9 @@ impl RrmAgent {
                     m.delta_y,
                     m.physics_tier,
                     initial_manifolds,
-                ));
+                );
+                node.probability = m.similarity; // Meminjam property probability untuk menyimpan skor prioritas/similarity saat inisiasi
+                seed_axioms.push(node);
             }
             // Kita cukup ambil hipotesis dari contoh pertama saja untuk mengefisienkan tree search
             // (Karena rule sejati harus bisa bekerja/beresonansi di semua training states anyway)
@@ -131,32 +133,52 @@ impl RrmAgent {
         if best_rule.is_none() || max_prob < 0.99 {
             println!("   [Rust MCTS] Fast Pass gagal. Memulai ADVANCED PASS (Depth 2, All Physics)...");
 
-            search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 2)); // Depth 2 for Advanced Pass
+            // Filter aksioma berdasarkan confidence. HGM menghasilkan similarity > 0.85, Hebbian biasa lebih rendah.
+            let high_confidence_axioms: Vec<WaveNode> = seed_axioms.into_iter()
+                .filter(|a| a.physics_tier >= 3 && a.probability >= 0.6) // Note: similarity is stored in probability temporarily during init
+                .collect();
 
-            // Ambil campuran aksioma tier atas dan bawah, dengan limit masuk akal karena Memory Pool / Streaming Eval aktif!
-            // Dengan Expected Free Energy (EFE), MCTS bisa menoleransi lebih banyak aksioma awal tanpa memangkas jalan buntu terlalu dini.
-            let advanced_axioms: Vec<WaveNode> = seed_axioms.into_iter().filter(|a| a.physics_tier >= 3).take(5).collect();
-            let all_adv_axioms = advanced_axioms.clone();
+            // Iterative Deepening: Beam Width 3 -> 5 -> 10
+            let depths = vec![2, 5, 10];
 
-            let initial_manifolds_adv = if let Some(first) = advanced_axioms.first() {
-                Arc::clone(&first.state_manifolds)
-            } else {
-                Arc::new(vec![])
-            };
+            for (attempt, &take_n) in depths.iter().enumerate() {
+                println!("   🔍 Search Attempt {}: Exploring top {} advanced axioms...", attempt + 1, take_n);
 
-            for axiom_node in advanced_axioms {
-                let s_clone = Arc::clone(&search);
-                let all_clone = all_adv_axioms.clone();
-                let init_clone = Arc::clone(&initial_manifolds_adv);
-                pollster::block_on(async move { s_clone.propagate_wave(axiom_node, init_clone, all_clone).await; });
-            }
+                search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 2)); // Depth 2 for Advanced Pass
 
-            let ground_states = search.ground_states.read().unwrap();
-            max_prob = -1.0;
-            for state in ground_states.iter() {
-                if state.probability > max_prob {
-                    max_prob = state.probability;
-                    best_rule = Some(state.clone());
+                let advanced_axioms: Vec<WaveNode> = high_confidence_axioms.iter().take(take_n).cloned().collect();
+                let all_adv_axioms = advanced_axioms.clone();
+
+                let initial_manifolds_adv = if let Some(first) = advanced_axioms.first() {
+                    Arc::clone(&first.state_manifolds)
+                } else {
+                    Arc::new(vec![])
+                };
+
+                for axiom_node in advanced_axioms {
+                    let s_clone = Arc::clone(&search);
+                    let all_clone = all_adv_axioms.clone();
+                    let init_clone = Arc::clone(&initial_manifolds_adv);
+                    pollster::block_on(async move { s_clone.propagate_wave(axiom_node, init_clone, all_clone).await; });
+                }
+
+                let ground_states = search.ground_states.read().unwrap();
+                max_prob = -1.0;
+                for state in ground_states.iter() {
+                    if state.probability > max_prob {
+                        max_prob = state.probability;
+                        best_rule = Some(state.clone());
+                    }
+                }
+
+                // Jika Ground State ditemukan (prob mendekati 1.0, error 0.0), break dari Iterative Deepening!
+                if max_prob >= 0.99 {
+                    break;
+                }
+
+                // Jika jumlah aksioma yang diambil sudah mencakup seluruh aksioma yang tersedia, stop
+                if take_n >= high_confidence_axioms.len() {
+                    break;
                 }
             }
         }
