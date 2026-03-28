@@ -1,6 +1,7 @@
 pub mod core;
 pub mod memory;
 pub mod reasoning;
+pub mod shared;
 pub mod perception;
 
 use std::fs;

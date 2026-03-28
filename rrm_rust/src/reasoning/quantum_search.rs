@@ -4,6 +4,7 @@ use ndarray::Array1;
 use crate::core::entity_manifold::EntityManifold;
 use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
+use crate::shared::visualizer::Visualizer;
 use futures_lite::future;
 
 /// Struktur untuk satu Node di dalam Pencarian Gelombang
@@ -196,9 +197,27 @@ impl AsyncWaveSearch {
         let interference = if pragmatic_error == 0.0 { 1.0 } else { 1.0 / (g_bounded + 1.0) };
         wave.probability *= interference;
 
+        // VISUALIZER DIAGNOSTIC
+        // Tampilkan pohon MCTS jika kita sedang meng-explore node yang signifikan (Prob > 0.05)
+        // Diubah ke prob > 0.00 agar selalu tercetak!
+        if wave.probability >= 0.0 {
+            Visualizer::print_mcts_branch(wave.depth, pragmatic_error, epistemic_value, wave.probability, &wave.axiom_type);
+
+            // Cetak Barcode & Memory Map untuk contoh universe pertama di node ini untuk melihat apa yang Sandbox lakukan
+            let debug_manifold = wave.state_manifolds[0].read().unwrap();
+            Visualizer::print_particle_memory_map(&*debug_manifold);
+        }
+
         if pragmatic_error == 0.0 {
             // Ground State Ditemukan! (Zero pragmatic error) Simpan ke Results
             self.ground_states.write().unwrap().push(wave.clone());
+
+            println!("\n🌟 === GROUND STATE DITEMUKAN (Zero Error) === 🌟");
+            let debug_manifold = wave.state_manifolds[0].read().unwrap();
+            Visualizer::print_tensor_barcode("Semantic T[0]", &debug_manifold.get_semantic_tensor(0));
+            Visualizer::print_tensor_barcode("Spatial T[0]", &debug_manifold.get_spatial_tensor(0));
+            println!("🌟 ===========================================\n");
+
             return; // Gelombang selesai dengan sukses
         }
 
