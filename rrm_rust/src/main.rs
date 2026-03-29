@@ -16,7 +16,7 @@ fn main() {
     let mut agent = RrmAgent::new();
 
     // Read JSON file
-    let path = "../training/025d127b.json"; // Using task that failed strict val in TS
+    let path = "../b0c4d837.json"; // Using task that failed strict val in TS
     let data = fs::read_to_string(path).expect("Failed to read JSON");
     let json: Value = serde_json::from_str(&data).expect("Invalid JSON");
 

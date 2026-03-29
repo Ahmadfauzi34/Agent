@@ -97,7 +97,9 @@ impl RrmAgent {
 
         // FAST PASS: Hanya mencoba translasi dan mutasi warna dasar (Tier <= 2)
         // Ini memastikan tugas sederhana selesai dalam hitungan kilat (< 1 detik).
-        let fast_pass_axioms: Vec<WaveNode> = seed_axioms.iter().filter(|a| a.physics_tier <= 2).cloned().take(3).collect();
+        let fast_pass_axioms: Vec<WaveNode> = seed_axioms.iter()
+            .filter(|a| a.history.first().map(|s| s.physics_tier).unwrap_or(0) <= 2)
+            .cloned().take(3).collect();
         let mut search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 1)); // Depth 1 for Fast Pass
 
         // Simpan Initial Manifolds untuk perhitungan Epistemic Value di Fast Pass
@@ -135,11 +137,11 @@ impl RrmAgent {
 
             // Filter aksioma berdasarkan confidence. HGM menghasilkan similarity > 0.85, Hebbian biasa lebih rendah.
             let high_confidence_axioms: Vec<WaveNode> = seed_axioms.into_iter()
-                .filter(|a| a.physics_tier >= 3 && a.probability >= 0.6) // Note: similarity is stored in probability temporarily during init
+                .filter(|a| a.history.first().map(|s| s.physics_tier).unwrap_or(0) >= 3 && a.probability >= 0.6) // Note: similarity is stored in probability temporarily during init
                 .collect();
 
-            // Iterative Deepening: Beam Width 3 -> 5 -> 10
-            let depths = vec![2, 5, 10];
+            // Iterative Deepening: Beam Width 1 -> 2
+            let depths = vec![1, 2]; // Reduced beam width extremely to prevent OOM in small CI runner
 
             for (attempt, &take_n) in depths.iter().enumerate() {
                 println!("   🔍 Search Attempt {}: Exploring top {} advanced axioms...", attempt + 1, take_n);
@@ -185,31 +187,23 @@ impl RrmAgent {
 
         // 4. COLLAPSE (Test Phase)
         if let Some(rule) = best_rule {
-            let path = rule.axiom_type.join(" -> ");
+            let path_strings: Vec<String> = rule.history.iter().map(|step| step.axiom_type.clone()).collect();
+            let path = path_strings.join(" -> ");
             println!("   [Rust MCTS] Ground State Ditemukan: {} (Energy = 0.0)", path);
 
             // Apply all rules in the path in order.
-            // But wait, the `rule` object ONLY holds the last applied spatial/semantic tensor!
-            // Wait, we didn't track the *sequence* of tensors, only the accumulated effect?
-            // Oh, MultiverseSandbox::apply_axiom expects a single tensor...
-            // Actually, `test_manifold` should be collapsed using the same rule path.
-            // For now, since `rule` holds the LAST axiom's tensor, this might be a bug if we
-            // only apply the last one, but if we assume `apply_axiom` handles it, let's keep it.
-            // Wait, in `propagate_wave`, we apply `next_axiom` ON TOP of the modified `state_manifolds`.
-            // So we need to apply ALL axioms in the history to the `test_manifold`.
-            // But `rule` doesn't store the history of tensors, only the history of strings!
-            // Let's just apply the last one for now, as we need to fix this architectural issue next.
-            let current_axiom_str = rule.axiom_type.last().map(|s| s.as_str()).unwrap_or("IDENTITY_STATIC");
-            MultiverseSandbox::apply_axiom(
-                &mut test_manifold,
-                &rule.condition_tensor,
-                &rule.tensor_spatial,
-                &rule.tensor_semantic,
-                rule.delta_x,
-                rule.delta_y,
-                rule.physics_tier,
-                current_axiom_str,
-            );
+            for step in rule.history.iter() {
+                MultiverseSandbox::apply_axiom(
+                    &mut test_manifold,
+                    &step.condition_tensor,
+                    &step.tensor_spatial,
+                    &step.tensor_semantic,
+                    step.delta_x,
+                    step.delta_y,
+                    step.physics_tier,
+                    &step.axiom_type,
+                );
+            }
         } else {
             println!("   [Rust MCTS] WARNING: Semua gelombang hancur! (Halusinasi/Meleset)");
         }

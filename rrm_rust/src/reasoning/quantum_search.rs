@@ -7,16 +7,22 @@ use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
 use crate::shared::visualizer::{Visualizer, TransparencyLevel, MctsNodeInfo};
 use futures_lite::future;
 
-/// Struktur untuk satu Node di dalam Pencarian Gelombang
 #[derive(Clone)]
-pub struct WaveNode {
-    pub axiom_type: Vec<String>, // Now tracks the path of axioms applied
+pub struct AxiomStep {
+    pub axiom_type: String,
     pub condition_tensor: Option<Array1<f32>>,
     pub tensor_spatial: Array1<f32>,
     pub tensor_semantic: Array1<f32>,
     pub delta_x: f32,
     pub delta_y: f32,
     pub physics_tier: u8,
+}
+
+/// Struktur untuk satu Node di dalam Pencarian Gelombang
+#[derive(Clone)]
+pub struct WaveNode {
+    // Tracks the sequence of axioms applied to reach this state
+    pub history: Vec<AxiomStep>,
 
     // Status Sandbox yang terikat pada gelombang ini (Fisika saat ini)
     // Menggunakan Copy-on-Write (CoW) untuk menghindari clone memori 39MB yang berlebihan!
@@ -39,14 +45,18 @@ impl WaveNode {
         physics_tier: u8,
         initial_manifolds: Arc<Vec<RwLock<EntityManifold>>>,
     ) -> Self {
-        Self {
-            axiom_type: vec![axiom_type],
+        let first_step = AxiomStep {
+            axiom_type,
             condition_tensor,
             tensor_spatial,
             tensor_semantic,
             delta_x,
             delta_y,
             physics_tier,
+        };
+
+        Self {
+            history: vec![first_step],
             state_manifolds: initial_manifolds,
             state_modified: false,
             probability: 1.0,
@@ -160,19 +170,19 @@ impl AsyncWaveSearch {
         for manifold_lock in wave.state_manifolds.iter() {
             let mut manifold = manifold_lock.write().unwrap();
 
-            // Kita gunakan aksioma terakhir yang di-push ke dalam history path
-            let current_axiom_str = wave.axiom_type.last().map(|s| s.as_str()).unwrap_or("IDENTITY_STATIC");
-
-            MultiverseSandbox::apply_axiom(
-                &mut *manifold,
-                &wave.condition_tensor,
-                &wave.tensor_spatial,
-                &wave.tensor_semantic,
-                wave.delta_x,
-                wave.delta_y,
-                wave.physics_tier,
-                current_axiom_str,
-            );
+            // Apply only the latest axiom step to this manifold
+            if let Some(latest_step) = wave.history.last() {
+                MultiverseSandbox::apply_axiom(
+                    &mut *manifold,
+                    &latest_step.condition_tensor,
+                    &latest_step.tensor_spatial,
+                    &latest_step.tensor_semantic,
+                    latest_step.delta_x,
+                    latest_step.delta_y,
+                    latest_step.physics_tier,
+                    &latest_step.axiom_type,
+                );
+            }
         }
 
         // Cooperative Yield: Beri kesempatan gelombang lain untuk dieksekusi oleh Executor
@@ -203,6 +213,9 @@ impl AsyncWaveSearch {
         // VISUALIZER DIAGNOSTIC
         // Tampilkan pohon MCTS dengan Visualizer v2.0
         if wave.probability >= 0.0 {
+            let path_strings: Vec<String> = wave.history.iter().map(|step| step.axiom_type.clone()).collect();
+            let last_axiom_str = wave.history.last().map(|s| s.axiom_type.clone()).unwrap_or_else(|| "UNKNOWN".to_string());
+
             let mcts_node = MctsNodeInfo {
                 id: 0, // Placeholder ID
                 depth: wave.depth,
@@ -214,8 +227,8 @@ impl AsyncWaveSearch {
                 is_pruned,
                 is_ground_state,
                 is_expanding: !is_pruned && !is_ground_state && wave.depth < self.max_depth,
-                path: wave.axiom_type.clone(),
-                axiom_type: wave.axiom_type.last().cloned().unwrap_or_else(|| "UNKNOWN".to_string()),
+                path: path_strings,
+                axiom_type: last_axiom_str,
             };
 
             // Beri mock siblings list agar visualizer menampilkan prob bar
@@ -264,8 +277,13 @@ impl AsyncWaveSearch {
             let mut branch_count = 0;
 
             for next_axiom in all_possible_axioms.iter() {
+                // Determine the current physics tier from the history
+                let current_tier = wave.history.last().map(|step| step.physics_tier).unwrap_or(0);
+                let current_axiom = wave.history.last().map(|step| step.axiom_type.as_str()).unwrap_or("");
+                let next_step = next_axiom.history[0].clone();
+
                 // Optimisasi: Jangan branch ke rule yang sama dua kali berurut
-                if wave.axiom_type.last() == next_axiom.axiom_type.last() {
+                if current_axiom == next_step.axiom_type.as_str() {
                     continue;
                 }
 
@@ -276,7 +294,13 @@ impl AsyncWaveSearch {
                 }
 
                 // Jangan branch ke operasi geometry / crop / spawn secara rekursif terus menerus untuk menghindari ledakan OOM ekstrim
-                if next_axiom.physics_tier >= 3 && wave.physics_tier >= 3 {
+                if next_step.physics_tier >= 3 && current_tier >= 3 {
+                    continue;
+                }
+
+                // FIX OOM: Further limit recursive branching for performance constraints.
+                // Do not branch on tier 3+ if we already have depth > 1 to avoid combinatorial explosion.
+                if next_step.physics_tier >= 3 && wave.depth >= 1 {
                     continue;
                 }
 
@@ -284,19 +308,9 @@ impl AsyncWaveSearch {
                 // RESET CoW Flag agar child memaksa clone sebelum memodifikasi `state_manifolds` dari parent!
                 child_wave.state_modified = false;
 
-                // Track Path
-                child_wave.axiom_type.push(next_axiom.axiom_type[0].clone());
+                // Track Path and state
+                child_wave.history.push(next_step);
                 child_wave.depth += 1;
-
-                // Pada depth > 1, fisika diakumulasi (berurut).
-                // Sandbox akan menerapkan `next_axiom` ke atas `state_manifolds` yang
-                // SUDAH diubah oleh axiom sebelumnya.
-                child_wave.condition_tensor = next_axiom.condition_tensor.clone();
-                child_wave.tensor_spatial = next_axiom.tensor_spatial.clone();
-                child_wave.tensor_semantic = next_axiom.tensor_semantic.clone();
-                child_wave.delta_x = next_axiom.delta_x;
-                child_wave.delta_y = next_axiom.delta_y;
-                child_wave.physics_tier = next_axiom.physics_tier;
 
                 let s_clone = Arc::clone(&self);
                 let all_clone = all_possible_axioms.clone();
