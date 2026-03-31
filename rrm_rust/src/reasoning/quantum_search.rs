@@ -4,6 +4,7 @@ use ndarray::Array1;
 use crate::core::entity_manifold::EntityManifold;
 use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
+use crate::reasoning::quantum_search_simd::SimdEnergyCalculator;
 use crate::shared::visualizer::{Visualizer, TransparencyLevel, MctsNodeInfo};
 use futures_lite::future;
 
@@ -106,36 +107,11 @@ impl AsyncWaveSearch {
             // 1. Pragmatic Error (Seberapa beda dengan Ground Truth)
             let m_width = if manifold_read.global_width > 0.0 { manifold_read.global_width as usize } else { width };
             let m_height = if manifold_read.global_height > 0.0 { manifold_read.global_height as usize } else { height };
-            total_pragmatic_error += HamiltonianPruner::calculate_energy_streaming(&*manifold_read, expected_grid, m_width, m_height);
+            total_pragmatic_error += SimdEnergyCalculator::calculate_pragmatic_streaming(&*manifold_read, expected_grid, m_width, m_height);
 
             // 2. Epistemic Value (Information Gain / Curiosity)
             // Seberapa banyak partikel yang berubah state (posisi/warna/eksistensi) dibandingkan state awal?
-            let mut changed_particles: f32 = 0.0;
-            for e in 0..crate::core::config::MAX_ENTITIES {
-                let old_mass = initial_read.masses[e];
-                let new_mass = manifold_read.masses[e];
-
-                // Jika eksistensi berubah (Spawn/Destroy)
-                if old_mass != new_mass {
-                    changed_particles += 1.0;
-                    continue;
-                }
-
-                // Jika posisi / warna berubah (Translation/Geometry/Color Shift)
-                if new_mass > 0.0 {
-                    if (initial_read.centers_x[e] - manifold_read.centers_x[e]).abs() > 0.1 ||
-                       (initial_read.centers_y[e] - manifold_read.centers_y[e]).abs() > 0.1 ||
-                       initial_read.tokens[e] != manifold_read.tokens[e] {
-                        changed_particles += 1.0;
-                    }
-                }
-            }
-
-            // Epistemic value didiskon logaritmik agar tidak overshadow pragmatic error
-            // Log10 dari perubahan partikel memberi reward pelan tapi pasti untuk eksplorasi
-            if changed_particles > 0.0 {
-                total_epistemic_value += changed_particles.log10();
-            }
+            total_epistemic_value += SimdEnergyCalculator::calculate_epistemic(&*manifold_read, &*initial_read);
         }
 
         (total_pragmatic_error, total_epistemic_value)

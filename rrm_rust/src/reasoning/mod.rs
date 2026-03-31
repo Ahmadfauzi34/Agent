@@ -5,3 +5,4 @@ pub mod rrm_agent;
 pub mod topological_aligner;
 pub mod quantum_search;
 pub mod top_down_axiomator;
+pub mod quantum_search_simd;
