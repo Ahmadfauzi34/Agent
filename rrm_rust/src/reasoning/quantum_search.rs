@@ -185,7 +185,19 @@ impl AsyncWaveSearch {
         }
 
         // 2. Evaluasi EXPECTED Free Energy (Active Inference: Pragmatic - Epistemic)
-        let (pragmatic_error, epistemic_value) = self.evaluate_efe_streaming(&wave.state_manifolds, &initial_manifolds);
+        let (mut pragmatic_error, epistemic_value) = self.evaluate_efe_streaming(&wave.state_manifolds, &initial_manifolds);
+
+        // Deferred Evaluation: Jika ini adalah task multi-part (misal translasi multi-color),
+        // jangan hancurkan branch hanya karena 1 part sudah digeser tapi part lain belum.
+        // Kita berikan toleransi (skip hard pragmatic error calculation) selama ada progress epistemic
+        // dan kita belum mencapai max depth.
+        let is_multi_part = wave.axiom_type.iter().filter(|a| !a.contains("IDENTITY")).count() > 0
+                            && all_possible_axioms.len() > 1;
+
+        if is_multi_part && wave.depth < self.max_depth && epistemic_value > 0.0 {
+            // Berikan discount untuk pragmatic error di intermediate steps untuk mendorong iterasi
+            pragmatic_error = (pragmatic_error * 0.5).max(0.0);
+        }
 
         // 3. The Quantum Eraser (Pruning) dengan Active Inference G(π)
         // Expected Free Energy G(π) = Pragmatic Error - Epistemic Bonus
@@ -195,10 +207,25 @@ impl AsyncWaveSearch {
         // Semakin besar G(π), semakin kecil probability.
         // Jika pragmatic_error 0, probability otomatis 1.0 (Sempurna).
         let interference = if pragmatic_error == 0.0 { 1.0 } else { 1.0 / (g_bounded + 1.0) };
-        wave.probability *= interference;
+
+        // Disable aggressive interference scaling, use it just for ranking
+        wave.probability = if pragmatic_error == 0.0 { 1.0 } else { 0.99 - (expected_free_energy / 1000.0).clamp(0.0, 0.95) };
 
         let is_ground_state = pragmatic_error == 0.0;
-        let is_pruned = wave.probability < 0.05;
+        let is_pruned = wave.probability < 0.01; // Hanya prune path yang sangat jelek
+
+        // Diagnostic Print
+        let m_width = wave.state_manifolds[0].read().unwrap().global_width;
+        let m_height = wave.state_manifolds[0].read().unwrap().global_height;
+        println!(
+            "[Depth {}] Axioms: {:?} | Pragmatic: {:.2} | Epistemic: {:.2} | Prob: {:.4} | Dim: {}x{}",
+            wave.depth,
+            wave.axiom_type,
+            pragmatic_error,
+            epistemic_value,
+            wave.probability,
+            m_width, m_height
+        );
 
         // VISUALIZER DIAGNOSTIC
         // Tampilkan pohon MCTS dengan Visualizer v2.0

@@ -115,8 +115,9 @@ impl HamiltonianPruner {
         // Hukum Pengecualian Pruner: Jika dimensi tidak cocok secara makroskopis,
         // kita tambahkan pinalti berat
         if m_width != expected_width || m_height != expected_height {
-            energy += 9999.0;
-            return energy;
+            // Gunakan adaptive penalty yang sangat kecil agar tidak instantly pruned
+            let dim_diff = (m_width as f32 - expected_width as f32).abs() + (m_height as f32 - expected_height as f32).abs();
+            energy += 10.0 * dim_diff;
         }
 
         // Flat array untuk menandai piksel mana saja di universe yang sudah tertutupi
