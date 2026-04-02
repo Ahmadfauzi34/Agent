@@ -135,16 +135,21 @@ impl RrmAgent {
 
             // Filter aksioma berdasarkan confidence. HGM menghasilkan similarity > 0.85, Hebbian biasa lebih rendah.
             let high_confidence_axioms: Vec<WaveNode> = seed_axioms.into_iter()
-                .filter(|a| a.physics_tier >= 3 && a.probability >= 0.6) // Note: similarity is stored in probability temporarily during init
+                .filter(|a| a.probability >= 0.3) // Allow sub-part heuristics (Tier 0) to enter advanced pass
                 .collect();
 
-            // Iterative Deepening: Beam Width 3 -> 5 -> 10
-            let depths = vec![2, 5, 10];
+            println!("   🧠 Advanced Pass Axioms Generated (Sim >= 0.3): {}", high_confidence_axioms.len());
+            for (i, ax) in high_confidence_axioms.iter().enumerate().take(30) {
+                println!("      [{}] {:?} | sim: {:.3} | tier: {} | dx: {} dy: {}", i, ax.axiom_type, ax.probability, ax.physics_tier, ax.delta_x, ax.delta_y);
+            }
+
+            // Iterative Deepening: Beam Width 3 -> 5 -> 10 -> 20
+            let depths = vec![2, 5, 10, 20];
 
             for (attempt, &take_n) in depths.iter().enumerate() {
                 println!("   🔍 Search Attempt {}: Exploring top {} advanced axioms...", attempt + 1, take_n);
 
-                search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 2)); // Depth 2 for Advanced Pass
+                search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 3)); // Depth 3 for Advanced Pass Multi-Color
 
                 let advanced_axioms: Vec<WaveNode> = high_confidence_axioms.iter().take(take_n).cloned().collect();
                 let all_adv_axioms = advanced_axioms.clone();
