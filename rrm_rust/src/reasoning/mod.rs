@@ -9,3 +9,9 @@ mod global_blackboard_test;
 pub mod quantum_search;
 pub mod top_down_axiomator;
 pub mod quantum_search_simd;
+pub mod entanglement_optimizer;
+pub mod wave_dynamics;
+pub mod swarm_dynamics;
+
+#[cfg(test)]
+mod swarm_wave_test;
