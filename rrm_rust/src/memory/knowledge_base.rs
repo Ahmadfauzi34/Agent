@@ -3,6 +3,7 @@ use ndarray::Array1;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
+use crate::memory::maintenance_engine::MaintenanceEngine;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SymbolicComponent {
@@ -35,6 +36,60 @@ impl KnowledgeBase {
         }
     }
 
+    /// Membaca semua memori yang ada, melakukan anneal_memory, dan menyimpan kembali hasilnya
+    pub fn anneal_all_memories(&self) {
+        let mut base_names = Vec::new();
+        let mut tensors = Vec::new();
+
+        if let Ok(entries) = fs::read_dir(&self.memory_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|s| s.to_str()) == Some("bin") {
+                    if let Some(base_name) = path.file_stem().and_then(|s| s.to_str()) {
+                        if let Ok(bytes) = fs::read(&path) {
+                            // Cek jika ukuran valid
+                            if bytes.len() == GLOBAL_DIMENSION * 4 {
+                                let mut tensor = Array1::zeros(GLOBAL_DIMENSION);
+                                for (i, chunk) in bytes.chunks(4).enumerate() {
+                                    if chunk.len() == 4 {
+                                        tensor[i] = f32::from_ne_bytes(chunk.try_into().unwrap());
+                                    }
+                                }
+                                tensors.push(tensor);
+                                base_names.push(base_name.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if tensors.is_empty() {
+            println!("[KnowledgeBase] Tidak ada axiom binari untuk di-anneal.");
+            return;
+        }
+
+        let engine = MaintenanceEngine::new();
+        let (avg_before, avg_after) = engine.anneal_memory(&mut tensors, 0.5, 30);
+
+        // Simpan kembali
+        for (i, base_name) in base_names.iter().enumerate() {
+            let bin_path = Path::new(&self.memory_dir).join(format!("{}.bin", base_name));
+            let bytes: Vec<u8> = tensors[i]
+                .iter()
+                .flat_map(|&f| f.to_ne_bytes())
+                .collect();
+            fs::write(bin_path, bytes).unwrap_or(());
+        }
+
+        println!(
+            "[KnowledgeBase] Selesai Annealing {} memori (Noise: {:.4} -> {:.4})",
+            tensors.len(),
+            avg_before,
+            avg_after
+        );
+    }
+
     pub fn save_axiom(
         &self,
         base_name: &str,
@@ -62,7 +117,7 @@ impl KnowledgeBase {
         // Save Bin (Float32Array bytes equivalent)
         let bytes: Vec<u8> = tensor
             .iter()
-            .flat_map(|&f| f.to_ne_bytes().to_vec())
+            .flat_map(|&f| f.to_ne_bytes())
             .collect();
         fs::write(bin_path, bytes).unwrap();
 
