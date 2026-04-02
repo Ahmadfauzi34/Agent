@@ -12,6 +12,10 @@ pub mod quantum_search_simd;
 pub mod entanglement_optimizer;
 pub mod wave_dynamics;
 pub mod swarm_dynamics;
+pub mod grover_diffusion_system;
 
 #[cfg(test)]
 mod swarm_wave_test;
+
+#[cfg(test)]
+mod grover_test;

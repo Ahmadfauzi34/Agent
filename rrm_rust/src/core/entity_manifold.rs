@@ -62,11 +62,11 @@ impl EntityManifold {
 
             spans_x: vec![0.0; MAX_ENTITIES],
             spans_y: vec![0.0; MAX_ENTITIES],
+            entanglement_status: vec![0.0; MAX_ENTITIES],
             centers_x: vec![0.0; MAX_ENTITIES],
             centers_y: vec![0.0; MAX_ENTITIES],
             momentums_x: vec![0.0; MAX_ENTITIES],
             momentums_y: vec![0.0; MAX_ENTITIES],
-            entanglement_status: vec![0.0; MAX_ENTITIES],
         }
     }
 
