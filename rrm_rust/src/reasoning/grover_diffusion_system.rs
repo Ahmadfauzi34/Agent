@@ -110,11 +110,14 @@ impl<'a> GroverDiffusionSystem<'a> {
                     "", // axiom_type
                 );
 
+                // Grover mengevaluasi kandidat secara independen dari iterasi depth MCTS,
+                // Kita asumsikan depth_ratio = 0.5 (Mid-level penalty) agar tetap cukup toleran
                 let energy = HamiltonianPruner::calculate_energy_streaming(
                     &temp_state,
                     &state.expected_grid,
                     temp_state.global_width as usize,
-                    temp_state.global_height as usize
+                    temp_state.global_height as usize,
+                    0.5
                 );
 
                 total_free_energy += energy;

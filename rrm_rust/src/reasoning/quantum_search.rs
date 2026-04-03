@@ -92,10 +92,14 @@ impl AsyncWaveSearch {
     fn evaluate_efe_streaming(
         &self,
         state_manifolds: &Arc<Vec<RwLock<EntityManifold>>>,
-        initial_manifolds: &Arc<Vec<RwLock<EntityManifold>>>
+        initial_manifolds: &Arc<Vec<RwLock<EntityManifold>>>,
+        current_depth: usize
     ) -> (f32, f32) {
         let mut total_pragmatic_error = 0.0;
         let mut total_epistemic_value = 0.0;
+
+        // Hitung rasio seberapa dekat gelombang ini ke batas akhirnya
+        let depth_ratio = (current_depth as f32) / (self.max_depth as f32).max(1.0);
 
         for (i, expected_grid) in self.expected_grids.iter().enumerate() {
             let width = expected_grid[0].len();
@@ -107,7 +111,7 @@ impl AsyncWaveSearch {
             // 1. Pragmatic Error (Seberapa beda dengan Ground Truth)
             let m_width = if manifold_read.global_width > 0.0 { manifold_read.global_width as usize } else { width };
             let m_height = if manifold_read.global_height > 0.0 { manifold_read.global_height as usize } else { height };
-            total_pragmatic_error += SimdEnergyCalculator::calculate_pragmatic_streaming(&*manifold_read, expected_grid, m_width, m_height);
+            total_pragmatic_error += SimdEnergyCalculator::calculate_pragmatic_streaming(&*manifold_read, expected_grid, m_width, m_height, depth_ratio);
 
             // 2. Epistemic Value (Information Gain / Curiosity)
             // Seberapa banyak partikel yang berubah state (posisi/warna/eksistensi) dibandingkan state awal?
@@ -161,7 +165,11 @@ impl AsyncWaveSearch {
         }
 
         // 2. Evaluasi EXPECTED Free Energy (Active Inference: Pragmatic - Epistemic)
-        let (mut pragmatic_error, epistemic_value) = self.evaluate_efe_streaming(&wave.state_manifolds, &initial_manifolds);
+        let (mut pragmatic_error, epistemic_value) = self.evaluate_efe_streaming(
+            &wave.state_manifolds,
+            &initial_manifolds,
+            wave.depth
+        );
 
         // Deferred Evaluation: Jika ini adalah task multi-part (misal translasi multi-color),
         // jangan hancurkan branch hanya karena 1 part sudah digeser tapi part lain belum.
