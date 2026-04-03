@@ -211,16 +211,21 @@ impl RrmAgent {
 
                 // MCTS Fallback/Verification pada kandidat terbaik Grover (menghindari OOM eksponensial MCTS murni)
                 if let Some(idx) = best_grover_idx {
-                    let top_axiom = high_confidence_axioms[idx].clone();
+                    let mut top_axiom = high_confidence_axioms[idx].clone();
+                    // Setup depth untuk MCTS yang berangkat dari top_axiom Grover
+                    top_axiom.depth = 1;
+
                     println!("   ⚡ Grover Diffusion Memilih Axiom Terkuat: {:?}", top_axiom.axiom_type);
 
-                    search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 3));
+                    search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 2)); // Buka batas Horizon: Depth 2
                     let s_clone = Arc::clone(&search);
 
-                    // Kita hanya kirimkan 1 aksioma yang diperkuat oleh Grover (bukan puluhan),
-                    // secara drastis memotong waktu eksekusi MCTS dan konsumsi RAM.
-                    let all_clone = vec![top_axiom.clone()];
+                    // Kita mengirimkan top_axiom dari Grover sebagai pijakan akar (Depth 1).
+                    // Namun kita membekali MCTS di Depth 2 dengan "Katalog Seluruh Aksioma"
+                    // agar MCTS bisa memadukan (misalnya) CROP (dari Grover) + TRANS (dari MCTS).
+                    let all_clone: Vec<WaveNode> = high_confidence_axioms.clone();
 
+                    // Menyimpan state dari sebelum diproses oleh top_axiom
                     let initial_manifolds_adv = Arc::clone(&top_axiom.state_manifolds);
 
                     pollster::block_on(async move { s_clone.propagate_wave(top_axiom, initial_manifolds_adv, all_clone).await; });
