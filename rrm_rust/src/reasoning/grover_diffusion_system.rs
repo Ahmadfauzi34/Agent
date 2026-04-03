@@ -3,6 +3,7 @@ use crate::core::entity_manifold::EntityManifold;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
 use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
 use crate::reasoning::quantum_search_simd::SimdEnergyCalculator;
+use crate::reasoning::hierarchical_inference::SimulationMode;
 use ndarray::Array1;
 
 pub struct GroverConfig {
@@ -84,9 +85,15 @@ impl<'a> GroverDiffusionSystem<'a> {
     }
 
     /// CONTINUOUS FREE ENERGY ORACLE
-    pub fn evaluate_oracle(&mut self, candidates: &[GroverCandidate], train_states: &[TrainState]) {
+    pub fn evaluate_oracle(&mut self, candidates: &[GroverCandidate], train_states: &[TrainState], mode: &SimulationMode) {
         let n = self.config.search_space_size.min(candidates.len());
         let d = self.config.dimensions;
+
+        let epistemic_weight = match mode {
+            SimulationMode::StrictVSA => 1.0,
+            SimulationMode::Probabilistic => 50.0,
+            SimulationMode::Counterfactual => 100.0,
+        };
 
         // 1. Kalkulasi Energi untuk semua kandidat
         for i in 0..n {
@@ -108,7 +115,7 @@ impl<'a> GroverDiffusionSystem<'a> {
                     "",
                 );
 
-                let energy = SimdEnergyCalculator::calculate_pragmatic_streaming(
+                let pragmatic_error = SimdEnergyCalculator::calculate_pragmatic_streaming(
                     &temp_state,
                     &state.expected_grid,
                     temp_state.global_width as usize,
@@ -116,7 +123,11 @@ impl<'a> GroverDiffusionSystem<'a> {
                     0.0 // Gunakan depth 0.0 untuk diskon dimensi maksimal di Grover
                 );
 
-                total_free_energy += energy;
+                // Epistemic Value (Penghancuran sampah kosmik = bonus tinggi!)
+                let epistemic_value = SimdEnergyCalculator::calculate_epistemic(&temp_state, &state.in_state);
+
+                // G(π)
+                total_free_energy += pragmatic_error - (epistemic_weight * epistemic_value);
             }
             self.energies[i] = total_free_energy;
         }
@@ -216,7 +227,7 @@ impl<'a> GroverDiffusionSystem<'a> {
     }
 
     /// Eksekusi Amplifikasi Kuantum (Grover Iteration)
-    pub fn search(&mut self, candidates: &[GroverCandidate], train_states: &[TrainState]) -> Option<usize> {
+    pub fn search(&mut self, candidates: &[GroverCandidate], train_states: &[TrainState], mode: &SimulationMode) -> Option<usize> {
         let n = self.config.search_space_size.min(candidates.len());
         if n == 0 {
             return None;
@@ -229,7 +240,7 @@ impl<'a> GroverDiffusionSystem<'a> {
         iterations = iterations.min(self.config.max_iterations);
 
         for _ in 0..iterations {
-            self.evaluate_oracle(candidates, train_states);
+            self.evaluate_oracle(candidates, train_states, mode);
             self.apply_diffusion(n);
         }
 

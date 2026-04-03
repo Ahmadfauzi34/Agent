@@ -10,6 +10,7 @@ use crate::reasoning::quantum_search::{AsyncWaveSearch, WaveNode};
 use crate::memory::logic_seed_bank::LogicSeedBank;
 use crate::reasoning::grover_diffusion_system::{GroverDiffusionSystem, GroverConfig, GroverCandidate, TrainState};
 use crate::reasoning::global_blackboard::GlobalBlackboard;
+use crate::reasoning::hierarchical_inference::{DeepActiveInferenceEngine, SimulationMode};
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -121,6 +122,7 @@ impl RrmAgent {
 
         let mut best_rule: Option<WaveNode> = None;
         let mut max_prob = -1.0;
+        let mut best_fast_pass_energy = f32::MAX;
 
         {
             let ground_states = search.ground_states.read().unwrap();
@@ -129,7 +131,25 @@ impl RrmAgent {
                     max_prob = state.probability;
                     best_rule = Some(state.clone());
                 }
+
+                // Estimate pragmatic error from fast pass node energy conceptually
+                // For simplicity, if we don't find a perfect solution, let's assume error is high
+                if max_prob < 0.99 {
+                    best_fast_pass_energy = 100.0;
+                }
             }
+        }
+
+        // 🌟 1. INISIALISASI CEO
+        let mut ceo_engine = DeepActiveInferenceEngine::new();
+
+        // 🌟 2. METAKOGNISI: SAKLAR GIGI OTOMATIS
+        if best_fast_pass_energy > 50.0 || max_prob < 0.99 {
+            println!("   🧠 [Metakognisi] Terjebak di Local Optimum (Fast Pass Gagal).");
+            println!("   🧠 Beralih ke Mode: PROBABILISTIC (Mengaktifkan Rasa Ingin Tahu Tinggi untuk Struktur Kosmik!)");
+            ceo_engine.switch_mode(SimulationMode::Probabilistic);
+        } else {
+            ceo_engine.switch_mode(SimulationMode::StrictVSA);
         }
 
         // ADVANCED PASS (SNAPSHOT FALLBACK):
@@ -187,7 +207,7 @@ impl RrmAgent {
                 };
 
                 let mut grover = GroverDiffusionSystem::new(&mut sandbox, config);
-                let best_grover_idx = grover.search(&candidates, &grover_train_states);
+                let best_grover_idx = grover.search(&candidates, &grover_train_states, &ceo_engine.current_mode);
 
                 // MCTS Fallback/Verification pada kandidat terbaik Grover (menghindari OOM eksponensial MCTS murni)
                 if let Some(idx) = best_grover_idx {
