@@ -161,6 +161,7 @@ impl RrmAgent {
                     candidates.push(GroverCandidate {
                         energy: ax.probability, // warm start base
                         tensor_rule: ax.tensor_spatial.clone(), // Menggunakan tensor spasial untuk filtering
+                        condition_tensor: ax.condition_tensor.clone(),
                         delta_x: ax.delta_x,
                         delta_y: ax.delta_y,
                         physics_tier: ax.physics_tier,

@@ -15,6 +15,7 @@ pub struct GroverConfig {
 pub struct GroverCandidate {
     pub energy: f32,
     pub tensor_rule: Array1<f32>,
+    pub condition_tensor: Option<Array1<f32>>,
     pub delta_x: f32,
     pub delta_y: f32,
     pub physics_tier: u8,
@@ -85,55 +86,65 @@ impl<'a> GroverDiffusionSystem<'a> {
     pub fn evaluate_oracle(&mut self, candidates: &[GroverCandidate], train_states: &[TrainState]) {
         let n = self.config.search_space_size.min(candidates.len());
         let d = self.config.dimensions;
-        let t = self.config.temperature;
-        let threshold = self.config.free_energy_threshold;
 
+        // 1. Kalkulasi Energi untuk semua kandidat
         for i in 0..n {
             let candidate = &candidates[i];
             let mut total_free_energy = 0.0;
 
             for state in train_states {
-                // Evaluasi Dynamic: clone in_state, apply axiom, bandingkan
                 let mut temp_state = state.in_state.clone();
+                let _dummy_spatial_delta = Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);
 
-                // Gunakan MultiverseSandbox statis untuk eksekusi
-                // Note: TS uses a tensor directly for sandbox applyAxiom here. We reconstruct required arguments.
-                let dummy_spatial_delta = Array1::<f32>::zeros(GLOBAL_DIMENSION);
                 MultiverseSandbox::apply_axiom(
                     &mut temp_state,
-                    &None, // condition_tensor
-                    &candidate.tensor_rule, // delta_spatial
-                    &candidate.tensor_rule, // delta_semantic (menggunakan tensor yg sama as fallback proxy)
+                    &candidate.condition_tensor,
+                    &candidate.tensor_rule,
+                    &candidate.tensor_rule,
                     candidate.delta_x,
                     candidate.delta_y,
                     candidate.physics_tier,
-                    "", // axiom_type
+                    "",
                 );
 
-                // Grover mengevaluasi kandidat secara independen dari iterasi depth MCTS,
-                // Kita asumsikan depth_ratio = 0.5 (Mid-level penalty) agar tetap cukup toleran
                 let energy = HamiltonianPruner::calculate_energy_streaming(
                     &temp_state,
                     &state.expected_grid,
                     temp_state.global_width as usize,
                     temp_state.global_height as usize,
-                    0.5
+                    0.0 // Gunakan depth 0.0 untuk diskon dimensi maksimal di Grover
                 );
 
                 total_free_energy += energy;
             }
-
             self.energies[i] = total_free_energy;
-
-            // Continuous Phase Multiplier
-            // Sigmoid: 0.0 (High Surprise/Bad) -> 1.0 (Low Surprise/Perfect)
-            let score = 0.5 * (1.0 + ((threshold - total_free_energy) / t).tanh());
-
-            // Inversion Strength: Perfect -> -1.0, Bad -> 1.0
-            self.multipliers[i] = 1.0 - (2.0 * score);
         }
 
-        // Apply Multiplier (Branchless)
+        // 2. Cari Batas Min dan Max Energi di Populasi (Adaptive Bounds)
+        let mut min_e = f32::MAX;
+        let mut max_e = f32::MIN;
+        for i in 0..n {
+            let e = self.energies[i];
+            if e < min_e { min_e = e; }
+            if e > max_e { max_e = e; }
+        }
+
+        // 3. Terapkan Multiplier via Linear Mapping (Anti-Vanishing Gradient)
+        let range = (max_e - min_e).max(1e-5); // Hindari pembagian dengan nol
+        for i in 0..n {
+            let e = self.energies[i];
+
+            // Normalisasi: 0.0 (Energi Terendah/Terbaik) ke 1.0 (Energi Tertinggi/Terburuk)
+            let normalized = (e - min_e) / range;
+
+            // Grover Phase Inversion Mapping:
+            // 0.0 (Terbaik) -> -1.0 (Inversi Amplitudo Penuh)
+            // 1.0 (Terburuk) ->  1.0 (Tidak Ada Inversi)
+            // Kita gunakan power/akar (opsional) untuk "menajamkan" kandidat terbaik jika perlu
+            self.multipliers[i] = -1.0 + (2.0 * normalized);
+        }
+
+        // Apply Multiplier ke Amplitudo Kuantum
         for i in 0..n {
             let mult = self.multipliers[i];
             let base_idx = i * d;
