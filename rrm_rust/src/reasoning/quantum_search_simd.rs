@@ -44,7 +44,18 @@ impl SimdEnergyCalculator {
             // Jika dimensi MATCH (contoh: 6x6 == 6x6 setelah di-CROP),
             // berikan diskon energi yang masif di fase awal.
             energy -= 500.0 * (1.0 - depth_ratio);
+
+            // 🌟 PRECISION MODULATION (ACTIVE INFERENCE) 🌟
+            // Jika agen berhasil menemukan dimensi makro yang tepat di tahap awal pencarian (Depth awal/Grover),
+            // "butakan" agen dari kekacauan posisi piksel di dalamnya! (Biarkan debu mengendap).
+            // MCTS di Depth 2 nanti akan mengurus pergeseran pikselnya.
+            if depth_ratio < 0.5 {
+                // Langsung kembalikan energi -500.0 tanpa menghitung error piksel (L2 distance) di bawahnya!
+                return energy;
+            }
         }
+
+        // ... (Sisa kode perhitungan error posisi piksel menggunakan POSITION_BUFFER dan GRID_BUFFER tetap berjalan untuk Depth >= 2 atau jika dimensi belum cocok) ...
 
         POSITION_BUFFER.with(|pos_buf| {
             let mut positions = pos_buf.borrow_mut();

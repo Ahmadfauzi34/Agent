@@ -129,6 +129,11 @@ impl HamiltonianPruner {
             // Jika dimensi MATCH (contoh: 6x6 == 6x6 setelah di-CROP),
             // berikan diskon energi yang masif di fase awal.
             energy -= 500.0 * (1.0 - depth_ratio);
+
+            // 🌟 PRECISION MODULATION (ACTIVE INFERENCE) 🌟
+            if depth_ratio < 0.5 {
+                return energy;
+            }
         }
 
         // Flat array untuk menandai piksel mana saja di universe yang sudah tertutupi
