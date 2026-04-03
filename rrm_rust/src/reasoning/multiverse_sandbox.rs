@@ -176,8 +176,13 @@ impl MultiverseSandbox {
                             u.centers_x[e] -= min_x;
                             u.centers_y[e] -= min_y;
 
-                            // Jika CROP memaksa partikel keluar batas, hancurkan sekalian
-                            // Tapi secara logis, HologramDecoder akan mengabaikannya secara natural.
+                            // 🌟 ANNIHILASI DEBRIS KOSMIK 🌟
+                            // Jika partikel kini berada di luar dimensi kosmos yang baru,
+                            // lenyapkan mereka (kembalikan ke Dark Matter)
+                            if u.centers_x[e] < 0.0 || u.centers_x[e] >= u.global_width ||
+                               u.centers_y[e] < 0.0 || u.centers_y[e] >= u.global_height {
+                                u.masses[e] = 0.0; // Hancurkan
+                            }
                         }
                     }
                 }

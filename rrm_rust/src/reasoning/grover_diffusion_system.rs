@@ -2,6 +2,7 @@ use crate::core::config::GLOBAL_DIMENSION;
 use crate::core::entity_manifold::EntityManifold;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
 use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
+use crate::reasoning::quantum_search_simd::SimdEnergyCalculator;
 use ndarray::Array1;
 
 pub struct GroverConfig {
@@ -107,7 +108,7 @@ impl<'a> GroverDiffusionSystem<'a> {
                     "",
                 );
 
-                let energy = HamiltonianPruner::calculate_energy_streaming(
+                let energy = SimdEnergyCalculator::calculate_pragmatic_streaming(
                     &temp_state,
                     &state.expected_grid,
                     temp_state.global_width as usize,
