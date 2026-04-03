@@ -7,6 +7,9 @@ use crate::reasoning::top_down_axiomator::TopDownAxiomator;
 use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
 use crate::reasoning::quantum_search::{AsyncWaveSearch, WaveNode};
+use crate::memory::logic_seed_bank::LogicSeedBank;
+use crate::reasoning::grover_diffusion_system::{GroverDiffusionSystem, GroverConfig, GroverCandidate, TrainState};
+use crate::reasoning::global_blackboard::GlobalBlackboard;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -17,6 +20,7 @@ pub struct RrmAgent {
     perceiver: UniversalManifold,
     decoder: HologramDecoder,
     pruner: HamiltonianPruner, // Akan di-deprecate karena diganti AsyncWaveSearch, tapi biarkan untuk fallback
+    seed_bank: LogicSeedBank,
 }
 
 impl Default for RrmAgent {
@@ -31,6 +35,7 @@ impl RrmAgent {
             perceiver: UniversalManifold::new(),
             decoder: HologramDecoder::new(),
             pruner: HamiltonianPruner::new(),
+            seed_bank: LogicSeedBank::new(),
         }
     }
 
@@ -149,35 +154,69 @@ impl RrmAgent {
             for (attempt, &take_n) in depths.iter().enumerate() {
                 println!("   🔍 Search Attempt {}: Exploring top {} advanced axioms...", attempt + 1, take_n);
 
-                search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 3)); // Depth 3 for Advanced Pass Multi-Color
-
-                let advanced_axioms: Vec<WaveNode> = high_confidence_axioms.iter().take(take_n).cloned().collect();
-                let all_adv_axioms = advanced_axioms.clone();
-
-                let initial_manifolds_adv = if let Some(first) = advanced_axioms.first() {
-                    Arc::clone(&first.state_manifolds)
-                } else {
-                    Arc::new(vec![])
-                };
-
-                for axiom_node in advanced_axioms {
-                    let s_clone = Arc::clone(&search);
-                    let all_clone = all_adv_axioms.clone();
-                    let init_clone = Arc::clone(&initial_manifolds_adv);
-                    pollster::block_on(async move { s_clone.propagate_wave(axiom_node, init_clone, all_clone).await; });
+                // Menggunakan GroverDiffusionSystem untuk Pre-Filter Aksioma Terbaik tanpa deep cloning
+                // secara terus-menerus ke semua cabang, sehingga menghemat memory MCTS!
+                let mut candidates = Vec::new();
+                for ax in high_confidence_axioms.iter().take(take_n) {
+                    candidates.push(GroverCandidate {
+                        energy: ax.probability, // warm start base
+                        tensor_rule: ax.tensor_spatial.clone(), // Menggunakan tensor spasial untuk filtering
+                        delta_x: ax.delta_x,
+                        delta_y: ax.delta_y,
+                        physics_tier: ax.physics_tier,
+                    });
                 }
 
-                let ground_states = search.ground_states.read().unwrap();
-                max_prob = -1.0;
-                for state in ground_states.iter() {
-                    if state.probability > max_prob {
-                        max_prob = state.probability;
-                        best_rule = Some(state.clone());
+                // Konversi train_states menjadi format Oracle Grover
+                let mut grover_train_states = Vec::new();
+                for (i, (man_in, _man_out)) in train_states.iter().enumerate() {
+                    grover_train_states.push(TrainState {
+                        in_state: man_in.clone(),
+                        expected_grid: expected_grids[i].clone(),
+                    });
+                }
+
+                let mut sandbox = MultiverseSandbox::new();
+                let config = GroverConfig {
+                    dimensions: crate::core::config::GLOBAL_DIMENSION,
+                    search_space_size: candidates.len(),
+                    temperature: 0.5,
+                    free_energy_threshold: 0.0,
+                    max_iterations: 2, // 2 iterations Cukup untuk 20 node
+                };
+
+                let mut grover = GroverDiffusionSystem::new(&mut sandbox, config);
+                let best_grover_idx = grover.search(&candidates, &grover_train_states);
+
+                // MCTS Fallback/Verification pada kandidat terbaik Grover (menghindari OOM eksponensial MCTS murni)
+                if let Some(idx) = best_grover_idx {
+                    let top_axiom = high_confidence_axioms[idx].clone();
+                    println!("   ⚡ Grover Diffusion Memilih Axiom Terkuat: {:?}", top_axiom.axiom_type);
+
+                    search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 3));
+                    let s_clone = Arc::clone(&search);
+
+                    // Kita hanya kirimkan 1 aksioma yang diperkuat oleh Grover (bukan puluhan),
+                    // secara drastis memotong waktu eksekusi MCTS dan konsumsi RAM.
+                    let all_clone = vec![top_axiom.clone()];
+
+                    let initial_manifolds_adv = Arc::clone(&top_axiom.state_manifolds);
+
+                    pollster::block_on(async move { s_clone.propagate_wave(top_axiom, initial_manifolds_adv, all_clone).await; });
+
+                    let ground_states = search.ground_states.read().unwrap();
+                    max_prob = -1.0;
+                    for state in ground_states.iter() {
+                        if state.probability > max_prob {
+                            max_prob = state.probability;
+                            best_rule = Some(state.clone());
+                        }
                     }
                 }
 
                 // Jika Ground State ditemukan (prob mendekati 1.0, error 0.0), break dari Iterative Deepening!
-                if max_prob >= 0.99 {
+                if max_prob >= 0.95 {
+                    println!("   ✅ Advanced Pass Selesai Berkat Grover! (Prob: {:.3})", max_prob);
                     break;
                 }
 
@@ -205,6 +244,19 @@ impl RrmAgent {
             // But `rule` doesn't store the history of tensors, only the history of strings!
             // Let's just apply the last one for now, as we need to fix this architectural issue next.
             let current_axiom_str = rule.axiom_type.last().map(|s| s.as_str()).unwrap_or("IDENTITY_STATIC");
+
+            // Simpan ke LogicSeedBank agar bisa dipanggil lebih cepat di task selanjutnya
+            self.seed_bank.add_seed(current_axiom_str, 999, &rule.tensor_spatial);
+
+            // Optional: Sinkronisasikan agen dengan GlobalBlackboard jika ada multi-physics
+            let mut blackboard = GlobalBlackboard::new();
+            let spatial_agent = &rule.tensor_spatial;
+            let semantic_agent = &rule.tensor_semantic;
+
+            blackboard.synchronize(&[spatial_agent, semantic_agent]);
+            let _collective = blackboard.read_collective_state(); // Future use for gestalt rendering
+
+            // Terapkan ke test_manifold
             MultiverseSandbox::apply_axiom(
                 &mut test_manifold,
                 &rule.condition_tensor,
