@@ -97,7 +97,7 @@ impl TopDownAxiomator {
                             source_index: 0,
                             target_index: -1,
                             similarity: 0.98, // Prioritas Absolut/Sangat Tinggi!
-                            condition_tensor: Some(condition_phase),
+                            condition_tensor: Some(condition_phase.clone()),
                             delta_spatial: Self::identity_tensor(),
                             delta_semantic: Self::identity_tensor(),
                             delta_x: 0.0,
@@ -107,6 +107,25 @@ impl TopDownAxiomator {
                         });
                     }
                 }
+
+                // 🌟 AKSIOMA BARU: CROP_WINDOW_AROUND (Anchor-Based Crop)
+                // Usulkan warna ini sebagai titik pusat untuk jendela out_w x out_h
+                let mut condition_phase = Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);
+                let color_phase = FHRR::fractional_bind(&CoreSeeds::color_seed(), color as f32);
+                for i in 0..crate::core::config::GLOBAL_DIMENSION { condition_phase[i] = color_phase[i]; }
+
+                axioms.push(TopologicalMatch {
+                    source_index: 0,
+                    target_index: -1,
+                    similarity: 0.98, // VIP Pass prioritas tinggi untuk Depth 1
+                    condition_tensor: Some(condition_phase),
+                    delta_spatial: Self::identity_tensor(),
+                    delta_semantic: Self::identity_tensor(),
+                    delta_x: out_w, // Titipkan informasi Target Lebar di dx
+                    delta_y: out_h, // Titipkan informasi Target Tinggi di dy
+                    axiom_type: format!("CROP_WINDOW_AROUND({})", color),
+                    physics_tier: 7, // Tetap masuk Tier 7 (Dimensi)
+                });
             }
         }
 

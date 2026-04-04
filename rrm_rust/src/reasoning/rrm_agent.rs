@@ -209,34 +209,67 @@ impl RrmAgent {
                 let mut grover = GroverDiffusionSystem::new(&mut sandbox, config);
                 let best_grover_idx = grover.search(&candidates, &grover_train_states, &ceo_engine.current_mode);
 
-                // MCTS Fallback/Verification pada kandidat terbaik Grover (menghindari OOM eksponensial MCTS murni)
-                if let Some(idx) = best_grover_idx {
-                    let mut top_axiom = high_confidence_axioms[idx].clone();
-                    // Setup depth untuk MCTS yang berangkat dari top_axiom Grover
-                    top_axiom.depth = 1;
+                // 1. Buat Tensor Identitas (Keadaan Diam / Tidak ada fisika yang berubah)
+                let mut id_tensor = ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION);
+                if crate::core::config::GLOBAL_DIMENSION > 0 {
+                    id_tensor[0] = 1.0;
+                    id_tensor[crate::core::config::GLOBAL_DIMENSION - 1] = 1.0;
+                }
 
-                    println!("   ⚡ Grover Diffusion Memilih Axiom Terkuat: {:?}", top_axiom.axiom_type);
+                // Kita butuh initial state_manifolds
+                let initial_manifolds_adv = std::sync::Arc::new(train_states.iter().map(|(m, _)| std::sync::RwLock::new(m.clone())).collect::<Vec<_>>());
 
-                    search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 2)); // Buka batas Horizon: Depth 2
-                    let s_clone = Arc::clone(&search);
+                // 2. ROOT ZERO-POINT (Memulai MCTS dari Depth 0, bukan Depth 1)
+                let initial_wave = WaveNode {
+                    axiom_type: vec!["ROOT_START".to_string()],
+                    state_manifolds: std::sync::Arc::clone(&initial_manifolds_adv),
+                    condition_tensor: Some(id_tensor.clone()),
+                    tensor_spatial: id_tensor.clone(),
+                    tensor_semantic: id_tensor.clone(),
+                    probability: 1.0,
+                    delta_x: 0.0,
+                    delta_y: 0.0,
+                    physics_tier: 0,
+                    depth: 0,
+                    state_modified: false,
+                };
 
-                    // Kita mengirimkan top_axiom dari Grover sebagai pijakan akar (Depth 1).
-                    // Namun kita membekali MCTS di Depth 2 dengan "Katalog Seluruh Aksioma"
-                    // agar MCTS bisa memadukan (misalnya) CROP (dari Grover) + TRANS (dari MCTS).
-                    let all_clone: Vec<WaveNode> = high_confidence_axioms.clone();
+                // 3. Masukkan SEMUA kandidat Grover sebagai amunisi untuk Depth 1, 2, dst.
+                let mut all_clone: Vec<WaveNode> = high_confidence_axioms.clone();
 
-                    // Menyimpan state dari sebelum diproses oleh top_axiom
-                    let initial_manifolds_adv = Arc::clone(&top_axiom.state_manifolds);
+                // BERSIHKAN AMUNISI DARI DUPLIKAT!
+                // MCTS akan mencoba semua `all_clone`, jika terlalu banyak CROP yang sama, ia akan OOM / buang-buang energi.
+                all_clone.dedup_by(|a, b| a.axiom_type == b.axiom_type);
 
-                    pollster::block_on(async move { s_clone.propagate_wave(top_axiom, initial_manifolds_adv, all_clone).await; });
+                // 🌟 VIP PASS UNTUK AKSIOMA MAKRO 🌟
+                // Jangan biarkan Translasi (Tier 0) mendominasi pintu masuk MCTS.
+                for c in all_clone.iter_mut() {
+                    if c.physics_tier == 7 { // CROP
+                        // Berikan bobot mutlak agar CROP selalu berada di Peringkat 1
+                        // saat MCTS melakukan sorting awal (Prior).
+                        c.probability = 5.0; // Melampaui batas normal 1.0!
+                    } else if c.physics_tier >= 4 { // ROTATE, MIRROR, SPAWN
+                        c.probability += 2.0;
+                    }
+                }
 
-                    let ground_states = search.ground_states.read().unwrap();
-                    max_prob = -1.0;
-                    for state in ground_states.iter() {
-                        if state.probability > max_prob {
-                            max_prob = state.probability;
-                            best_rule = Some(state.clone());
-                        }
+                // Urutkan ulang berdasarkan prioritas probabilitas yang baru
+                all_clone.sort_by(|a, b| b.probability.partial_cmp(&a.probability).unwrap_or(std::cmp::Ordering::Equal));
+
+                println!("   ⚡ Memulai MCTS dari ROOT ZERO-POINT (Depth 0) dengan {} amunisi unik...", all_clone.len());
+
+                search = std::sync::Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 2)); // Buka batas Horizon: Depth 2
+                let s_clone = std::sync::Arc::clone(&search);
+
+                // 4. Eksekusi MCTS dari akar!
+                pollster::block_on(async move { s_clone.propagate_wave(initial_wave, initial_manifolds_adv, all_clone).await; });
+
+                let ground_states = search.ground_states.read().unwrap();
+                max_prob = -1.0;
+                for state in ground_states.iter() {
+                    if state.probability > max_prob {
+                        max_prob = state.probability;
+                        best_rule = Some(state.clone());
                     }
                 }
 

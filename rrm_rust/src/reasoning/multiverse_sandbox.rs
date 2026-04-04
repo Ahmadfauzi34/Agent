@@ -141,47 +141,103 @@ impl MultiverseSandbox {
             return;
         }
 
-        // TIER 7: CROP (Mengecilkan Alam Semesta)
-        if physics_tier == 7 && axiom_type.contains("CROP") {
-            if let Some(cond) = condition_tensor {
-                let mut min_x = 9999.0;
-                let mut max_x = -9999.0;
-                let mut min_y = 9999.0;
-                let mut max_y = -9999.0;
-                let mut found = false;
+        // 🌟 FISIKA TIER 7: CROP / PEMOTONGAN DIMENSI 🌟
+        if physics_tier == 7 {
+            // 1. Logika Anchor-Based Window Cropping
+            if axiom_type.starts_with("CROP_WINDOW_AROUND(") {
+                let start = axiom_type.find('(').unwrap() + 1;
+                let end = axiom_type.find(')').unwrap();
+                let anchor_color = axiom_type[start..end].parse::<i32>().unwrap_or(-1);
 
-                // 1. Cari Bounding Box Target (Anchor)
-                for e in 0..u.active_count {
-                    if u.masses[e] == 0.0 { continue; }
-                    let sem = u.get_semantic_tensor(e);
-                    if FHRR::similarity(&sem, cond) >= 0.8 {
-                        found = true;
-                        let cx = u.centers_x[e];
-                        let cy = u.centers_y[e];
-                        if cx < min_x { min_x = cx; }
-                        if cx > max_x { max_x = cx; }
-                        if cy < min_y { min_y = cy; }
-                        if cy > max_y { max_y = cy; }
+                let target_w = delta_x; // Lebar diambil dari delta_x
+                let target_h = delta_y; // Tinggi diambil dari delta_y
+
+                if anchor_color != -1 {
+                    let mut sum_x = 0.0;
+                    let mut sum_y = 0.0;
+                    let mut count = 0.0;
+
+                    // Cari titik tengah (Center of Mass) dari warna jangkar ini
+                    for e in 0..u.active_count {
+                        if u.masses[e] > 0.0 && u.tokens[e] == anchor_color {
+                            sum_x += u.centers_x[e];
+                            sum_y += u.centers_y[e];
+                            count += 1.0;
+                        }
+                    }
+
+                    if count > 0.0 {
+                        let anchor_cx = (sum_x / count).round();
+                        let anchor_cy = (sum_y / count).round();
+
+                        // Tentukan titik 0,0 (Kiri Atas) dari jendela baru ini
+                        let mut min_x = (anchor_cx - (target_w / 2.0)).floor();
+                        let mut min_y = (anchor_cy - (target_h / 2.0)).floor();
+
+                        // Cegah out of bounds jika jangkar terlalu ke pinggir
+                        if min_x < 0.0 { min_x = 0.0; }
+                        if min_y < 0.0 { min_y = 0.0; }
+
+                        u.global_width = target_w;
+                        u.global_height = target_h;
+
+                        // Eksekusi potong & hancurkan sampah kosmik
+                        for e in 0..u.active_count {
+                            if u.masses[e] > 0.0 {
+                                u.centers_x[e] -= min_x;
+                                u.centers_y[e] -= min_y;
+
+                                if u.centers_x[e] < 0.0 || u.centers_x[e] >= target_w ||
+                                   u.centers_y[e] < 0.0 || u.centers_y[e] >= target_h {
+                                    u.masses[e] = 0.0;
+                                }
+                            }
+                        }
                     }
                 }
+            }
+            // 2. Logika Bounding-Box Cropping (CROP_TO_COLOR yang lama)
+            else if axiom_type.starts_with("CROP_TO_COLOR(") {
+                let start = axiom_type.find('(').unwrap() + 1;
+                let end = axiom_type.find(')').unwrap();
+                let target_color = axiom_type[start..end].parse::<i32>().unwrap_or(-1);
 
-                if found {
-                    // Update dimensi kosmos
-                    u.global_width = (max_x - min_x) + 1.0;
-                    u.global_height = (max_y - min_y) + 1.0;
+                if target_color != -1 {
+                    let mut min_x = 9999.0; let mut max_x = -9999.0;
+                    let mut min_y = 9999.0; let mut max_y = -9999.0;
+                    let mut found = false;
 
-                    // Translasi seluruh entitas (menjadikan min_x dan min_y sebagai titik 0,0)
+                    // 2. Cari Bounding Box absolut dari warna target
                     for e in 0..u.active_count {
-                        if u.masses[e] > 0.0 {
-                            u.centers_x[e] -= min_x;
-                            u.centers_y[e] -= min_y;
+                        if u.masses[e] > 0.0 && u.tokens[e] == target_color {
+                            found = true;
+                            let cx = u.centers_x[e];
+                            let cy = u.centers_y[e];
+                            if cx < min_x { min_x = cx; }
+                            if cx > max_x { max_x = cx; }
+                            if cy < min_y { min_y = cy; }
+                            if cy > max_y { max_y = cy; }
+                        }
+                    }
 
-                            // 🌟 ANNIHILASI DEBRIS KOSMIK 🌟
-                            // Jika partikel kini berada di luar dimensi kosmos yang baru,
-                            // lenyapkan mereka (kembalikan ke Dark Matter)
-                            if u.centers_x[e] < 0.0 || u.centers_x[e] >= u.global_width ||
-                               u.centers_y[e] < 0.0 || u.centers_y[e] >= u.global_height {
-                                u.masses[e] = 0.0; // Hancurkan
+                    if found {
+                        // Update dimensi kosmos
+                        u.global_width = (max_x - min_x) + 1.0;
+                        u.global_height = (max_y - min_y) + 1.0;
+
+                        // Translasi seluruh entitas (menjadikan min_x dan min_y sebagai titik 0,0)
+                        for e in 0..u.active_count {
+                            if u.masses[e] > 0.0 {
+                                u.centers_x[e] -= min_x;
+                                u.centers_y[e] -= min_y;
+
+                                // 🌟 ANNIHILASI DEBRIS KOSMIK 🌟
+                                // Jika partikel kini berada di luar dimensi kosmos yang baru,
+                                // lenyapkan mereka (kembalikan ke Dark Matter)
+                                if u.centers_x[e] < 0.0 || u.centers_x[e] >= u.global_width ||
+                                   u.centers_y[e] < 0.0 || u.centers_y[e] >= u.global_height {
+                                    u.masses[e] = 0.0; // Hancurkan
+                                }
                             }
                         }
                     }

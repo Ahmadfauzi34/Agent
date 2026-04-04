@@ -2,7 +2,7 @@ use crate::core::config::GLOBAL_DIMENSION;
 use crate::core::entity_manifold::EntityManifold;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
 use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
-use crate::reasoning::quantum_search_simd::SimdEnergyCalculator;
+use crate::reasoning::quantum_search_simd::{SimdEnergyCalculator, CognitivePhase};
 use crate::reasoning::hierarchical_inference::SimulationMode;
 use ndarray::Array1;
 
@@ -120,7 +120,7 @@ impl<'a> GroverDiffusionSystem<'a> {
                     &state.expected_grid,
                     temp_state.global_width as usize,
                     temp_state.global_height as usize,
-                    0.0 // Gunakan depth 0.0 untuk diskon dimensi maksimal di Grover
+                    &CognitivePhase::MacroStructural // Grover selalu beroperasi di fase penentuan dimensi!
                 );
 
                 // Epistemic Value (Penghancuran sampah kosmik = bonus tinggi!)

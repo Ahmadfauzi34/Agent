@@ -1,5 +1,5 @@
 use crate::core::entity_manifold::EntityManifold;
-use crate::reasoning::quantum_search_simd::SimdEnergyCalculator;
+use crate::reasoning::quantum_search_simd::{SimdEnergyCalculator, CognitivePhase};
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
 use ndarray::Array1;
 
@@ -82,7 +82,7 @@ impl DeepActiveInferenceEngine {
                 expected_grid,
                 temp_state.global_width as usize,
                 temp_state.global_height as usize,
-                0.0
+                &CognitivePhase::MacroStructural
             );
             total_pragmatic += pragmatic;
 

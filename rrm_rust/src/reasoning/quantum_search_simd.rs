@@ -6,6 +6,12 @@ use std::cell::RefCell;
 
 use crate::core::entity_manifold::EntityManifold;
 
+#[derive(Clone, PartialEq, Debug)]
+pub enum CognitivePhase {
+    MacroStructural, // Fase 1: Selesaikan bentuk kanvas (CROP, PAD)
+    Microscopic,     // Fase 2: Selesaikan posisi benda (TRANS, ROTATE)
+}
+
 // =============================================================================
 // THREAD-LOCAL BUFFER POOL
 // =============================================================================
@@ -26,36 +32,30 @@ impl SimdEnergyCalculator {
         expected: &[Vec<i32>],
         m_width: usize,
         m_height: usize,
-        depth_ratio: f32
+        phase: &CognitivePhase
     ) -> f32 {
         let expected_height = expected.len();
         let expected_width = if expected_height > 0 { expected[0].len() } else { 0 };
         let grid_size = expected_width * expected_height;
 
-        let mut energy = 0.0;
+        let dim_diff = (m_width as f32 - expected_width as f32).abs() +
+                       (m_height as f32 - expected_height as f32).abs();
 
-        // Pinalti Dimensi Adaptif: Kecil di awal iterasi, mematikan di akhir (depth ratio mendekati 1.0)
-        if m_width != expected_width || m_height != expected_height {
-            let dim_diff = (m_width as f32 - expected_width as f32).abs() + (m_height as f32 - expected_height as f32).abs();
-            let penalty_multiplier = 10.0 * depth_ratio.max(0.1); // Minimal 0.1 agar tetap terarah
-            energy += penalty_multiplier * dim_diff;
-        } else {
-            // 🌟 HADIAH DIMENSI (DIMENSION REWARD) 🌟
-            // Jika dimensi MATCH (contoh: 6x6 == 6x6 setelah di-CROP),
-            // berikan diskon energi yang masif di fase awal.
-            energy -= 500.0 * (1.0 - depth_ratio);
-
-            // 🌟 PRECISION MODULATION (ACTIVE INFERENCE) 🌟
-            // Jika agen berhasil menemukan dimensi makro yang tepat di tahap awal pencarian (Depth awal/Grover),
-            // "butakan" agen dari kekacauan posisi piksel di dalamnya! (Biarkan debu mengendap).
-            // MCTS di Depth 2 nanti akan mengurus pergeseran pikselnya.
-            if depth_ratio < 0.5 {
-                // Langsung kembalikan energi -500.0 tanpa menghitung error piksel (L2 distance) di bawahnya!
-                return energy;
+        // 🌟 GERBANG FASE 1: STRUKTUR MAKRO 🌟
+        if *phase == CognitivePhase::MacroStructural {
+            if dim_diff > 0.0 {
+                return 1000.0 * dim_diff; // Pinalti brutal jika dimensi salah di Fase 1
+            } else {
+                return -500.0; // Sukses mutlak di Fase 1! Abaikan piksel berantakan.
             }
         }
 
-        // ... (Sisa kode perhitungan error posisi piksel menggunakan POSITION_BUFFER dan GRID_BUFFER tetap berjalan untuk Depth >= 2 atau jika dimensi belum cocok) ...
+        // 🌟 GERBANG FASE 2: MIKROSKOPIS 🌟
+        // Di fase ini, kita berasumsi dimensi sudah (atau sedang dicoba) diselesaikan.
+        let mut energy = 0.0;
+        if dim_diff > 0.0 {
+            energy += 10.0 * dim_diff; // Pinalti standar jika dimensi masih salah
+        }
 
         POSITION_BUFFER.with(|pos_buf| {
             let mut positions = pos_buf.borrow_mut();

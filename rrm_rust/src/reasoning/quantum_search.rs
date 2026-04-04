@@ -4,7 +4,7 @@ use ndarray::Array1;
 use crate::core::entity_manifold::EntityManifold;
 use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
-use crate::reasoning::quantum_search_simd::SimdEnergyCalculator;
+use crate::reasoning::quantum_search_simd::{SimdEnergyCalculator, CognitivePhase};
 use crate::shared::visualizer::{Visualizer, TransparencyLevel, MctsNodeInfo};
 use futures_lite::future;
 
@@ -98,8 +98,12 @@ impl AsyncWaveSearch {
         let mut total_pragmatic_error = 0.0;
         let mut total_epistemic_value = 0.0;
 
-        // Hitung rasio seberapa dekat gelombang ini ke batas akhirnya
-        let depth_ratio = (current_depth as f32) / (self.max_depth as f32).max(1.0);
+        // Tentukan fase rencana berdasarkan kedalaman saat ini
+        let current_phase = if current_depth <= 1 {
+            CognitivePhase::MacroStructural // Langkah pertama HARUS menyelesaikan dimensi!
+        } else {
+            CognitivePhase::Microscopic     // Langkah kedua merapikan isi (piksel)
+        };
 
         for (i, expected_grid) in self.expected_grids.iter().enumerate() {
             let width = expected_grid[0].len();
@@ -111,7 +115,7 @@ impl AsyncWaveSearch {
             // 1. Pragmatic Error (Seberapa beda dengan Ground Truth)
             let m_width = if manifold_read.global_width > 0.0 { manifold_read.global_width as usize } else { width };
             let m_height = if manifold_read.global_height > 0.0 { manifold_read.global_height as usize } else { height };
-            total_pragmatic_error += SimdEnergyCalculator::calculate_pragmatic_streaming(&*manifold_read, expected_grid, m_width, m_height, depth_ratio);
+            total_pragmatic_error += SimdEnergyCalculator::calculate_pragmatic_streaming(&*manifold_read, expected_grid, m_width, m_height, &current_phase);
 
             // 2. Epistemic Value (Information Gain / Curiosity)
             // Seberapa banyak partikel yang berubah state (posisi/warna/eksistensi) dibandingkan state awal?
@@ -193,9 +197,12 @@ impl AsyncWaveSearch {
         let interference = if pragmatic_error == 0.0 { 1.0 } else { 1.0 / (g_bounded + 1.0) };
 
         // Disable aggressive interference scaling, use it just for ranking
-        wave.probability = if pragmatic_error == 0.0 { 1.0 } else { 0.99 - (expected_free_energy / 1000.0).clamp(0.0, 0.95) };
+        wave.probability = if pragmatic_error <= 0.0 { 1.0 } else { 0.99 - (expected_free_energy / 50000.0).clamp(0.0, 0.95) };
 
-        let is_ground_state = pragmatic_error == 0.0;
+        // Di Fase 1 (MacroStructural), pragmatic error akan menjadi -500.0 jika sukses.
+        // Kita JANGAN menandai ini sebagai is_ground_state agar pencarian diteruskan ke Microscopic.
+        // Hanya di Microscopic (Depth > 1) nilai 0.0 benar-benar berarti ground state sejati.
+        let is_ground_state = pragmatic_error <= 0.0 && wave.depth > 1;
         let is_pruned = wave.probability < 0.01; // Hanya prune path yang sangat jelek
 
         // Diagnostic Print
@@ -274,15 +281,21 @@ impl AsyncWaveSearch {
             let mut branch_futures = Vec::new();
             let mut branch_count = 0;
 
+            // PELEBARAN SINAR ADAPTIF (ADAPTIVE BEAM WIDTH)
+            // Di kedalaman awal (MacroStructural Phase), kita buka keran simulasi lebih lebar
+            // agar aksioma seperti CROP (yang berada di peringkat atas berkat VIP Pass)
+            // dijamin mendapat panggung untuk disimulasikan.
+            let max_branches = if wave.depth == 0 { 20 } else { 2 };
+
             for next_axiom in all_possible_axioms.iter() {
                 // Optimisasi: Jangan branch ke rule yang sama dua kali berurut
                 if wave.axiom_type.last() == next_axiom.axiom_type.last() {
                     continue;
                 }
 
-                // Limit to 1 branch max for validation bounds
+                // Limit to max_branches max for validation bounds
                 branch_count += 1;
-                if branch_count > 1 {
+                if branch_count > max_branches {
                     break;
                 }
 
