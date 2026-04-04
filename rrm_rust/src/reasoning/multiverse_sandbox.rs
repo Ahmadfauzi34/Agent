@@ -141,23 +141,27 @@ impl MultiverseSandbox {
             return;
         }
 
-        // 🌟 FISIKA TIER 7: CROP / PEMOTONGAN DIMENSI 🌟
+        // 🌟 FISIKA TIER 7: CROP / PEMOTONGAN DIMENSI (FULL OPTIMIZED) 🌟
         if physics_tier == 7 {
-            // 1. Logika Anchor-Based Window Cropping
+            let mut min_x = 0.0; let mut max_x = 0.0;
+            let mut min_y = 0.0; let mut max_y = 0.0;
+            let mut target_w = 0.0; let mut target_h = 0.0;
+            let mut found = false;
+
+            // 1. Evaluasi logika Bounding-Box atau Anchor-Window untuk mendapatkan min_x, max_x, dsb.
             if axiom_type.starts_with("CROP_WINDOW_AROUND(") {
                 let start = axiom_type.find('(').unwrap() + 1;
                 let end = axiom_type.find(')').unwrap();
                 let anchor_color = axiom_type[start..end].parse::<i32>().unwrap_or(-1);
 
-                let target_w = delta_x; // Lebar diambil dari delta_x
-                let target_h = delta_y; // Tinggi diambil dari delta_y
+                target_w = delta_x;
+                target_h = delta_y;
 
                 if anchor_color != -1 {
                     let mut sum_x = 0.0;
                     let mut sum_y = 0.0;
                     let mut count = 0.0;
 
-                    // Cari titik tengah (Center of Mass) dari warna jangkar ini
                     for e in 0..u.active_count {
                         if u.masses[e] > 0.0 && u.tokens[e] == anchor_color {
                             sum_x += u.centers_x[e];
@@ -167,47 +171,29 @@ impl MultiverseSandbox {
                     }
 
                     if count > 0.0 {
+                        found = true;
                         let anchor_cx = (sum_x / count).round();
                         let anchor_cy = (sum_y / count).round();
 
-                        // Tentukan titik 0,0 (Kiri Atas) dari jendela baru ini
-                        let mut min_x = (anchor_cx - (target_w / 2.0)).floor();
-                        let mut min_y = (anchor_cy - (target_h / 2.0)).floor();
+                        min_x = (anchor_cx - (target_w / 2.0)).floor();
+                        min_y = (anchor_cy - (target_h / 2.0)).floor();
 
-                        // Cegah out of bounds jika jangkar terlalu ke pinggir
                         if min_x < 0.0 { min_x = 0.0; }
                         if min_y < 0.0 { min_y = 0.0; }
 
-                        u.global_width = target_w;
-                        u.global_height = target_h;
-
-                        // Eksekusi potong & hancurkan sampah kosmik
-                        for e in 0..u.active_count {
-                            if u.masses[e] > 0.0 {
-                                u.centers_x[e] -= min_x;
-                                u.centers_y[e] -= min_y;
-
-                                if u.centers_x[e] < 0.0 || u.centers_x[e] >= target_w ||
-                                   u.centers_y[e] < 0.0 || u.centers_y[e] >= target_h {
-                                    u.masses[e] = 0.0;
-                                }
-                            }
-                        }
+                        max_x = min_x + target_w - 1.0;
+                        max_y = min_y + target_h - 1.0;
                     }
                 }
-            }
-            // 2. Logika Bounding-Box Cropping (CROP_TO_COLOR yang lama)
-            else if axiom_type.starts_with("CROP_TO_COLOR(") {
+            } else if axiom_type.starts_with("CROP_TO_COLOR(") {
                 let start = axiom_type.find('(').unwrap() + 1;
                 let end = axiom_type.find(')').unwrap();
                 let target_color = axiom_type[start..end].parse::<i32>().unwrap_or(-1);
 
                 if target_color != -1 {
-                    let mut min_x = 9999.0; let mut max_x = -9999.0;
-                    let mut min_y = 9999.0; let mut max_y = -9999.0;
-                    let mut found = false;
+                    min_x = 9999.0; max_x = -9999.0;
+                    min_y = 9999.0; max_y = -9999.0;
 
-                    // 2. Cari Bounding Box absolut dari warna target
                     for e in 0..u.active_count {
                         if u.masses[e] > 0.0 && u.tokens[e] == target_color {
                             found = true;
@@ -221,21 +207,35 @@ impl MultiverseSandbox {
                     }
 
                     if found {
+                        // Presisi Mutlak (Mencegah Floating Point Trap)
+                        let new_w = (max_x - min_x).round() + 1.0;
+                        let new_h = (max_y - min_y).round() + 1.0;
+
                         // Update dimensi kosmos
-                        u.global_width = (max_x - min_x) + 1.0;
-                        u.global_height = (max_y - min_y) + 1.0;
+                        u.global_width = new_w;
+                        u.global_height = new_h;
+
+                        let x_seed = crate::core::core_seeds::CoreSeeds::x_axis_seed().clone();
+                        let y_seed = crate::core::core_seeds::CoreSeeds::y_axis_seed().clone();
 
                         // Translasi seluruh entitas (menjadikan min_x dan min_y sebagai titik 0,0)
                         for e in 0..u.active_count {
                             if u.masses[e] > 0.0 {
-                                u.centers_x[e] -= min_x;
-                                u.centers_y[e] -= min_y;
+                                let nx = (u.centers_x[e] - min_x).round();
+                                let ny = (u.centers_y[e] - min_y).round();
 
-                                // 🌟 ANNIHILASI DEBRIS KOSMIK 🌟
-                                // Jika partikel kini berada di luar dimensi kosmos yang baru,
-                                // lenyapkan mereka (kembalikan ke Dark Matter)
-                                if u.centers_x[e] < 0.0 || u.centers_x[e] >= u.global_width ||
-                                   u.centers_y[e] < 0.0 || u.centers_y[e] >= u.global_height {
+                                // 🌟 ANNIHILASI DEBRIS KOSMIK & Sinkronisasi Tensor 🌟
+                                if nx >= 0.0 && nx < new_w && ny >= 0.0 && ny < new_h {
+                                    u.centers_x[e] = nx;
+                                    u.centers_y[e] = ny;
+
+                                    let new_x_phase = FHRR::fractional_bind(&x_seed, nx);
+                                    let new_y_phase = FHRR::fractional_bind(&y_seed, ny);
+                                    let new_spatial_tensor = FHRR::bind(&new_x_phase, &new_y_phase);
+
+                                    let mut sp_tensor_mut = u.get_spatial_tensor_mut(e);
+                                    sp_tensor_mut.assign(&new_spatial_tensor);
+                                } else {
                                     u.masses[e] = 0.0; // Hancurkan
                                 }
                             }
