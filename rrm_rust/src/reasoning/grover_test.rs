@@ -20,17 +20,21 @@ fn test_grover_warm_start() {
     let c1 = GroverCandidate {
         energy: 0.8,
         tensor_rule: Array1::<f32>::ones(GLOBAL_DIMENSION),
+        condition_tensor: None,
         delta_x: 0.0,
         delta_y: 0.0,
         physics_tier: 0,
+        axiom_type: "C1".to_string(),
     };
 
     let c2 = GroverCandidate {
         energy: 0.2,
         tensor_rule: Array1::<f32>::ones(GLOBAL_DIMENSION),
+        condition_tensor: None,
         delta_x: 0.0,
         delta_y: 0.0,
         physics_tier: 0,
+        axiom_type: "C2".to_string(),
     };
 
     grover.warm_start(&[c1, c2]);

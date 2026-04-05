@@ -30,6 +30,26 @@ impl MultiverseSandbox {
         physics_tier: u8,
         axiom_type: &str, // Digunakan untuk parsing operator geometri jika Tier 4
     ) {
+        // 🌟 FISIKA TIER 8: REKURSI MACRO (Interpreter Siklus Otot/Skill) 🌟
+        if physics_tier == 8 {
+            if let Some(macro_content) = axiom_type.strip_prefix("MACRO:") {
+                let sub_axioms: Vec<&str> = macro_content.split('|').collect();
+                for sub_axiom_str in sub_axioms {
+                    // Heuristik parsing tier
+                    let sub_tier = match sub_axiom_str {
+                        s if s.contains("CROP") => 7,
+                        s if s.contains("SPAWN") || s.contains("FILL") => 6,
+                        s if s.contains("ROTATE") || s.contains("MIRROR") => 4,
+                        s if s.contains("MOVE_TO") => 3,
+                        _ => 0,
+                    };
+
+                    Self::apply_axiom(u, condition_tensor, delta_spatial, delta_semantic, delta_x, delta_y, sub_tier, sub_axiom_str);
+                }
+            }
+            return;
+        }
+
         let base_abs_dx = delta_x.round();
         let base_abs_dy = delta_y.round();
 
@@ -141,43 +161,130 @@ impl MultiverseSandbox {
             return;
         }
 
-        // TIER 7: CROP (Mengecilkan Alam Semesta)
-        if physics_tier == 7 && axiom_type.contains("CROP") {
-            if let Some(cond) = condition_tensor {
-                let mut min_x = 9999.0;
-                let mut max_x = -9999.0;
-                let mut min_y = 9999.0;
-                let mut max_y = -9999.0;
-                let mut found = false;
+        // 🌟 FISIKA TIER 7: CROP / PEMOTONGAN DIMENSI (FULL OPTIMIZED) 🌟
+        if physics_tier == 7 {
+            let mut min_x = 0.0; let mut max_x = 0.0;
+            let mut min_y = 0.0; let mut max_y = 0.0;
+            let mut target_w = 0.0; let mut target_h = 0.0;
+            let mut found = false;
 
-                // 1. Cari Bounding Box Target (Anchor)
-                for e in 0..u.active_count {
-                    if u.masses[e] == 0.0 { continue; }
-                    let sem = u.get_semantic_tensor(e);
-                    if FHRR::similarity(&sem, cond) >= 0.8 {
+            // 1. Evaluasi logika Bounding-Box atau Anchor-Window untuk mendapatkan min_x, max_x, dsb.
+            if axiom_type.starts_with("CROP_WINDOW_AROUND(") {
+                let start = axiom_type.find('(').unwrap() + 1;
+                let end = axiom_type.find(')').unwrap();
+                let anchor_color = axiom_type[start..end].parse::<i32>().unwrap_or(-1);
+
+                if anchor_color != -1 {
+                    // Cari Center of Mass dari Jangkar (Anchor)
+                    let mut sum_x = 0.0;
+                    let mut sum_y = 0.0;
+                    let mut count = 0.0;
+
+                    for e in 0..u.active_count {
+                        if u.masses[e] > 0.0 && u.tokens[e] == anchor_color {
+                            sum_x += u.centers_x[e];
+                            sum_y += u.centers_y[e];
+                            count += 1.0;
+                        }
+                    }
+
+                    // Dinamika Kuantum: Ukur Bounding Box seluruh Kosmos aktif SEBELUM di-crop
+                    // Abaikan latar belakang kosong (0) jika memungkinkan, namun secara default,
+                    // kotak minimum menampung seluruh partikel yang hidup di universe ini.
+                    let mut global_min_x = 9999.0;
+                    let mut global_max_x = -9999.0;
+                    let mut global_min_y = 9999.0;
+                    let mut global_max_y = -9999.0;
+                    let mut content_found = false;
+
+                    for e in 0..u.active_count {
+                        // Jangan sertakan partikel background '0' sebagai penentu batas kotak
+                        if u.masses[e] > 0.0 && u.tokens[e] != 0 {
+                            content_found = true;
+                            let cx = u.centers_x[e];
+                            let cy = u.centers_y[e];
+                            if cx < global_min_x { global_min_x = cx; }
+                            if cx > global_max_x { global_max_x = cx; }
+                            if cy < global_min_y { global_min_y = cy; }
+                            if cy > global_max_y { global_max_y = cy; }
+                        }
+                    }
+
+                    if count > 0.0 && content_found {
                         found = true;
-                        let cx = u.centers_x[e];
-                        let cy = u.centers_y[e];
-                        if cx < min_x { min_x = cx; }
-                        if cx > max_x { max_x = cx; }
-                        if cy < min_y { min_y = cy; }
-                        if cy > max_y { max_y = cy; }
+                        let anchor_cx = (sum_x / count).round();
+                        let anchor_cy = (sum_y / count).round();
+
+                        // Lebar dan tinggi target DIDASARKAN PADA rentang absolut semua objek hidup
+                        target_w = (global_max_x - global_min_x).round() + 1.0;
+                        target_h = (global_max_y - global_min_y).round() + 1.0;
+
+                        // Pusatkan jendela (Window) baru ini mengitari titik anchor
+                        min_x = (anchor_cx - (target_w / 2.0)).floor();
+                        min_y = (anchor_cy - (target_h / 2.0)).floor();
+
+                        // Opsional: cegah out-of-bounds negatif
+                        if min_x < 0.0 { min_x = 0.0; }
+                        if min_y < 0.0 { min_y = 0.0; }
+
+                        max_x = min_x + target_w - 1.0;
+                        max_y = min_y + target_h - 1.0;
                     }
                 }
+            } else if axiom_type.starts_with("CROP_TO_COLOR(") {
+                let start = axiom_type.find('(').unwrap() + 1;
+                let end = axiom_type.find(')').unwrap();
+                let target_color = axiom_type[start..end].parse::<i32>().unwrap_or(-1);
 
-                if found {
-                    // Update dimensi kosmos
-                    u.global_width = (max_x - min_x) + 1.0;
-                    u.global_height = (max_y - min_y) + 1.0;
+                if target_color != -1 {
+                    min_x = 9999.0; max_x = -9999.0;
+                    min_y = 9999.0; max_y = -9999.0;
 
-                    // Translasi seluruh entitas (menjadikan min_x dan min_y sebagai titik 0,0)
                     for e in 0..u.active_count {
-                        if u.masses[e] > 0.0 {
-                            u.centers_x[e] -= min_x;
-                            u.centers_y[e] -= min_y;
+                        if u.masses[e] > 0.0 && u.tokens[e] == target_color {
+                            found = true;
+                            let cx = u.centers_x[e];
+                            let cy = u.centers_y[e];
+                            if cx < min_x { min_x = cx; }
+                            if cx > max_x { max_x = cx; }
+                            if cy < min_y { min_y = cy; }
+                            if cy > max_y { max_y = cy; }
+                        }
+                    }
 
-                            // Jika CROP memaksa partikel keluar batas, hancurkan sekalian
-                            // Tapi secara logis, HologramDecoder akan mengabaikannya secara natural.
+                    if found {
+                        // Presisi Mutlak (Mencegah Floating Point Trap)
+                        let new_w = (max_x - min_x).round() + 1.0;
+                        let new_h = (max_y - min_y).round() + 1.0;
+
+                        // Update dimensi kosmos
+                        u.global_width = new_w;
+                        u.global_height = new_h;
+
+                        let x_seed = crate::core::core_seeds::CoreSeeds::x_axis_seed().clone();
+                        let y_seed = crate::core::core_seeds::CoreSeeds::y_axis_seed().clone();
+
+                        // Translasi seluruh entitas (menjadikan min_x dan min_y sebagai titik 0,0)
+                        for e in 0..u.active_count {
+                            if u.masses[e] > 0.0 {
+                                let nx = (u.centers_x[e] - min_x).round();
+                                let ny = (u.centers_y[e] - min_y).round();
+
+                                // 🌟 ANNIHILASI DEBRIS KOSMIK & Sinkronisasi Tensor 🌟
+                                if nx >= 0.0 && nx < new_w && ny >= 0.0 && ny < new_h {
+                                    u.centers_x[e] = nx;
+                                    u.centers_y[e] = ny;
+
+                                    let new_x_phase = FHRR::fractional_bind(&x_seed, nx);
+                                    let new_y_phase = FHRR::fractional_bind(&y_seed, ny);
+                                    let new_spatial_tensor = FHRR::bind(&new_x_phase, &new_y_phase);
+
+                                    let mut sp_tensor_mut = u.get_spatial_tensor_mut(e);
+                                    sp_tensor_mut.assign(&new_spatial_tensor);
+                                } else {
+                                    u.masses[e] = 0.0; // Hancurkan
+                                }
+                            }
                         }
                     }
                 }

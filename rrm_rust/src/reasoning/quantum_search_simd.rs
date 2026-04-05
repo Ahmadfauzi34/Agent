@@ -6,6 +6,12 @@ use std::cell::RefCell;
 
 use crate::core::entity_manifold::EntityManifold;
 
+#[derive(Clone, PartialEq, Debug)]
+pub enum CognitivePhase {
+    MacroStructural, // Fase 1: Selesaikan bentuk kanvas (CROP, PAD)
+    Microscopic,     // Fase 2: Selesaikan posisi benda (TRANS, ROTATE)
+}
+
 // =============================================================================
 // THREAD-LOCAL BUFFER POOL
 // =============================================================================
@@ -25,17 +31,30 @@ impl SimdEnergyCalculator {
         manifold: &EntityManifold,
         expected: &[Vec<i32>],
         m_width: usize,
-        m_height: usize
+        m_height: usize,
+        phase: &CognitivePhase
     ) -> f32 {
         let expected_height = expected.len();
         let expected_width = if expected_height > 0 { expected[0].len() } else { 0 };
         let grid_size = expected_width * expected_height;
 
-        let mut energy = 0.0;
+        let dim_diff = (m_width as f32 - expected_width as f32).abs() +
+                       (m_height as f32 - expected_height as f32).abs();
 
-        if m_width != expected_width || m_height != expected_height {
-            let dim_diff = (m_width as f32 - expected_width as f32).abs() + (m_height as f32 - expected_height as f32).abs();
-            energy += 10.0 * dim_diff;
+        // 🌟 GERBANG FASE 1: STRUKTUR MAKRO 🌟
+        if *phase == CognitivePhase::MacroStructural {
+            if dim_diff > 0.0 {
+                return 1000.0 * dim_diff; // Pinalti brutal jika dimensi salah di Fase 1
+            } else {
+                return -500.0; // Sukses mutlak di Fase 1! Abaikan piksel berantakan.
+            }
+        }
+
+        // 🌟 GERBANG FASE 2: MIKROSKOPIS 🌟
+        // Di fase ini, kita berasumsi dimensi sudah (atau sedang dicoba) diselesaikan.
+        let mut energy = 0.0;
+        if dim_diff > 0.0 {
+            energy += 10.0 * dim_diff; // Pinalti standar jika dimensi masih salah
         }
 
         POSITION_BUFFER.with(|pos_buf| {

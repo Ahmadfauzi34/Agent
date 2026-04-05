@@ -33,8 +33,101 @@ impl TopDownAxiomator {
         axioms.extend(Self::generate_grid_axioms(&input_structures, &output_structures));
         axioms.extend(Self::generate_movement_axioms(&input_atoms, &output_atoms));
 
+        // CROP PHYSICS INJECTION
+        axioms.extend(Self::generate_macroscopic_crop_axioms(input_manifold, output_manifold));
+
         // Prioritize: sort by structural confidence
         axioms.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap());
+
+        axioms
+    }
+
+    /// Deteksi: "Dimensi kanvas mengecil secara makroskopis" -> CROP_TO_COLOR
+    fn generate_macroscopic_crop_axioms(
+        input_manifold: &EntityManifold,
+        output_manifold: &EntityManifold
+    ) -> Vec<TopologicalMatch> {
+        let mut axioms = Vec::new();
+
+        let in_w = input_manifold.global_width;
+        let in_h = input_manifold.global_height;
+        let out_w = output_manifold.global_width;
+        let out_h = output_manifold.global_height;
+
+        // Jika dimensi mengecil, ini pasti ada mekanisme CROP
+        if out_w < in_w || out_h < in_h {
+            let mut colors_in_input = Vec::new();
+            for i in 0..input_manifold.active_count {
+                if input_manifold.masses[i] > 0.0 && input_manifold.tokens[i] > 0 {
+                    colors_in_input.push(input_manifold.tokens[i]);
+                }
+            }
+            colors_in_input.sort_unstable();
+            colors_in_input.dedup();
+
+            // Uji setiap warna: Apakah rentang (span) warna ini cocok dengan dimensi output?
+            for color in colors_in_input {
+                let mut min_x = 9999.0; let mut max_x = -9999.0;
+                let mut min_y = 9999.0; let mut max_y = -9999.0;
+                let mut found = false;
+
+                for i in 0..input_manifold.active_count {
+                    if input_manifold.masses[i] > 0.0 && input_manifold.tokens[i] == color {
+                        found = true;
+                        let cx = input_manifold.centers_x[i] * (in_w - 1.0); // cx in pixels
+                        let cy = input_manifold.centers_y[i] * (in_h - 1.0); // cy in pixels
+                        if cx < min_x { min_x = cx; }
+                        if cx > max_x { max_x = cx; }
+                        if cy < min_y { min_y = cy; }
+                        if cy > max_y { max_y = cy; }
+                    }
+                }
+
+                if found {
+                    let span_w = (max_x - min_x) + 1.0;
+                    let span_h = (max_y - min_y) + 1.0;
+
+                    // Jika rentang warna ini cocok dengan ukuran output target, ini adalah jangkar CROP!
+                    if (span_w - out_w).abs() <= 1.0 && (span_h - out_h).abs() <= 1.0 {
+                        let mut condition_phase = Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);
+                        let color_phase = FHRR::fractional_bind(&CoreSeeds::color_seed(), color as f32);
+                        for i in 0..crate::core::config::GLOBAL_DIMENSION { condition_phase[i] = color_phase[i]; }
+
+                        axioms.push(TopologicalMatch {
+                            source_index: 0,
+                            target_index: -1,
+                            similarity: 0.98, // Prioritas Absolut/Sangat Tinggi!
+                            condition_tensor: Some(condition_phase.clone()),
+                            delta_spatial: Self::identity_tensor(),
+                            delta_semantic: Self::identity_tensor(),
+                            delta_x: 0.0,
+                            delta_y: 0.0,
+                            axiom_type: format!("CROP_TO_COLOR({})", color),
+                            physics_tier: 7, // Tier 7 = Crop Physics
+                        });
+                    }
+                }
+
+                // 🌟 AKSIOMA BARU: CROP_WINDOW_AROUND (Anchor-Based Crop)
+                // Usulkan warna ini sebagai titik pusat untuk jendela out_w x out_h
+                let mut condition_phase = Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);
+                let color_phase = FHRR::fractional_bind(&CoreSeeds::color_seed(), color as f32);
+                for i in 0..crate::core::config::GLOBAL_DIMENSION { condition_phase[i] = color_phase[i]; }
+
+                axioms.push(TopologicalMatch {
+                    source_index: 0,
+                    target_index: -1,
+                    similarity: 0.98, // VIP Pass prioritas tinggi untuk Depth 1
+                    condition_tensor: Some(condition_phase),
+                    delta_spatial: Self::identity_tensor(),
+                    delta_semantic: Self::identity_tensor(),
+                    delta_x: 0.0, // Dinamika Kuantum: Jangan injeksi dimensi mati dari Train Pair!
+                    delta_y: 0.0,
+                    axiom_type: format!("CROP_WINDOW_AROUND({})", color),
+                    physics_tier: 7, // Tetap masuk Tier 7 (Dimensi)
+                });
+            }
+        }
 
         axioms
     }

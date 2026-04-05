@@ -13,6 +13,8 @@ pub mod entanglement_optimizer;
 pub mod wave_dynamics;
 pub mod swarm_dynamics;
 pub mod grover_diffusion_system;
+pub mod hierarchical_inference;
+pub mod skill_library;
 
 #[cfg(test)]
 mod swarm_wave_test;

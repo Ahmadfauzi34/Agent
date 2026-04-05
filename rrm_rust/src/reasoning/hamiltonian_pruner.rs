@@ -107,17 +107,33 @@ impl HamiltonianPruner {
 
     /// Menghitung Energy/Error murni tanpa pernah membuat grid intermediat (Zero-Allocation).
     /// Menggunakan sistem sparse `covered` array di stack atau buffer re-use lokal.
-    pub fn calculate_energy_streaming(manifold: &EntityManifold, expected: &[Vec<i32>], m_width: usize, m_height: usize) -> f32 {
+    pub fn calculate_energy_streaming(
+        manifold: &EntityManifold,
+        expected: &[Vec<i32>],
+        m_width: usize,
+        m_height: usize,
+        depth_ratio: f32
+    ) -> f32 {
         let mut energy = 0.0;
         let expected_height = expected.len();
         let expected_width = if expected_height > 0 { expected[0].len() } else { 0 };
 
         // Hukum Pengecualian Pruner: Jika dimensi tidak cocok secara makroskopis,
-        // kita tambahkan pinalti berat
+        // Pinalti Dimensi Adaptif: Kecil di awal iterasi, mematikan di akhir (depth ratio mendekati 1.0)
         if m_width != expected_width || m_height != expected_height {
-            // Gunakan adaptive penalty yang sangat kecil agar tidak instantly pruned
             let dim_diff = (m_width as f32 - expected_width as f32).abs() + (m_height as f32 - expected_height as f32).abs();
-            energy += 10.0 * dim_diff;
+            let penalty_multiplier = 10.0 * depth_ratio.max(0.1); // Minimal 0.1 agar tetap terarah
+            energy += penalty_multiplier * dim_diff;
+        } else {
+            // 🌟 HADIAH DIMENSI (DIMENSION REWARD) 🌟
+            // Jika dimensi MATCH (contoh: 6x6 == 6x6 setelah di-CROP),
+            // berikan diskon energi yang masif di fase awal.
+            energy -= 500.0 * (1.0 - depth_ratio);
+
+            // 🌟 PRECISION MODULATION (ACTIVE INFERENCE) 🌟
+            if depth_ratio < 0.5 {
+                return energy;
+            }
         }
 
         // Flat array untuk menandai piksel mana saja di universe yang sudah tertutupi
