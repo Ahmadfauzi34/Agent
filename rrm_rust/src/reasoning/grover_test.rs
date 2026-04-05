@@ -24,6 +24,7 @@ fn test_grover_warm_start() {
         delta_x: 0.0,
         delta_y: 0.0,
         physics_tier: 0,
+        axiom_type: "C1".to_string(),
     };
 
     let c2 = GroverCandidate {
@@ -33,6 +34,7 @@ fn test_grover_warm_start() {
         delta_x: 0.0,
         delta_y: 0.0,
         physics_tier: 0,
+        axiom_type: "C2".to_string(),
     };
 
     grover.warm_start(&[c1, c2]);

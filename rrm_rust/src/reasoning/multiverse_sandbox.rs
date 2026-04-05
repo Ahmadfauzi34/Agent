@@ -30,6 +30,26 @@ impl MultiverseSandbox {
         physics_tier: u8,
         axiom_type: &str, // Digunakan untuk parsing operator geometri jika Tier 4
     ) {
+        // 🌟 FISIKA TIER 8: REKURSI MACRO (Interpreter Siklus Otot/Skill) 🌟
+        if physics_tier == 8 {
+            if let Some(macro_content) = axiom_type.strip_prefix("MACRO:") {
+                let sub_axioms: Vec<&str> = macro_content.split('|').collect();
+                for sub_axiom_str in sub_axioms {
+                    // Heuristik parsing tier
+                    let sub_tier = match sub_axiom_str {
+                        s if s.contains("CROP") => 7,
+                        s if s.contains("SPAWN") || s.contains("FILL") => 6,
+                        s if s.contains("ROTATE") || s.contains("MIRROR") => 4,
+                        s if s.contains("MOVE_TO") => 3,
+                        _ => 0,
+                    };
+
+                    Self::apply_axiom(u, condition_tensor, delta_spatial, delta_semantic, delta_x, delta_y, sub_tier, sub_axiom_str);
+                }
+            }
+            return;
+        }
+
         let base_abs_dx = delta_x.round();
         let base_abs_dy = delta_y.round();
 
@@ -154,10 +174,8 @@ impl MultiverseSandbox {
                 let end = axiom_type.find(')').unwrap();
                 let anchor_color = axiom_type[start..end].parse::<i32>().unwrap_or(-1);
 
-                target_w = delta_x;
-                target_h = delta_y;
-
                 if anchor_color != -1 {
+                    // Cari Center of Mass dari Jangkar (Anchor)
                     let mut sum_x = 0.0;
                     let mut sum_y = 0.0;
                     let mut count = 0.0;
@@ -170,14 +188,42 @@ impl MultiverseSandbox {
                         }
                     }
 
-                    if count > 0.0 {
+                    // Dinamika Kuantum: Ukur Bounding Box seluruh Kosmos aktif SEBELUM di-crop
+                    // Abaikan latar belakang kosong (0) jika memungkinkan, namun secara default,
+                    // kotak minimum menampung seluruh partikel yang hidup di universe ini.
+                    let mut global_min_x = 9999.0;
+                    let mut global_max_x = -9999.0;
+                    let mut global_min_y = 9999.0;
+                    let mut global_max_y = -9999.0;
+                    let mut content_found = false;
+
+                    for e in 0..u.active_count {
+                        // Jangan sertakan partikel background '0' sebagai penentu batas kotak
+                        if u.masses[e] > 0.0 && u.tokens[e] != 0 {
+                            content_found = true;
+                            let cx = u.centers_x[e];
+                            let cy = u.centers_y[e];
+                            if cx < global_min_x { global_min_x = cx; }
+                            if cx > global_max_x { global_max_x = cx; }
+                            if cy < global_min_y { global_min_y = cy; }
+                            if cy > global_max_y { global_max_y = cy; }
+                        }
+                    }
+
+                    if count > 0.0 && content_found {
                         found = true;
                         let anchor_cx = (sum_x / count).round();
                         let anchor_cy = (sum_y / count).round();
 
+                        // Lebar dan tinggi target DIDASARKAN PADA rentang absolut semua objek hidup
+                        target_w = (global_max_x - global_min_x).round() + 1.0;
+                        target_h = (global_max_y - global_min_y).round() + 1.0;
+
+                        // Pusatkan jendela (Window) baru ini mengitari titik anchor
                         min_x = (anchor_cx - (target_w / 2.0)).floor();
                         min_y = (anchor_cy - (target_h / 2.0)).floor();
 
+                        // Opsional: cegah out-of-bounds negatif
                         if min_x < 0.0 { min_x = 0.0; }
                         if min_y < 0.0 { min_y = 0.0; }
 

@@ -185,6 +185,7 @@ impl RrmAgent {
                         delta_x: ax.delta_x,
                         delta_y: ax.delta_y,
                         physics_tier: ax.physics_tier,
+                        axiom_type: ax.axiom_type.last().cloned().unwrap_or_else(|| "".to_string()),
                     });
                 }
 
@@ -244,41 +245,31 @@ impl RrmAgent {
                 // Type aliasing for strict invariant enforcement
                 type PhysicsTier = u8;
                 const DIM_PHYSICS_TIER: PhysicsTier = 7;
+                const GRID_OPS_TIER: PhysicsTier = 6;
                 const GEOMETRY_TIER_MIN: PhysicsTier = 4;
                 const GEOMETRY_TIER_MAX: PhysicsTier = 5;
 
-                // Safely extract target dimensions from first expected grid
-                let (test_target_h, test_target_w) = expected_grids.first()
-                    .map(|grid| (grid.len() as f32, if grid.is_empty() { 0.0 } else { grid[0].len() as f32 }))
-                    .unwrap_or((0.0, 0.0));
-
                 let all_clone_count = all_clone.len();
 
-                if test_target_h > 0.0 && test_target_w > 0.0 {
-                    // 🌟 VIP PASS UNTUK AKSIOMA MAKRO 🌟
-                    // Jangan biarkan Translasi (Tier 0) mendominasi pintu masuk MCTS.
-                    for c in all_clone.iter_mut() {
-                        // NaN Guard + Dimension Injection:
-                        // Saat CROP dimasukkan oleh TopDownAxiomator, delta_x dan delta_y menampung ukuran target.
-                        // Sayangnya TopDownAxiomator mendeteksi `out_w` sebagai width test set yang mungkin salah atau aneh di awal.
-                        // KIta PAKSA `delta_x` & `delta_y` agar sama dengan `test_target_w/h` yang PASTI dari target ekspektasi sesungguhnya.
-                        if c.physics_tier == DIM_PHYSICS_TIER && !test_target_w.is_nan() && !test_target_h.is_nan() {
-                            c.delta_x = test_target_w;
-                            c.delta_y = test_target_h;
-                        }
+                // 🌟 VIP PASS: UNTUK AKSIOMA MAKRO (MURNI PRIORITAS) 🌟
+                // Jangan biarkan Translasi (Tier 0) mendominasi pintu masuk MCTS.
+                for c in all_clone.iter_mut() {
+                    let probability_boost = match c.physics_tier {
+                        DIM_PHYSICS_TIER => 5.0,
+                        GRID_OPS_TIER => 3.0,
+                        GEOMETRY_TIER_MIN..=GEOMETRY_TIER_MAX => 2.0,
+                        _ => 0.0,
+                    };
 
-                        let probability_boost = match c.physics_tier {
-                            DIM_PHYSICS_TIER => 5.0,
-                            GEOMETRY_TIER_MIN..=GEOMETRY_TIER_MAX => 2.0,
-                            _ => 0.0,
-                        };
-
-                        if c.physics_tier == DIM_PHYSICS_TIER {
-                            c.probability = probability_boost;
-                        } else {
-                            c.probability += probability_boost;
-                        }
+                    if c.physics_tier == DIM_PHYSICS_TIER {
+                        c.probability = probability_boost; // Absolute VIP
+                    } else {
+                        c.probability += probability_boost;
                     }
+
+                    // KITA TIDAK LAGI MENG-INJEKSI UKURAN STATIC KE DELTA_X DAN DELTA_Y DI SINI.
+                    // Ukuran pemotongan harus dihitung secara DINAMIS oleh MultiverseSandbox
+                    // berdasarkan Bounding Box partikel aktif saat ini yang berpusat pada titik jangkar.
                 }
 
                 // Stable deterministic sort

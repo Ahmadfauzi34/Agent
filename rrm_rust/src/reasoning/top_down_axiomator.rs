@@ -121,8 +121,8 @@ impl TopDownAxiomator {
                     condition_tensor: Some(condition_phase),
                     delta_spatial: Self::identity_tensor(),
                     delta_semantic: Self::identity_tensor(),
-                    delta_x: out_w, // Titipkan informasi Target Lebar di dx
-                    delta_y: out_h, // Titipkan informasi Target Tinggi di dy
+                    delta_x: 0.0, // Dinamika Kuantum: Jangan injeksi dimensi mati dari Train Pair!
+                    delta_y: 0.0,
                     axiom_type: format!("CROP_WINDOW_AROUND({})", color),
                     physics_tier: 7, // Tetap masuk Tier 7 (Dimensi)
                 });

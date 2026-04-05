@@ -21,6 +21,7 @@ pub struct GroverCandidate {
     pub delta_x: f32,
     pub delta_y: f32,
     pub physics_tier: u8,
+    pub axiom_type: String,
 }
 
 pub struct TrainState {
@@ -112,7 +113,7 @@ impl<'a> GroverDiffusionSystem<'a> {
                     candidate.delta_x,
                     candidate.delta_y,
                     candidate.physics_tier,
-                    "",
+                    &candidate.axiom_type,
                 );
 
                 let pragmatic_error = SimdEnergyCalculator::calculate_pragmatic_streaming(
