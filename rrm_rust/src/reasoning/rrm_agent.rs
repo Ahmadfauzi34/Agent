@@ -59,7 +59,11 @@ impl RrmAgent {
             ontology,
             self_reflection,
             structural_analyzer: StructuralAnalyzer,
-            counterfactual_engine: crate::reasoning::counterfactual_engine::CounterfactualEngine::new(),
+            counterfactual_engine: crate::reasoning::counterfactual_engine::CounterfactualEngine::new(crate::reasoning::counterfactual_engine::EngineConfig {
+                max_simulations: 10,
+                max_steps_per_simulation: 5,
+                state_size: 1000 * 8192,
+            }),
             hierarchical_planner: crate::reasoning::hierarchical_planner::HierarchicalPlanner::from_delta(&StructuralDelta { signature: crate::perception::structural_analyzer::StructuralSignature { dim_relation: crate::perception::structural_analyzer::DimensionRelation::Equal, object_delta: crate::perception::structural_analyzer::ObjectDelta::SameCount, color_transitions: vec![], topology_in: crate::perception::structural_analyzer::TopologyHint::Scatter, topology_out: crate::perception::structural_analyzer::TopologyHint::Scatter, has_template_frame: false, symmetry_change: crate::perception::structural_analyzer::SymmetryChange::Preserved }, input_stats: crate::perception::structural_analyzer::ObjectStatistics { count: 0, colors: std::collections::HashSet::new(), bounding_box: (0, 0), total_pixels: 0, density: 0.0 }, output_stats: crate::perception::structural_analyzer::ObjectStatistics { count: 0, colors: std::collections::HashSet::new(), bounding_box: (0, 0), total_pixels: 0, density: 0.0 }, per_object_changes: vec![] }, &SkillOntology::initialize()), // Will be recreated properly inside solve_task_v2
             mental_replay: crate::memory::mental_replay::MentalReplay::new(),
             skill_composer: crate::reasoning::skill_composer::SkillComposer::new(),
@@ -115,15 +119,15 @@ impl RrmAgent {
 
             let result = self.counterfactual_engine.what_if(axiom, input, expected);
 
-            match result.outcome {
-                crate::reasoning::counterfactual_engine::OutcomeStatus::Success => {
+            match result.code {
+                crate::reasoning::counterfactual_engine::SimulationOutcomeCode::Success => {
                     println!("    ✅ {} langsung sukses!", axiom.short_name());
                     promising.push((axiom.clone(), result));
                 },
-                crate::reasoning::counterfactual_engine::OutcomeStatus::PartialSuccess => {
+                crate::reasoning::counterfactual_engine::SimulationOutcomeCode::PartialSuccess => {
                     println!("    ⚠️  {} menjanjikan (divergensi: {:.2})",
                         axiom.short_name(),
-                        result.metrics.epistemic_value
+                        0.0 // no metrics in fast soa
                     );
                     promising.push((axiom.clone(), result));
                 },
@@ -134,8 +138,48 @@ impl RrmAgent {
         }
 
         // === STEP 3: Jika tidak ada yang langsung sukses, eksplor komposisi ===
-        let mut plan = None;
-        if promising.iter().all(|(_, r)| !matches!(r.outcome, crate::reasoning::counterfactual_engine::OutcomeStatus::Success)) {
+
+        let mut phase_count = 0;
+        let max_phases = 20;
+        let mut temp_manifold_buffer = test_input.clone();
+
+        loop {
+            phase_count += 1;
+            if phase_count > max_phases {
+                println!("⚠️  Phase limit reached");
+                break;
+            }
+
+            let result = planner.execute_next_phase_soa(
+                &mut temp_manifold_buffer,
+                expected,
+                &mut self.counterfactual_engine,
+            );
+
+            if result.is_complete() {
+                println!("✅ Complete!");
+                break;
+            }
+
+            if result.is_terminal_failure() {
+                println!("💀 Terminal failure, fallback to dreaming");
+                self.mental_replay.generate_dreams(10);
+                let _discovered = self.mental_replay.practice_in_dreams(
+                    &mut self.counterfactual_engine,
+                    &self.ontology,
+                );
+                break;
+            }
+
+            if result.needs_retry() {
+                println!("🔄 Retrying phase with adjustments...");
+                continue;
+            }
+        }
+
+        let mut plan: Option<Vec<crate::reasoning::structures::Axiom>> = None;
+
+        if promising.iter().all(|(_, r)| !matches!(r.code, crate::reasoning::counterfactual_engine::SimulationOutcomeCode::Success)) {
             println!("  🌳 Tidak ada solusi single-step, eksplor tree...");
 
             let axioms_promising: Vec<_> = promising.into_iter().map(|(a, _)| a).collect();
@@ -146,13 +190,13 @@ impl RrmAgent {
                 branching.coverage * 100.0
             );
 
-            if let Some(best) = branching.best_path {
+            if let Some(best) = branching.best_path.as_ref() {
                 println!("    🎯 Path terbaik: {} langkah", best.len());
 
                 let mut all_valid = true;
                 for (inp, exp) in train_pairs {
                     let result = self.counterfactual_engine.what_if_sequence(&best, inp, exp);
-                    if !result.is_success() {
+                    if !matches!(result, crate::reasoning::counterfactual_engine::SequenceResult::Complete(sim) if matches!(sim.outcome, crate::reasoning::counterfactual_engine::OutcomeStatus::Success)) {
                         all_valid = false;
                         println!("    ⚠️  Gagal validasi di pair lain");
                         break;
@@ -160,11 +204,11 @@ impl RrmAgent {
                 }
 
                 if all_valid {
-                    plan = Some(best);
+                    plan = Some(best.clone());
                 }
             }
         } else {
-            plan = Some(vec![promising.into_iter().find(|(_, r)| matches!(r.outcome, crate::reasoning::counterfactual_engine::OutcomeStatus::Success)).unwrap().0]);
+            plan = Some(vec![promising.into_iter().find(|(_, r)| matches!(r.code, crate::reasoning::counterfactual_engine::SimulationOutcomeCode::Success)).unwrap().0]);
         }
 
         // === STEP 4: Fallback ke hierarchical planner ===

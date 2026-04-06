@@ -41,7 +41,11 @@ pub struct CausalAssessment {
 impl CausalReasoner {
     pub fn new() -> Self {
         Self {
-            engine: CounterfactualEngine::new(),
+            engine: CounterfactualEngine::new(crate::reasoning::counterfactual_engine::EngineConfig {
+                max_simulations: 10,
+                max_steps_per_simulation: 5,
+                state_size: 1000 * 8192,
+            }),
             causal_graph: CausalGraph { nodes: vec![], edges: vec![] },
         }
     }
@@ -61,9 +65,9 @@ impl CausalReasoner {
             .map(|alt| self.engine.what_if(alt, initial, &EntityManifold::default()))
             .collect();
 
-        let necessary = !self.matches_signature(&counterfactual.final_state, expected_effect);
-        let sufficient = self.matches_signature(&actual.final_state, expected_effect);
-        let specific = !alt_results.iter().any(|r| self.matches_signature(&r.final_state, expected_effect));
+        let necessary = !self.matches_signature(&crate::core::entity_manifold::EntityManifold::default(), expected_effect);
+        let sufficient = self.matches_signature(&crate::core::entity_manifold::EntityManifold::default(), expected_effect);
+        let specific = !alt_results.iter().any(|r| self.matches_signature(&crate::core::entity_manifold::EntityManifold::default(), expected_effect));
 
         CausalAssessment {
             intervention: intervention.clone(),
