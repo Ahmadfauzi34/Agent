@@ -1,4 +1,7 @@
 use crate::core::entity_manifold::EntityManifold;
+use crate::perception::structural_analyzer::{StructuralAnalyzer, StructuralDelta};
+use crate::self_awareness::skill_ontology::{SkillOntology, SolutionStrategy, SkillUsage};
+use crate::self_awareness::self_reflection::SelfReflection;
 use crate::perception::universal_manifold::UniversalManifold;
 use crate::perception::entity_segmenter::EntitySegmenter;
 use crate::perception::hologram_decoder::HologramDecoder;
@@ -20,8 +23,21 @@ use futures_lite::future;
 pub struct RrmAgent {
     perceiver: UniversalManifold,
     decoder: HologramDecoder,
-    pruner: HamiltonianPruner, // Akan di-deprecate karena diganti AsyncWaveSearch, tapi biarkan untuk fallback
+    pruner: HamiltonianPruner, // Akan di-deprecate
     seed_bank: LogicSeedBank,
+
+    // Self-Awareness Layer
+    ontology: SkillOntology,
+    self_reflection: SelfReflection,
+    structural_analyzer: StructuralAnalyzer,
+
+    // Reasoning
+    counterfactual_engine: crate::reasoning::counterfactual_engine::CounterfactualEngine,
+    hierarchical_planner: crate::reasoning::hierarchical_planner::HierarchicalPlanner,
+
+    // Memory
+    mental_replay: crate::memory::mental_replay::MentalReplay,
+    skill_composer: crate::reasoning::skill_composer::SkillComposer,
 }
 
 impl Default for RrmAgent {
@@ -32,11 +48,73 @@ impl Default for RrmAgent {
 
 impl RrmAgent {
     pub fn new() -> Self {
+        let ontology = SkillOntology::initialize();
+        let self_reflection = SelfReflection::new(ontology.clone());
+
         Self {
             perceiver: UniversalManifold::new(),
             decoder: HologramDecoder::new(),
             pruner: HamiltonianPruner::new(),
             seed_bank: LogicSeedBank::new(),
+            ontology,
+            self_reflection,
+            structural_analyzer: StructuralAnalyzer,
+            counterfactual_engine: crate::reasoning::counterfactual_engine::CounterfactualEngine::new(),
+            hierarchical_planner: crate::reasoning::hierarchical_planner::HierarchicalPlanner::from_delta(&StructuralDelta { signature: crate::perception::structural_analyzer::StructuralSignature { dim_relation: crate::perception::structural_analyzer::DimensionRelation::Equal, object_delta: crate::perception::structural_analyzer::ObjectDelta::SameCount, color_transitions: vec![], topology_in: crate::perception::structural_analyzer::TopologyHint::Scatter, topology_out: crate::perception::structural_analyzer::TopologyHint::Scatter, has_template_frame: false, symmetry_change: crate::perception::structural_analyzer::SymmetryChange::Preserved }, input_stats: crate::perception::structural_analyzer::ObjectStatistics { count: 0, colors: std::collections::HashSet::new(), bounding_box: (0, 0), total_pixels: 0, density: 0.0 }, output_stats: crate::perception::structural_analyzer::ObjectStatistics { count: 0, colors: std::collections::HashSet::new(), bounding_box: (0, 0), total_pixels: 0, density: 0.0 }, per_object_changes: vec![] }, &SkillOntology::initialize()), // Will be recreated properly inside solve_task_v2
+            mental_replay: crate::memory::mental_replay::MentalReplay::new(),
+            skill_composer: crate::reasoning::skill_composer::SkillComposer::new(),
+        }
+    }
+
+
+
+    pub fn solve_task_v2(
+        &mut self,
+        train_pairs: &[(EntityManifold, EntityManifold)],
+        test_input: &EntityManifold,
+    ) -> Vec<Vec<i32>> {
+        use crate::perception::structural_analyzer::StructuralDelta;
+        use crate::reasoning::hierarchical_planner::HierarchicalPlanner;
+
+        let deltas: Vec<_> = train_pairs.iter()
+            .map(|(inp, out)| StructuralAnalyzer::analyze(inp, out))
+            .collect();
+
+        let consensus_delta = StructuralAnalyzer::consensus(&deltas);
+
+        let strategy = self.ontology.can_solve(&consensus_delta)
+            .expect("No strategy available for this task class");
+
+        let planner = HierarchicalPlanner::from_delta(&consensus_delta, &self.ontology);
+
+        let plan = planner.plan_with_validation(
+            &mut self.counterfactual_engine,
+            &train_pairs[0].0,
+            &train_pairs[0].1,
+        );
+
+        match plan {
+            Some(axioms) => {
+                let mut test_state = test_input.clone();
+                for axiom in &axioms {
+                    MultiverseSandbox::apply_axiom(&mut test_state, &axiom.condition_tensor, &axiom.delta_spatial, &axiom.delta_semantic, axiom.delta_x, axiom.delta_y, axiom.tier, &axiom.name);
+                }
+
+                let mut output = vec![vec![0; test_state.global_width as usize]; test_state.global_height as usize];
+                let output_grid = self.decoder.collapse_to_grid(&test_state, test_state.global_width as usize, test_state.global_height as usize, 0.5); output = output_grid;
+                output
+            },
+            None => {
+                self.mental_replay.generate_dreams(10);
+                let discovered = self.mental_replay.practice_in_dreams(
+                    &mut self.counterfactual_engine,
+                    &self.ontology,
+                );
+
+                let mut output = vec![vec![0; test_input.global_width as usize]; test_input.global_height as usize];
+                let output_grid = self.decoder.collapse_to_grid(test_input, test_input.global_width as usize, test_input.global_height as usize, 0.5); output = output_grid;
+                output
+            }
         }
     }
 

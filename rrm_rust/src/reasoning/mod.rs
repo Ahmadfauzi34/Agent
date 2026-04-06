@@ -1,23 +1,23 @@
-pub mod axiom_generator;
-pub mod hamiltonian_pruner;
-pub mod multiverse_sandbox;
-pub mod rrm_agent;
-pub mod topological_aligner;
-pub mod global_blackboard;
-#[cfg(test)]
-mod global_blackboard_test;
-pub mod quantum_search;
 pub mod top_down_axiomator;
+pub mod topological_aligner;
 pub mod quantum_search_simd;
-pub mod entanglement_optimizer;
+pub mod quantum_search;
+pub mod hamiltonian_pruner;
+pub mod axiom_generator;
+pub mod grover_diffusion_system;
+pub mod grover_test;
+pub mod multiverse_sandbox;
+pub mod global_blackboard;
+pub mod global_blackboard_test;
 pub mod wave_dynamics;
 pub mod swarm_dynamics;
-pub mod grover_diffusion_system;
+pub mod swarm_wave_test;
+pub mod entanglement_optimizer;
 pub mod hierarchical_inference;
+pub mod rrm_agent;
 pub mod skill_library;
 
-#[cfg(test)]
-mod swarm_wave_test;
-
-#[cfg(test)]
-mod grover_test;
+pub mod structures;
+pub mod counterfactual_engine;
+pub mod hierarchical_planner;
+pub mod skill_composer;

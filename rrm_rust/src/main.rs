@@ -78,3 +78,4 @@ fn main() {
         println!("💀 FAILED (Mismatch)");
     }
 }
+pub mod self_awareness;
