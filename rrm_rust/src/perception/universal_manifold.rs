@@ -1,5 +1,5 @@
-use crate::core::fhrr::FHRR;
 use crate::core::core_seeds::CoreSeeds;
+use crate::core::fhrr::FHRR;
 use ndarray::Array1;
 
 pub struct UniversalManifold {

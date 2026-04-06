@@ -1,6 +1,6 @@
-use std::cell::RefCell;
 use crate::core::config::MAX_ENTITIES;
 use crate::core::entity_manifold::EntityManifold;
+use std::cell::RefCell;
 
 /// Thread-local buffer pool untuk SIMD/Cache-friendly operations
 thread_local! {
@@ -16,24 +16,24 @@ pub struct GestaltAtom {
     pub center_of_mass: (f32, f32),
     pub pixel_count: usize,
     pub color: i32,
-    pub density: f32, // pixel_count / area
-    pub aspect_ratio: f32, // width / height
+    pub density: f32,        // pixel_count / area
+    pub aspect_ratio: f32,   // width / height
     pub symmetry_score: f32, // 0.0-1.0
-    pub hollowness: f32, // 0.0 (solid) - 1.0 (hollow)
+    pub hollowness: f32,     // 0.0 (solid) - 1.0 (hollow)
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum AtomType {
-    SolidRectangle,      // Kotak solid, density tinggi
-    HollowRectangle,     // Kotak berongga (border)
-    HorizontalLine,      // Garis horizontal (aspect_ratio > 3.0)
-    VerticalLine,        // Garis vertikal (aspect_ratio < 0.33)
-    DiagonalLine,        // Garis diagonal
-    LShape,              // Bentuk L
-    TShape,              // Bentuk T
-    CrossShape,          // Bentuk plus/cross
-    Scatter,             // Piksel acak (tidak berpola)
-    SinglePixel,         // Titik tunggal
+    SolidRectangle,  // Kotak solid, density tinggi
+    HollowRectangle, // Kotak berongga (border)
+    HorizontalLine,  // Garis horizontal (aspect_ratio > 3.0)
+    VerticalLine,    // Garis vertikal (aspect_ratio < 0.33)
+    DiagonalLine,    // Garis diagonal
+    LShape,          // Bentuk L
+    TShape,          // Bentuk T
+    CrossShape,      // Bentuk plus/cross
+    Scatter,         // Piksel acak (tidak berpola)
+    SinglePixel,     // Titik tunggal
 }
 
 /// SIMD-optimized/Cache-friendly shape detector
@@ -44,7 +44,9 @@ impl GestaltEngine {
     /// O(n) dengan n = active_entities, cache-friendly
     pub fn extract_atoms(manifold: &EntityManifold) -> Vec<GestaltAtom> {
         let active = manifold.active_count.min(MAX_ENTITIES);
-        if active == 0 { return Vec::new(); }
+        if active == 0 {
+            return Vec::new();
+        }
 
         // Get thread-local buffer
         GESTALT_BUFFER.with(|buf| {
@@ -55,7 +57,9 @@ impl GestaltEngine {
             let mut visited = vec![false; active];
 
             for seed in 0..active {
-                if visited[seed] || manifold.masses[seed] == 0.0 { continue; }
+                if visited[seed] || manifold.masses[seed] == 0.0 {
+                    continue;
+                }
 
                 // Flood fill dengan cache-optimized neighbor search
                 let component = Self::flood_fill_simd(manifold, seed, &mut visited);
@@ -69,18 +73,16 @@ impl GestaltEngine {
     }
 
     /// SIMD-optimized/Cache-friendly flood fill: cari connected component
-    fn flood_fill_simd(
-        manifold: &EntityManifold,
-        seed: usize,
-        visited: &mut [bool]
-    ) -> Vec<usize> {
+    fn flood_fill_simd(manifold: &EntityManifold, seed: usize, visited: &mut [bool]) -> Vec<usize> {
         let mut component = Vec::with_capacity(64);
         let mut stack = vec![seed];
 
         let threshold = 1.5; // Max distance untuk "connected" (mencakup diagonal)
 
         while let Some(idx) = stack.pop() {
-            if visited[idx] { continue; }
+            if visited[idx] {
+                continue;
+            }
             visited[idx] = true;
             component.push(idx);
 
@@ -90,7 +92,9 @@ impl GestaltEngine {
 
             // Batch check: cari neighbors dalam radius
             for n in 0..manifold.active_count {
-                if visited[n] || manifold.masses[n] == 0.0 || manifold.tokens[n] != color { continue; }
+                if visited[n] || manifold.masses[n] == 0.0 || manifold.tokens[n] != color {
+                    continue;
+                }
 
                 let nx = manifold.centers_x[n];
                 let ny = manifold.centers_y[n];
@@ -107,11 +111,10 @@ impl GestaltEngine {
     }
 
     /// Classify component into Gestalt Atom dengan shape analysis
-    fn classify_component(
-        indices: &[usize],
-        manifold: &EntityManifold
-    ) -> Option<GestaltAtom> {
-        if indices.is_empty() { return None; }
+    fn classify_component(indices: &[usize], manifold: &EntityManifold) -> Option<GestaltAtom> {
+        if indices.is_empty() {
+            return None;
+        }
 
         // Calculate bounding box (SIMD-optimized min/max concept)
         let (mut min_x, mut min_y) = (f32::MAX, f32::MAX);
@@ -132,8 +135,11 @@ impl GestaltEngine {
             sum_y += y;
 
             let c = manifold.tokens[idx];
-            if j == 0 { color = c; }
-            else if c != color { color_consistent = false; }
+            if j == 0 {
+                color = c;
+            } else if c != color {
+                color_consistent = false;
+            }
         }
 
         let count = indices.len();
@@ -189,14 +195,18 @@ impl GestaltEngine {
     /// Cache-friendly hollowness detection
     fn calculate_hollowness(
         indices: &[usize],
-        min_x: f32, min_y: f32,
-        max_x: f32, max_y: f32,
-        manifold: &EntityManifold
+        min_x: f32,
+        min_y: f32,
+        max_x: f32,
+        max_y: f32,
+        manifold: &EntityManifold,
     ) -> f32 {
         let width = (max_x - min_x + 1.0) as usize;
         let height = (max_y - min_y + 1.0) as usize;
 
-        if width < 3 || height < 3 { return 0.0; }
+        if width < 3 || height < 3 {
+            return 0.0;
+        }
 
         // Create occupancy grid dengan flat array
         let mut grid = vec![false; width * height];
@@ -222,30 +232,29 @@ impl GestaltEngine {
             }
         }
 
-        if interior_pixels == 0 { return 0.0; }
+        if interior_pixels == 0 {
+            return 0.0;
+        }
         empty_interior as f32 / interior_pixels as f32
     }
 
     /// Cache-friendly symmetry detection
-    fn calculate_symmetry(
-        indices: &[usize],
-        cx: f32, cy: f32,
-        manifold: &EntityManifold
-    ) -> f32 {
-        if indices.len() < 2 { return 1.0; }
+    fn calculate_symmetry(indices: &[usize], cx: f32, cy: f32, manifold: &EntityManifold) -> f32 {
+        if indices.len() < 2 {
+            return 1.0;
+        }
 
         // Use thread-local buffer untuk positions
         SIMD_BUFFER_POOL.with(|pool| {
             let mut pool = pool.borrow_mut();
-            let mut rel_pos = pool.pop().unwrap_or_else(|| Vec::with_capacity(indices.len() * 2));
+            let mut rel_pos = pool
+                .pop()
+                .unwrap_or_else(|| Vec::with_capacity(indices.len() * 2));
 
             rel_pos.clear();
 
             for &i in indices {
-                rel_pos.push((
-                    manifold.centers_x[i] - cx,
-                    manifold.centers_y[i] - cy
-                ));
+                rel_pos.push((manifold.centers_x[i] - cx, manifold.centers_y[i] - cy));
             }
 
             // Check horizontal symmetry: (x, y) vs (-x, y)
@@ -260,7 +269,7 @@ impl GestaltEngine {
                 }
 
                 // Look for mirror
-                for j in (i+1)..rel_pos.len() {
+                for j in (i + 1)..rel_pos.len() {
                     let (x2, y2) = rel_pos[j];
                     if (x1 + x2).abs() < tolerance && (y1 - y2).abs() < tolerance {
                         symmetric_pairs += 2;

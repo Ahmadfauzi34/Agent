@@ -44,7 +44,16 @@ impl MultiverseSandbox {
                         _ => 0,
                     };
 
-                    Self::apply_axiom(u, condition_tensor, delta_spatial, delta_semantic, delta_x, delta_y, sub_tier, sub_axiom_str);
+                    Self::apply_axiom(
+                        u,
+                        condition_tensor,
+                        delta_spatial,
+                        delta_semantic,
+                        delta_x,
+                        delta_y,
+                        sub_tier,
+                        sub_axiom_str,
+                    );
                 }
             }
             return;
@@ -86,16 +95,26 @@ impl MultiverseSandbox {
 
                 // 1. Temukan bounding box dari target (anchor)
                 for e in 0..u.active_count {
-                    if u.masses[e] == 0.0 { continue; }
+                    if u.masses[e] == 0.0 {
+                        continue;
+                    }
                     let sem = u.get_semantic_tensor(e);
                     if FHRR::similarity(&sem, cond) >= 0.8 {
                         found = true;
                         let cx = u.centers_x[e];
                         let cy = u.centers_y[e];
-                        if cx < min_x { min_x = cx; }
-                        if cx > max_x { max_x = cx; }
-                        if cy < min_y { min_y = cy; }
-                        if cy > max_y { max_y = cy; }
+                        if cx < min_x {
+                            min_x = cx;
+                        }
+                        if cx > max_x {
+                            max_x = cx;
+                        }
+                        if cy < min_y {
+                            min_y = cy;
+                        }
+                        if cy > max_y {
+                            max_y = cy;
+                        }
                     }
                 }
 
@@ -107,7 +126,10 @@ impl MultiverseSandbox {
                     let max_yi = max_y.round() as i32;
 
                     let target_color = delta_x as i32; // Warna target di simpan di delta_x
-                    let new_sem_tensor = FHRR::fractional_bind(&crate::core::core_seeds::CoreSeeds::color_seed(), target_color as f32);
+                    let new_sem_tensor = FHRR::fractional_bind(
+                        &crate::core::core_seeds::CoreSeeds::color_seed(),
+                        target_color as f32,
+                    );
 
                     for spawn_y in min_yi..=max_yi {
                         for spawn_x in min_xi..=max_xi {
@@ -116,7 +138,8 @@ impl MultiverseSandbox {
                             for e in 0..u.active_count {
                                 if u.masses[e] > 0.0
                                     && (u.centers_x[e] - spawn_x as f32).abs() < 0.1
-                                    && (u.centers_y[e] - spawn_y as f32).abs() < 0.1 {
+                                    && (u.centers_y[e] - spawn_y as f32).abs() < 0.1
+                                {
                                     occupied = true;
                                     break;
                                 }
@@ -163,9 +186,12 @@ impl MultiverseSandbox {
 
         // 🌟 FISIKA TIER 7: CROP / PEMOTONGAN DIMENSI (FULL OPTIMIZED) 🌟
         if physics_tier == 7 {
-            let mut min_x = 0.0; let mut max_x = 0.0;
-            let mut min_y = 0.0; let mut max_y = 0.0;
-            let mut target_w = 0.0; let mut target_h = 0.0;
+            let mut min_x = 0.0;
+            let mut max_x = 0.0;
+            let mut min_y = 0.0;
+            let mut max_y = 0.0;
+            let mut target_w = 0.0;
+            let mut target_h = 0.0;
             let mut found = false;
 
             // 1. Evaluasi logika Bounding-Box atau Anchor-Window untuk mendapatkan min_x, max_x, dsb.
@@ -202,8 +228,12 @@ impl MultiverseSandbox {
                         min_y = (anchor_cy - (target_h / 2.0)).floor();
 
                         // Opsional: cegah out-of-bounds negatif
-                        if min_x < 0.0 { min_x = 0.0; }
-                        if min_y < 0.0 { min_y = 0.0; }
+                        if min_x < 0.0 {
+                            min_x = 0.0;
+                        }
+                        if min_y < 0.0 {
+                            min_y = 0.0;
+                        }
 
                         max_x = min_x + target_w - 1.0;
                         max_y = min_y + target_h - 1.0;
@@ -215,18 +245,28 @@ impl MultiverseSandbox {
                 let target_color = axiom_type[start..end].parse::<i32>().unwrap_or(-1);
 
                 if target_color != -1 {
-                    min_x = 9999.0; max_x = -9999.0;
-                    min_y = 9999.0; max_y = -9999.0;
+                    min_x = 9999.0;
+                    max_x = -9999.0;
+                    min_y = 9999.0;
+                    max_y = -9999.0;
 
                     for e in 0..u.active_count {
                         if u.masses[e] > 0.0 && u.tokens[e] == target_color {
                             found = true;
                             let cx = u.centers_x[e];
                             let cy = u.centers_y[e];
-                            if cx < min_x { min_x = cx; }
-                            if cx > max_x { max_x = cx; }
-                            if cy < min_y { min_y = cy; }
-                            if cy > max_y { max_y = cy; }
+                            if cx < min_x {
+                                min_x = cx;
+                            }
+                            if cx > max_x {
+                                max_x = cx;
+                            }
+                            if cy < min_y {
+                                min_y = cy;
+                            }
+                            if cy > max_y {
+                                max_y = cy;
+                            }
                         }
                     }
 
@@ -278,13 +318,23 @@ impl MultiverseSandbox {
 
         if physics_tier == 4 {
             for e in 0..u.active_count {
-                if u.masses[e] == 0.0 { continue; }
+                if u.masses[e] == 0.0 {
+                    continue;
+                }
                 let cx = u.centers_x[e];
                 let cy = u.centers_y[e];
-                if cx < min_x { min_x = cx; }
-                if cx > max_x { max_x = cx; }
-                if cy < min_y { min_y = cy; }
-                if cy > max_y { max_y = cy; }
+                if cx < min_x {
+                    min_x = cx;
+                }
+                if cx > max_x {
+                    max_x = cx;
+                }
+                if cy < min_y {
+                    min_y = cy;
+                }
+                if cy > max_y {
+                    max_y = cy;
+                }
             }
         }
 
@@ -317,11 +367,17 @@ impl MultiverseSandbox {
 
                         // Batasi gerakan ke arah objek (jangan menimpa tepat di atasnya jika kita memindah ke sebelahnya)
                         // Biasanya di ARC gerakannya adalah 1 langkah sebelum nabrak.
-                        if apply_dx > 0.0 { apply_dx -= 1.0; }
-                        else if apply_dx < 0.0 { apply_dx += 1.0; }
+                        if apply_dx > 0.0 {
+                            apply_dx -= 1.0;
+                        } else if apply_dx < 0.0 {
+                            apply_dx += 1.0;
+                        }
 
-                        if apply_dy > 0.0 { apply_dy -= 1.0; }
-                        else if apply_dy < 0.0 { apply_dy += 1.0; }
+                        if apply_dy > 0.0 {
+                            apply_dy -= 1.0;
+                        } else if apply_dy < 0.0 {
+                            apply_dy += 1.0;
+                        }
                     } else {
                         // Jangkar tidak ditemukan di map ini, skip pergerakan.
                         continue;
@@ -398,7 +454,10 @@ impl MultiverseSandbox {
                 // MURNI UNTUK SWARM: Update token untuk Decoder
                 // Karena kita langsung nge-print token dari list di decoder Swarm
                 // Untuk POC ini kita override secara manual jika mutasi warna (tidak dipakai untuk translasi):
-                if physics_tier == 0 && (delta_semantic[0] < 0.99 || delta_semantic[crate::core::config::GLOBAL_DIMENSION - 1] < 0.99) {
+                if physics_tier == 0
+                    && (delta_semantic[0] < 0.99
+                        || delta_semantic[crate::core::config::GLOBAL_DIMENSION - 1] < 0.99)
+                {
                     // Logic pembaruan warna token tidak tercover di sini tanpa Oracle Inverse.
                     // Biarkan kosong untuk POC Relasional Translation.
                 }
