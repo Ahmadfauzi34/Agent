@@ -35,6 +35,25 @@ impl Axiom {
         use crate::core::config::GLOBAL_DIMENSION;
         Self::new("IDENTITY", 0, Array1::zeros(GLOBAL_DIMENSION), Array1::zeros(GLOBAL_DIMENSION), 0.0, 0.0)
     }
+
+    pub fn from_capability(cap: crate::self_awareness::skill_ontology::TierCapability) -> Self {
+        use crate::core::config::GLOBAL_DIMENSION;
+        Self::new(&cap.name, 0, ndarray::Array1::zeros(GLOBAL_DIMENSION), ndarray::Array1::zeros(GLOBAL_DIMENSION), 0.0, 0.0)
+    }
+
+
+    pub fn description(&self) -> String {
+        format!("Axiom({})", self.name)
+    }
+
+    pub fn short_name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn similarity(&self, other: &Self) -> f32 {
+        if self.name == other.name { 1.0 } else { 0.0 }
+    }
+
 }
 
 #[derive(Clone, Debug)]

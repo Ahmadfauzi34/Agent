@@ -21,3 +21,4 @@ pub mod structures;
 pub mod counterfactual_engine;
 pub mod hierarchical_planner;
 pub mod skill_composer;
+pub mod causal_reasoning;
