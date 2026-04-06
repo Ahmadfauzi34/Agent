@@ -59,10 +59,10 @@ pub struct CeoConfig {
 impl Default for CeoConfig {
     fn default() -> Self {
         Self {
-            max_waves: 100_000,
-            max_entities: 1000,
-            global_dimension: GLOBAL_DIMENSION,
-            max_frontier: 1000,
+            max_waves: 1000, // Reduced from 100,000 to 1,000
+            max_entities: 100, // Reduced from 1000 to 100
+            global_dimension: 512, // Temporarily reduced dimension for memory safety locally
+            max_frontier: 100,
             initial_temperature: 1.0,
             epistemic_weight: 50.0,
         }

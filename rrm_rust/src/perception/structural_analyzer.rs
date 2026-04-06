@@ -127,7 +127,6 @@ impl StructuralAnalyzer {
 
     pub fn consensus(deltas: &[StructuralDelta]) -> StructuralDelta {
         if let Some(first) = deltas.first() {
-            // Very simplified consensus
             StructuralDelta {
                 signature: first.signature.clone(),
                 input_stats: first.input_stats.clone(),
@@ -158,12 +157,13 @@ impl StructuralAnalyzer {
         }
     }
 
-    fn detect_topology(manifold: &EntityManifold) -> TopologyHint {
+    pub fn detect_topology(manifold: &EntityManifold) -> TopologyHint {
         let count = manifold.active_count;
         if count == 0 { return TopologyHint::Empty; }
         if count == 1 { return TopologyHint::Single; }
 
         let positions: Vec<(f32, f32)> = (0..count)
+            .filter(|&i| manifold.masses[i] > 0.0)
             .map(|i| (manifold.centers_x[i], manifold.centers_y[i]))
             .collect();
 
@@ -188,12 +188,13 @@ impl StructuralAnalyzer {
 
     fn detect_template_frame(manifold: &EntityManifold) -> bool {
         let colors: HashSet<i32> = (0..manifold.active_count)
+            .filter(|&i| manifold.masses[i] > 0.0)
             .map(|i| manifold.tokens[i])
             .collect();
 
         for color in colors {
             let pixels: Vec<(f32, f32)> = (0..manifold.active_count)
-                .filter(|&i| manifold.tokens[i] == color)
+                .filter(|&i| manifold.masses[i] > 0.0 && manifold.tokens[i] == color)
                 .map(|i| (manifold.centers_x[i], manifold.centers_y[i]))
                 .collect();
 
@@ -227,11 +228,18 @@ impl StructuralAnalyzer {
     fn forms_rectangular_border(_pixels: &[(f32, f32)]) -> bool { false }
 
     fn gather_stats(manifold: &EntityManifold) -> ObjectStatistics {
+        let active = manifold.active_count;
+        let mut colors = HashSet::new();
+        for i in 0..active {
+            if manifold.masses[i] > 0.0 {
+                colors.insert(manifold.tokens[i] as u8);
+            }
+        }
         ObjectStatistics {
-            count: manifold.active_count,
-            colors: HashSet::new(),
+            count: active,
+            colors,
             bounding_box: (manifold.global_width as u8, manifold.global_height as u8),
-            total_pixels: manifold.active_count,
+            total_pixels: active,
             density: 1.0,
         }
     }
@@ -239,7 +247,7 @@ impl StructuralAnalyzer {
     fn classify_dimension(in_stats: &ObjectStatistics, out_stats: &ObjectStatistics) -> DimensionRelation {
         if in_stats.bounding_box == out_stats.bounding_box {
             DimensionRelation::Equal
-        } else if out_stats.bounding_box.0 > in_stats.bounding_box.0 {
+        } else if out_stats.bounding_box.0 > in_stats.bounding_box.0 || out_stats.bounding_box.1 > in_stats.bounding_box.1 {
             DimensionRelation::Larger
         } else {
             DimensionRelation::Smaller
@@ -266,5 +274,56 @@ impl StructuralAnalyzer {
 
     fn track_object_changes(_input: &EntityManifold, _output: &EntityManifold) -> Vec<ObjectChange> {
         vec![]
+    }
+
+    // --- MACRO-PERCEPTION ADDITIONS --- //
+
+    /// Calculates the Bounding Box [min_x, min_y, max_x, max_y] of a specific color.
+    pub fn get_color_bbox(manifold: &EntityManifold, color: i32) -> Option<[f32; 4]> {
+        let mut min_x = f32::MAX;
+        let mut min_y = f32::MAX;
+        let mut max_x = f32::MIN;
+        let mut max_y = f32::MIN;
+        let mut found = false;
+
+        for i in 0..manifold.active_count {
+            if manifold.masses[i] > 0.0 && manifold.tokens[i] == color {
+                let x = manifold.centers_x[i];
+                let y = manifold.centers_y[i];
+                if x < min_x { min_x = x; }
+                if x > max_x { max_x = x; }
+                if y < min_y { min_y = y; }
+                if y > max_y { max_y = y; }
+                found = true;
+            }
+        }
+
+        if found {
+            Some([min_x, min_y, max_x, max_y])
+        } else {
+            None
+        }
+    }
+
+    /// Identifies possible crop targets (e.g. colors that form a distinct bounding box/frame).
+    pub fn identify_crop_targets(manifold: &EntityManifold) -> Vec<i32> {
+        let mut targets = Vec::new();
+        let mut colors: HashSet<i32> = HashSet::new();
+
+        for i in 0..manifold.active_count {
+            if manifold.masses[i] > 0.0 && manifold.tokens[i] != 0 {
+                colors.insert(manifold.tokens[i]);
+            }
+        }
+
+        for color in colors {
+            if let Some(_bbox) = Self::get_color_bbox(manifold, color) {
+                // If it forms a solid box or a frame, we add it as a possible target.
+                // Simple heuristic: every color is a potential crop target.
+                targets.push(color);
+            }
+        }
+
+        targets
     }
 }
