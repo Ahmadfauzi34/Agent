@@ -105,6 +105,7 @@ impl RrmAgent {
 
         // === STEP 2: Pre-filter dengan "what if" cepat ===
         println!("  🔮 Simulasi single-step...");
+        let mut plan: Option<Vec<crate::reasoning::structures::Axiom>> = None;
         let mut promising = Vec::new();
 
         for axiom in &candidates {
@@ -163,10 +164,11 @@ impl RrmAgent {
 
             if result.is_terminal_failure() {
                 println!("💀 Terminal failure, fallback to dreaming");
-                self.mental_replay.generate_dreams(10);
+                self.mental_replay.generate_dreams(&[], 10);
                 let _discovered = self.mental_replay.practice_in_dreams(
                     &mut self.counterfactual_engine,
                     &self.ontology,
+                    10,
                 );
                 break;
             }
@@ -177,7 +179,39 @@ impl RrmAgent {
             }
         }
 
-        let mut plan: Option<Vec<crate::reasoning::structures::Axiom>> = None;
+
+        // Try discovered skills in real world if a plan failed to complete natively
+        if plan.is_none() {
+            let mut best_skill: Option<usize> = None;
+            let mut best_confidence = 0.0;
+
+            let discovered = self.mental_replay.get_all_discovered_skills();
+            for (i, _) in discovered.iter().enumerate() {
+                let gen = self.mental_replay.generalize_skill(i);
+                if gen.recommended_for_real && gen.score > best_confidence {
+                    best_confidence = gen.score;
+                    best_skill = Some(i);
+                }
+            }
+
+            if let Some(skill_idx) = best_skill {
+                println!("🎯 Trying dream skill {} in real world...", skill_idx);
+                let mut test_state = test_input.clone();
+                let real_result = self.mental_replay.try_skill_in_real(
+                    skill_idx,
+                    &mut test_state,
+                    &train_pairs[0].1,
+                    &mut self.counterfactual_engine,
+                );
+
+                if real_result.success {
+                    println!("✅ Dream skill works in real world!");
+                    return self.decoder.collapse_to_grid(&test_state, test_state.global_width as usize, test_state.global_height as usize, 0.5);
+                }
+            }
+        }
+
+
 
         if promising.iter().all(|(_, r)| !matches!(r.code, crate::reasoning::counterfactual_engine::SimulationOutcomeCode::Success)) {
             println!("  🌳 Tidak ada solusi single-step, eksplor tree...");
@@ -234,10 +268,11 @@ impl RrmAgent {
                 output
             },
             None => {
-                self.mental_replay.generate_dreams(10);
+                self.mental_replay.generate_dreams(&[], 10);
                 let discovered = self.mental_replay.practice_in_dreams(
                     &mut self.counterfactual_engine,
                     &self.ontology,
+                    10,
                 );
 
                 let mut output = vec![vec![0; test_input.global_width as usize]; test_input.global_height as usize];
