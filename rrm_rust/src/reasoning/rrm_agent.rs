@@ -22,6 +22,9 @@ pub struct RrmAgent {
     decoder: HologramDecoder,
     pruner: HamiltonianPruner, // Akan di-deprecate karena diganti AsyncWaveSearch, tapi biarkan untuk fallback
     seed_bank: LogicSeedBank,
+    ontology: crate::memory::skill_ontology::SkillOntology,
+    counterfactual_engine: crate::reasoning::counterfactual_engine::CounterfactualEngine,
+    mental_replay: crate::memory::mental_replay::MentalReplay,
 }
 
 impl Default for RrmAgent {
@@ -37,6 +40,61 @@ impl RrmAgent {
             decoder: HologramDecoder::new(),
             pruner: HamiltonianPruner::new(),
             seed_bank: LogicSeedBank::new(),
+            ontology: crate::memory::skill_ontology::SkillOntology::new(),
+            counterfactual_engine: crate::reasoning::counterfactual_engine::CounterfactualEngine::new(),
+            mental_replay: crate::memory::mental_replay::MentalReplay::new(),
+        }
+    }
+
+
+
+    pub fn solve_task_v2(
+        &mut self,
+        train_pairs: &[(EntityManifold, EntityManifold)],
+        test_input: &EntityManifold,
+    ) -> Vec<Vec<i32>> {
+        use crate::reasoning::structures::StructuralDelta;
+        use crate::reasoning::hierarchical_planner::HierarchicalPlanner;
+
+        let deltas: Vec<_> = train_pairs.iter()
+            .map(|(inp, out)| StructuralDelta::analyze(inp, out))
+            .collect();
+
+        let consensus_delta = StructuralDelta::consensus(&deltas);
+
+        let strategy = self.ontology.can_solve(&consensus_delta)
+            .expect("No strategy available for this task class");
+
+        let planner = HierarchicalPlanner::from_delta(&consensus_delta, &self.ontology);
+
+        let plan = planner.plan_with_validation(
+            &mut self.counterfactual_engine,
+            &train_pairs[0].0,
+            &train_pairs[0].1,
+        );
+
+        match plan {
+            Some(axioms) => {
+                let mut test_state = test_input.clone();
+                for axiom in &axioms {
+                    MultiverseSandbox::apply_axiom(&mut test_state, &axiom.condition_tensor, &axiom.delta_spatial, &axiom.delta_semantic, axiom.delta_x, axiom.delta_y, axiom.tier, &axiom.name);
+                }
+
+                let mut output = vec![vec![0; test_state.global_width as usize]; test_state.global_height as usize];
+                let output_grid = self.decoder.collapse_to_grid(&test_state, test_state.global_width as usize, test_state.global_height as usize, 0.5); output = output_grid;
+                output
+            },
+            None => {
+                self.mental_replay.generate_dreams(10);
+                let discovered = self.mental_replay.practice_in_dreams(
+                    &mut self.counterfactual_engine,
+                    &self.ontology,
+                );
+
+                let mut output = vec![vec![0; test_input.global_width as usize]; test_input.global_height as usize];
+                let output_grid = self.decoder.collapse_to_grid(test_input, test_input.global_width as usize, test_input.global_height as usize, 0.5); output = output_grid;
+                output
+            }
         }
     }
 
