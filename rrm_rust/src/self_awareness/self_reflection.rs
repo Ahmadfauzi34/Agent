@@ -1,6 +1,6 @@
-use crate::self_awareness::skill_ontology::*;
-use crate::perception::structural_analyzer::*;
 use crate::core::entity_manifold::EntityManifold;
+use crate::perception::structural_analyzer::*;
+use crate::self_awareness::skill_ontology::*;
 
 pub struct SelfReflection {
     ontology: SkillOntology,
@@ -47,7 +47,8 @@ impl SelfReflection {
 
         IntrospectionReport {
             situation_assessment: self.describe_situation(delta, &class),
-            available_skills: available.iter()
+            available_skills: available
+                .iter()
                 .map(|cap| self.explain_skill(cap, delta))
                 .collect(),
             recommended_strategy: self.describe_strategy(&strategy),
@@ -57,12 +58,13 @@ impl SelfReflection {
     }
 
     pub fn explain_decision(&self, chosen_skill: u8, rejected: &[u8]) -> String {
-        let chosen = self.ontology.capabilities.get(&chosen_skill)
+        let chosen = self
+            .ontology
+            .capabilities
+            .get(&chosen_skill)
             .expect("Invalid skill ID");
 
-        let mut explanation = format!(
-            "Saya memilih {} karena:\n", chosen.name
-        );
+        let mut explanation = format!("Saya memilih {} karena:\n", chosen.name);
 
         explanation.push_str("- Situasi cocok dengan kondisi aktivasi:\n");
         for trigger in &chosen.activation_triggers {
@@ -87,8 +89,15 @@ impl SelfReflection {
         explanation
     }
 
-    pub fn predict_consequences(&self, skill_id: u8, current: &EntityManifold) -> ConsequencePrediction {
-        let skill = self.ontology.capabilities.get(&skill_id)
+    pub fn predict_consequences(
+        &self,
+        skill_id: u8,
+        current: &EntityManifold,
+    ) -> ConsequencePrediction {
+        let skill = self
+            .ontology
+            .capabilities
+            .get(&skill_id)
             .expect("Invalid skill");
 
         ConsequencePrediction {
@@ -117,7 +126,11 @@ impl SelfReflection {
             delta.output_stats.count,
             sig.topology_in,
             sig.topology_out,
-            if sig.has_template_frame { "Ada" } else { "Tidak ada" }
+            if sig.has_template_frame {
+                "Ada"
+            } else {
+                "Tidak ada"
+            }
         )
     }
 
@@ -126,7 +139,9 @@ impl SelfReflection {
             name: cap.name.clone(),
             why_applicable: self.match_triggers(&cap.activation_triggers, _delta),
             expected_outcome: self.describe_postconditions(&cap.postconditions),
-            risks: cap.side_effects.iter()
+            risks: cap
+                .side_effects
+                .iter()
                 .map(|se| self.describe_side_effect(se))
                 .collect(),
             historical_performance: cap.historical_success_rate,
@@ -140,15 +155,22 @@ impl SelfReflection {
             match side_effect {
                 SideEffect::BackgroundRemoved => {
                     if current.active_count > 10 {
-                        risks.push("Mungkin menghapus objek penting sebagai 'background'".to_string());
+                        risks.push(
+                            "Mungkin menghapus objek penting sebagai 'background'".to_string(),
+                        );
                     }
-                },
+                }
                 SideEffect::TemplateMarkerLost => {
-                    risks.push("Frame/template akan hilang, tidak bisa digunakan untuk alignment".to_string());
-                },
+                    risks.push(
+                        "Frame/template akan hilang, tidak bisa digunakan untuk alignment"
+                            .to_string(),
+                    );
+                }
                 SideEffect::PositionReset => {
-                    risks.push("Koordinat akan berubah, relational positioning mungkin gagal".to_string());
-                },
+                    risks.push(
+                        "Koordinat akan berubah, relational positioning mungkin gagal".to_string(),
+                    );
+                }
                 _ => {}
             }
         }
@@ -186,14 +208,26 @@ impl SelfReflection {
     }
 
     fn describe_strategy(&self, strategy: &Option<SolutionStrategy>) -> String {
-        if strategy.is_some() { "Available".to_string() } else { "None".to_string() }
+        if strategy.is_some() {
+            "Available".to_string()
+        } else {
+            "None".to_string()
+        }
     }
 
-    fn explain_confidence(&self, _strategy: &Option<SolutionStrategy>, _available: &[&TierCapability]) -> String {
+    fn explain_confidence(
+        &self,
+        _strategy: &Option<SolutionStrategy>,
+        _available: &[&TierCapability],
+    ) -> String {
         "Estimated via heuristic".to_string()
     }
 
-    fn suggest_alternatives(&self, _delta: &StructuralDelta, _strategy: &Option<SolutionStrategy>) -> Vec<String> {
+    fn suggest_alternatives(
+        &self,
+        _delta: &StructuralDelta,
+        _strategy: &Option<SolutionStrategy>,
+    ) -> Vec<String> {
         vec![]
     }
 

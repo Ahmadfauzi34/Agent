@@ -1,10 +1,12 @@
-use crate::perception::hierarchical_gestalt::{GestaltAtom, AtomType, GestaltEngine};
-use crate::perception::relational_hierarchy::{RelationalStructure, StructureType, RelationalEngine};
-use crate::reasoning::topological_aligner::TopologicalMatch;
 use crate::core::config::GLOBAL_DIMENSION;
 use crate::core::core_seeds::CoreSeeds;
-use crate::core::fhrr::FHRR;
 use crate::core::entity_manifold::EntityManifold;
+use crate::core::fhrr::FHRR;
+use crate::perception::hierarchical_gestalt::{AtomType, GestaltAtom, GestaltEngine};
+use crate::perception::relational_hierarchy::{
+    RelationalEngine, RelationalStructure, StructureType,
+};
+use crate::reasoning::topological_aligner::TopologicalMatch;
 use ndarray::Array1;
 
 /// Generator aksioma berbasis hierarki Top-Down (tidak brute-force!)
@@ -12,12 +14,16 @@ pub struct TopDownAxiomator;
 
 impl TopDownAxiomator {
     /// Generate aksioma yang masuk akal berdasarkan struktur yang terdeteksi
-            pub fn generate_relational_axioms(relational_state: &crate::perception::relational_engine::RelationalStateSoA) -> Vec<crate::reasoning::structures::Axiom> {
+    pub fn generate_relational_axioms(
+        relational_state: &crate::perception::relational_engine::RelationalStateSoA,
+    ) -> Vec<crate::reasoning::structures::Axiom> {
         let mut axioms = Vec::new();
 
         // Phase 2: Meso-Structural Axioms (e.g. FILL_HOLLOW)
         for i in 0..relational_state.active_objects {
-            if relational_state.obj_masses[i] == 0.0 { continue; }
+            if relational_state.obj_masses[i] == 0.0 {
+                continue;
+            }
 
             // If the object is hollow (genus >= 1)
             if relational_state.obj_euler_chars[i] == 0 {
@@ -59,7 +65,9 @@ impl TopDownAxiomator {
 
         // Phase 1: Micro-Relational Axioms (e.g. RAY_CAST, TOUCHING)
         for i in 0..relational_state.active_edges {
-            if relational_state.edge_masses[i] == 0.0 { continue; }
+            if relational_state.edge_masses[i] == 0.0 {
+                continue;
+            }
 
             let rel_type = relational_state.edge_relation_type[i];
             let source = relational_state.edge_source_idx[i] as usize;
@@ -90,9 +98,14 @@ impl TopDownAxiomator {
                 ));
             }
 
-            if rel_type == crate::perception::relational_engine::RelationType::AlignedHorizontally as u8 {
+            if rel_type
+                == crate::perception::relational_engine::RelationType::AlignedHorizontally as u8
+            {
                 axioms.push(crate::reasoning::structures::Axiom::new(
-                    &format!("CONNECT_ALIGNED_HORIZONTALLY_{}_{}", source_token, target_token),
+                    &format!(
+                        "CONNECT_ALIGNED_HORIZONTALLY_{}_{}",
+                        source_token, target_token
+                    ),
                     8, // Macro Skill Tier
                     ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION),
                     ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION),
@@ -105,13 +118,22 @@ impl TopDownAxiomator {
         axioms
     }
 
-    pub fn generate_smart_crop_axioms(input: &EntityManifold) -> Vec<crate::reasoning::structures::Axiom> {
+    pub fn generate_smart_crop_axioms(
+        input: &EntityManifold,
+    ) -> Vec<crate::reasoning::structures::Axiom> {
         let mut axioms = Vec::new();
 
-        let crop_targets = crate::perception::structural_analyzer::StructuralAnalyzer::identify_crop_targets(input);
+        let crop_targets =
+            crate::perception::structural_analyzer::StructuralAnalyzer::identify_crop_targets(
+                input,
+            );
 
         for color in crop_targets {
-            if let Some(bbox) = crate::perception::structural_analyzer::StructuralAnalyzer::get_color_bbox(input, color) {
+            if let Some(bbox) =
+                crate::perception::structural_analyzer::StructuralAnalyzer::get_color_bbox(
+                    input, color,
+                )
+            {
                 // Generate a CROP_TO_BBOX axiom for this color
                 let width = bbox[2] - bbox[0] + 1.0;
                 let height = bbox[3] - bbox[1] + 1.0;
@@ -129,7 +151,8 @@ impl TopDownAxiomator {
 
         // Add a CROP_TO_LARGEST_OBJECT fallback heuristic if needed
         // Generate CROP_TO_CHAMBER axioms
-        let chambers = crate::perception::structural_analyzer::StructuralAnalyzer::get_chamber_bboxes(input);
+        let chambers =
+            crate::perception::structural_analyzer::StructuralAnalyzer::get_chamber_bboxes(input);
         for (i, bbox) in chambers.iter().enumerate() {
             let width = bbox[2] - bbox[0] + 1.0;
             let height = bbox[3] - bbox[1] + 1.0;
@@ -172,13 +195,22 @@ impl TopDownAxiomator {
 
         // Generate targeted axioms berdasarkan perubahan struktural
         axioms.extend(Self::generate_fill_axioms(&input_atoms, &output_atoms));
-        axioms.extend(Self::generate_container_axioms(&input_structures, &output_structures));
+        axioms.extend(Self::generate_container_axioms(
+            &input_structures,
+            &output_structures,
+        ));
         axioms.extend(Self::generate_symmetry_axioms(&input_atoms, &output_atoms));
-        axioms.extend(Self::generate_grid_axioms(&input_structures, &output_structures));
+        axioms.extend(Self::generate_grid_axioms(
+            &input_structures,
+            &output_structures,
+        ));
         axioms.extend(Self::generate_movement_axioms(&input_atoms, &output_atoms));
 
         // CROP PHYSICS INJECTION
-        axioms.extend(Self::generate_macroscopic_crop_axioms(input_manifold, output_manifold));
+        axioms.extend(Self::generate_macroscopic_crop_axioms(
+            input_manifold,
+            output_manifold,
+        ));
 
         // Prioritize: sort by structural confidence
         axioms.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap());
@@ -189,7 +221,7 @@ impl TopDownAxiomator {
     /// Deteksi: "Dimensi kanvas mengecil secara makroskopis" -> CROP_TO_COLOR
     fn generate_macroscopic_crop_axioms(
         input_manifold: &EntityManifold,
-        output_manifold: &EntityManifold
+        output_manifold: &EntityManifold,
     ) -> Vec<TopologicalMatch> {
         let mut axioms = Vec::new();
 
@@ -211,8 +243,10 @@ impl TopDownAxiomator {
 
             // Uji setiap warna: Apakah rentang (span) warna ini cocok dengan dimensi output?
             for color in colors_in_input {
-                let mut min_x = 9999.0; let mut max_x = -9999.0;
-                let mut min_y = 9999.0; let mut max_y = -9999.0;
+                let mut min_x = 9999.0;
+                let mut max_x = -9999.0;
+                let mut min_y = 9999.0;
+                let mut max_y = -9999.0;
                 let mut found = false;
 
                 for i in 0..input_manifold.active_count {
@@ -220,10 +254,18 @@ impl TopDownAxiomator {
                         found = true;
                         let cx = input_manifold.centers_x[i] * (in_w - 1.0); // cx in pixels
                         let cy = input_manifold.centers_y[i] * (in_h - 1.0); // cy in pixels
-                        if cx < min_x { min_x = cx; }
-                        if cx > max_x { max_x = cx; }
-                        if cy < min_y { min_y = cy; }
-                        if cy > max_y { max_y = cy; }
+                        if cx < min_x {
+                            min_x = cx;
+                        }
+                        if cx > max_x {
+                            max_x = cx;
+                        }
+                        if cy < min_y {
+                            min_y = cy;
+                        }
+                        if cy > max_y {
+                            max_y = cy;
+                        }
                     }
                 }
 
@@ -233,9 +275,13 @@ impl TopDownAxiomator {
 
                     // Jika rentang warna ini cocok dengan ukuran output target, ini adalah jangkar CROP!
                     if (span_w - out_w).abs() <= 1.0 && (span_h - out_h).abs() <= 1.0 {
-                        let mut condition_phase = Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);
-                        let color_phase = FHRR::fractional_bind(&CoreSeeds::color_seed(), color as f32);
-                        for i in 0..crate::core::config::GLOBAL_DIMENSION { condition_phase[i] = color_phase[i]; }
+                        let mut condition_phase =
+                            Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);
+                        let color_phase =
+                            FHRR::fractional_bind(&CoreSeeds::color_seed(), color as f32);
+                        for i in 0..crate::core::config::GLOBAL_DIMENSION {
+                            condition_phase[i] = color_phase[i];
+                        }
 
                         axioms.push(TopologicalMatch {
                             source_index: 0,
@@ -254,9 +300,12 @@ impl TopDownAxiomator {
 
                 // 🌟 AKSIOMA BARU: CROP_WINDOW_AROUND (Anchor-Based Crop)
                 // Usulkan warna ini sebagai titik pusat untuk jendela out_w x out_h
-                let mut condition_phase = Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);
+                let mut condition_phase =
+                    Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);
                 let color_phase = FHRR::fractional_bind(&CoreSeeds::color_seed(), color as f32);
-                for i in 0..crate::core::config::GLOBAL_DIMENSION { condition_phase[i] = color_phase[i]; }
+                for i in 0..crate::core::config::GLOBAL_DIMENSION {
+                    condition_phase[i] = color_phase[i];
+                }
 
                 axioms.push(TopologicalMatch {
                     source_index: 0,
@@ -279,7 +328,7 @@ impl TopDownAxiomator {
     /// Deteksi: "Kotak berongga menjadi solid" → FILL_HOLE
     fn generate_fill_axioms(
         input_atoms: &[GestaltAtom],
-        output_atoms: &[GestaltAtom]
+        output_atoms: &[GestaltAtom],
     ) -> Vec<TopologicalMatch> {
         let mut axioms = Vec::new();
 
@@ -293,7 +342,7 @@ impl TopDownAxiomator {
                             let id_tensor = Self::identity_tensor();
                             let color_cond = FHRR::fractional_bind(
                                 &CoreSeeds::color_seed(),
-                                in_atom.color as f32
+                                in_atom.color as f32,
                             );
 
                             axioms.push(TopologicalMatch {
@@ -320,7 +369,7 @@ impl TopDownAxiomator {
     /// Deteksi: "Kontainer dengan konten berbeda" → RECOLOR_CONTENT
     fn generate_container_axioms(
         input_structs: &[RelationalStructure],
-        output_structs: &[RelationalStructure]
+        output_structs: &[RelationalStructure],
     ) -> Vec<TopologicalMatch> {
         let mut axioms = Vec::new();
 
@@ -330,7 +379,7 @@ impl TopDownAxiomator {
                     if let StructureType::ContainerWithContent = out_struct.structure_type {
                         // Compare bounding boxes to see if they are the same container
                         if Self::bbox_similar(&in_struct.bounding_box, &out_struct.bounding_box) {
-                             axioms.push(TopologicalMatch {
+                            axioms.push(TopologicalMatch {
                                 source_index: 0,
                                 target_index: -1,
                                 similarity: 0.75, // Moderate confidence
@@ -354,7 +403,7 @@ impl TopDownAxiomator {
     /// Deteksi: "Simetri tidak lagi simetris" → BREAK_SYMMETRY atau ENFORCE_SYMMETRY
     fn generate_symmetry_axioms(
         input_atoms: &[GestaltAtom],
-        output_atoms: &[GestaltAtom]
+        output_atoms: &[GestaltAtom],
     ) -> Vec<TopologicalMatch> {
         let mut axioms = Vec::new();
 
@@ -398,16 +447,16 @@ impl TopDownAxiomator {
     /// Deteksi: "Grid berubah ukuran" → EXTEND_GRID atau CROP_GRID
     fn generate_grid_axioms(
         input_structs: &[RelationalStructure],
-        output_structs: &[RelationalStructure]
+        output_structs: &[RelationalStructure],
     ) -> Vec<TopologicalMatch> {
         let mut axioms = Vec::new();
 
-        let input_grid = input_structs.iter().find(|s|
-            matches!(s.structure_type, StructureType::GridPattern)
-        );
-        let output_grid = output_structs.iter().find(|s|
-            matches!(s.structure_type, StructureType::GridPattern)
-        );
+        let input_grid = input_structs
+            .iter()
+            .find(|s| matches!(s.structure_type, StructureType::GridPattern));
+        let output_grid = output_structs
+            .iter()
+            .find(|s| matches!(s.structure_type, StructureType::GridPattern));
 
         if let (Some(ig), Some(og)) = (input_grid, output_grid) {
             let input_size = ig.atoms.len();
@@ -448,7 +497,7 @@ impl TopDownAxiomator {
     /// Deteksi pergerakan objek (sudah ada di TopologicalAligner, tapi dengan confidence lebih tinggi)
     fn generate_movement_axioms(
         input_atoms: &[GestaltAtom],
-        output_atoms: &[GestaltAtom]
+        output_atoms: &[GestaltAtom],
     ) -> Vec<TopologicalMatch> {
         // Gunakan Gestalt matching untuk tracking objek yang sama
         // (bukan hanya by color, tapi by shape similarity)
@@ -456,7 +505,8 @@ impl TopDownAxiomator {
 
         for in_atom in input_atoms {
             // Find best matching output atom by shape + color
-            let best_match = output_atoms.iter()
+            let best_match = output_atoms
+                .iter()
                 .filter(|out| out.atom_type == in_atom.atom_type)
                 .min_by_key(|out| {
                     let dx = (out.center_of_mass.0 - in_atom.center_of_mass.0) as i32;
@@ -469,10 +519,8 @@ impl TopDownAxiomator {
                 let dy = out_atom.center_of_mass.1 - in_atom.center_of_mass.1;
 
                 if dx.abs() > 0.1 || dy.abs() > 0.1 {
-                    let condition = FHRR::fractional_bind(
-                        &CoreSeeds::color_seed(),
-                        in_atom.color as f32
-                    );
+                    let condition =
+                        FHRR::fractional_bind(&CoreSeeds::color_seed(), in_atom.color as f32);
 
                     axioms.push(TopologicalMatch {
                         source_index: 0,
@@ -483,7 +531,12 @@ impl TopDownAxiomator {
                         delta_semantic: Self::identity_tensor(),
                         delta_x: dx.round(),
                         delta_y: dy.round(),
-                        axiom_type: format!("IF_COLOR({})_THEN_TRANS_{}_{}", in_atom.color, dx.round(), dy.round()),
+                        axiom_type: format!(
+                            "IF_COLOR({})_THEN_TRANS_{}_{}",
+                            in_atom.color,
+                            dx.round(),
+                            dy.round()
+                        ),
                         physics_tier: 0,
                     });
                 }
@@ -502,9 +555,9 @@ impl TopDownAxiomator {
 
     fn bbox_similar(a: &(f32, f32, f32, f32), b: &(f32, f32, f32, f32)) -> bool {
         let threshold = 1.0;
-        (a.0 - b.0).abs() < threshold &&
-        (a.1 - b.1).abs() < threshold &&
-        (a.2 - b.2).abs() < threshold &&
-        (a.3 - b.3).abs() < threshold
+        (a.0 - b.0).abs() < threshold
+            && (a.1 - b.1).abs() < threshold
+            && (a.2 - b.2).abs() < threshold
+            && (a.3 - b.3).abs() < threshold
     }
 }

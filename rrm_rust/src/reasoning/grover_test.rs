@@ -1,7 +1,9 @@
 use crate::core::config::GLOBAL_DIMENSION;
 use crate::core::entity_manifold::EntityManifold;
+use crate::reasoning::grover_diffusion_system::{
+    GroverCandidate, GroverConfig, GroverDiffusionSystem, TrainState,
+};
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
-use crate::reasoning::grover_diffusion_system::{GroverDiffusionSystem, GroverConfig, GroverCandidate, TrainState};
 use ndarray::Array1;
 
 #[test]

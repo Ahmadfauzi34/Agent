@@ -1,8 +1,8 @@
-use crate::perception::structural_analyzer::{StructuralDelta, TaskClass};
-use crate::self_awareness::skill_ontology::SkillOntology;
 use crate::core::entity_manifold::EntityManifold;
-use crate::reasoning::structures::Axiom;
+use crate::perception::structural_analyzer::{StructuralDelta, TaskClass};
 use crate::reasoning::counterfactual_engine::{CounterfactualEngine, SimulationOutcomeCode};
+use crate::reasoning::structures::Axiom;
+use crate::self_awareness::skill_ontology::SkillOntology;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum PlanningPhase {
@@ -30,9 +30,17 @@ pub struct HierarchicalPlanner {
 }
 
 pub enum PhaseResultSoA {
-    Success { next_phase: Option<usize> },
-    PartialSuccess { issues: Vec<PhaseIssueSoA>, suggested_retry: bool },
-    Failure { reason: String, recoverable: bool },
+    Success {
+        next_phase: Option<usize>,
+    },
+    PartialSuccess {
+        issues: Vec<PhaseIssueSoA>,
+        suggested_retry: bool,
+    },
+    Failure {
+        reason: String,
+        recoverable: bool,
+    },
     Complete,
 }
 
@@ -46,11 +54,23 @@ impl PhaseResultSoA {
     }
 
     pub fn is_terminal_failure(&self) -> bool {
-        matches!(self, PhaseResultSoA::Failure { recoverable: false, .. })
+        matches!(
+            self,
+            PhaseResultSoA::Failure {
+                recoverable: false,
+                ..
+            }
+        )
     }
 
     pub fn needs_retry(&self) -> bool {
-        matches!(self, PhaseResultSoA::PartialSuccess { suggested_retry: true, .. })
+        matches!(
+            self,
+            PhaseResultSoA::PartialSuccess {
+                suggested_retry: true,
+                ..
+            }
+        )
     }
 }
 
@@ -112,7 +132,10 @@ impl HierarchicalPlanner {
             return self.execute_phase_3_soa(phase_idx, current_state, expected, engine);
         }
 
-        PhaseResultSoA::Failure { reason: "Unknown phase".to_string(), recoverable: false }
+        PhaseResultSoA::Failure {
+            reason: "Unknown phase".to_string(),
+            recoverable: false,
+        }
     }
 
     fn find_ready_phase(&self) -> Option<usize> {
@@ -152,12 +175,23 @@ impl HierarchicalPlanner {
         None
     }
 
-    fn execute_phase_1_soa(&mut self, phase_idx: usize, _state: &EntityManifold, _exp: &EntityManifold) -> PhaseResultSoA {
+    fn execute_phase_1_soa(
+        &mut self,
+        phase_idx: usize,
+        _state: &EntityManifold,
+        _exp: &EntityManifold,
+    ) -> PhaseResultSoA {
         self.node_status[phase_idx] = 4; // Complete
         PhaseResultSoA::Success { next_phase: None }
     }
 
-    fn execute_phase_2_soa(&mut self, phase_idx: usize, current_state: &EntityManifold, expected: &EntityManifold, engine: &mut CounterfactualEngine) -> PhaseResultSoA {
+    fn execute_phase_2_soa(
+        &mut self,
+        phase_idx: usize,
+        current_state: &EntityManifold,
+        expected: &EntityManifold,
+        engine: &mut CounterfactualEngine,
+    ) -> PhaseResultSoA {
         let candidates = self.generate_strategy_candidates(phase_idx);
         let mut results = Vec::with_capacity(candidates.len());
 
@@ -167,7 +201,8 @@ impl HierarchicalPlanner {
                 continue;
             }
             let outcome = engine.what_if(candidate, current_state, expected);
-            results.push(unsafe { std::mem::transmute::<u8, SimulationOutcomeCode>(outcome.code()) });
+            results
+                .push(unsafe { std::mem::transmute::<u8, SimulationOutcomeCode>(outcome.code()) });
         }
 
         let mut best_idx = 0;
@@ -190,11 +225,20 @@ impl HierarchicalPlanner {
             self.node_status[phase_idx] = 4;
             PhaseResultSoA::Success { next_phase: None }
         } else {
-            PhaseResultSoA::Failure { reason: "No viable strategy".to_string(), recoverable: true }
+            PhaseResultSoA::Failure {
+                reason: "No viable strategy".to_string(),
+                recoverable: true,
+            }
         }
     }
 
-    fn execute_phase_3_soa(&mut self, phase_idx: usize, current_state: &mut EntityManifold, _exp: &EntityManifold, _engine: &mut CounterfactualEngine) -> PhaseResultSoA {
+    fn execute_phase_3_soa(
+        &mut self,
+        phase_idx: usize,
+        current_state: &mut EntityManifold,
+        _exp: &EntityManifold,
+        _engine: &mut CounterfactualEngine,
+    ) -> PhaseResultSoA {
         let primitives = self.get_primitives_for_phase(phase_idx);
         for (i, primitive_idx) in primitives.iter().enumerate() {
             let axiom = &self.axiom_data[*primitive_idx];
@@ -206,10 +250,22 @@ impl HierarchicalPlanner {
             }
             match axiom.tier {
                 4 => self.apply_geometry_safe(axiom, current_state),
-                _ => crate::reasoning::multiverse_sandbox::MultiverseSandbox::apply_axiom(current_state, &axiom.condition_tensor, &axiom.delta_spatial, &axiom.delta_semantic, axiom.delta_x, axiom.delta_y, axiom.tier, &axiom.name),
+                _ => crate::reasoning::multiverse_sandbox::MultiverseSandbox::apply_axiom(
+                    current_state,
+                    &axiom.condition_tensor,
+                    &axiom.delta_spatial,
+                    &axiom.delta_semantic,
+                    axiom.delta_x,
+                    axiom.delta_y,
+                    axiom.tier,
+                    &axiom.name,
+                ),
             }
             if self.count_valid_entities(current_state) == 0 {
-                return PhaseResultSoA::Failure { reason: "All entities ghosted".to_string(), recoverable: false };
+                return PhaseResultSoA::Failure {
+                    reason: "All entities ghosted".to_string(),
+                    recoverable: false,
+                };
             }
         }
         self.node_status[phase_idx] = 4;
@@ -227,7 +283,9 @@ impl HierarchicalPlanner {
         let center_y = height / 2.0;
 
         for e in 0..state.active_count {
-            if state.masses[e] == 0.0 { continue; }
+            if state.masses[e] == 0.0 {
+                continue;
+            }
 
             let cx = state.centers_x[e];
             let cy = state.centers_y[e];
@@ -253,16 +311,32 @@ impl HierarchicalPlanner {
         let mut explanation = String::with_capacity(1024);
         explanation.push_str("PLAN STRUCTURE (SoA):\n");
         for i in 0..self.active_node_count {
-            if self.node_status[i] == 6 { continue; }
+            if self.node_status[i] == 6 {
+                continue;
+            }
             let depth = self.calculate_depth(i);
             let indent = "  ".repeat(depth);
             let type_str = match self.node_types[i] {
-                0 => "Goal", 1 => "Phase", 2 => "Subgoal", 3 => "Method", 4 => "Primitive", _ => "Unknown",
+                0 => "Goal",
+                1 => "Phase",
+                2 => "Subgoal",
+                3 => "Method",
+                4 => "Primitive",
+                _ => "Unknown",
             };
             let status_str = match self.node_status[i] {
-                0 => "Pending", 1 => "Planning", 2 => "Ready", 3 => "Executing", 4 => "Completed", 5 => "Failed", _ => "Ghost",
+                0 => "Pending",
+                1 => "Planning",
+                2 => "Ready",
+                3 => "Executing",
+                4 => "Completed",
+                5 => "Failed",
+                _ => "Ghost",
             };
-            explanation.push_str(&format!("{}[{}] {} - {}\n", indent, i, type_str, status_str));
+            explanation.push_str(&format!(
+                "{}[{}] {} - {}\n",
+                indent, i, type_str, status_str
+            ));
         }
         explanation
     }
@@ -277,12 +351,25 @@ impl HierarchicalPlanner {
         depth
     }
 
-    fn generate_strategy_candidates(&self, _phase: usize) -> Vec<Axiom> { vec![] }
-    fn validate_candidate(&self, _cand: &Axiom) -> bool { true }
+    fn generate_strategy_candidates(&self, _phase: usize) -> Vec<Axiom> {
+        vec![]
+    }
+    fn validate_candidate(&self, _cand: &Axiom) -> bool {
+        true
+    }
     fn install_strategy(&mut self, _idx: usize, _phase: usize) {}
-    fn get_primitives_for_phase(&self, _phase: usize) -> Vec<usize> { vec![] }
-    fn check_preconditions_soa(&self, _axiom: &Axiom, _state: &EntityManifold) -> bool { true }
+    fn get_primitives_for_phase(&self, _phase: usize) -> Vec<usize> {
+        vec![]
+    }
+    fn check_preconditions_soa(&self, _axiom: &Axiom, _state: &EntityManifold) -> bool {
+        true
+    }
     fn count_valid_entities(&self, state: &EntityManifold) -> usize {
-        state.masses.iter().take(state.active_count).filter(|&&m| m > 0.0).count()
+        state
+            .masses
+            .iter()
+            .take(state.active_count)
+            .filter(|&&m| m > 0.0)
+            .count()
     }
 }

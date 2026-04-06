@@ -1,5 +1,5 @@
-use std::collections::{HashMap, HashSet};
 use crate::core::entity_manifold::EntityManifold;
+use std::collections::{HashMap, HashSet};
 
 pub struct StructuralAnalyzer;
 
@@ -143,15 +143,19 @@ impl StructuralAnalyzer {
         use ObjectDelta::*;
 
         match (&delta.signature.dim_relation, &delta.signature.object_delta) {
-            (Equal, SameCount) if delta.per_object_changes.iter()
-                .all(|c| c.position_delta.is_some() && c.color_change.is_none()) => {
+            (Equal, SameCount)
+                if delta
+                    .per_object_changes
+                    .iter()
+                    .all(|c| c.position_delta.is_some() && c.color_change.is_none()) =>
+            {
                 TaskClass::PureGeometry
-            },
+            }
             (Smaller, _) | (Larger, _) => TaskClass::StructuralTransform,
             (_, Added(_)) | (_, Removed(_)) => TaskClass::ObjectManipulation,
             (_, SameCount) if delta.signature.topology_in != delta.signature.topology_out => {
                 TaskClass::RelationalRearrangement
-            },
+            }
             _ if delta.signature.color_transitions.len() > 2 => TaskClass::AlgorithmicPattern,
             _ => TaskClass::Hybrid,
         }
@@ -159,8 +163,12 @@ impl StructuralAnalyzer {
 
     pub fn detect_topology(manifold: &EntityManifold) -> TopologyHint {
         let count = manifold.active_count;
-        if count == 0 { return TopologyHint::Empty; }
-        if count == 1 { return TopologyHint::Single; }
+        if count == 0 {
+            return TopologyHint::Empty;
+        }
+        if count == 1 {
+            return TopologyHint::Single;
+        }
 
         let positions: Vec<(f32, f32)> = (0..count)
             .filter(|&i| manifold.masses[i] > 0.0)
@@ -207,7 +215,9 @@ impl StructuralAnalyzer {
     }
 
     fn is_uniform_grid(positions: &[(f32, f32)]) -> bool {
-        if positions.len() < 4 { return false; }
+        if positions.len() < 4 {
+            return false;
+        }
 
         let mut xs: Vec<f32> = positions.iter().map(|p| p.0).collect();
         let mut ys: Vec<f32> = positions.iter().map(|p| p.1).collect();
@@ -222,10 +232,18 @@ impl StructuralAnalyzer {
         positions.len() >= grid_size.saturating_sub(2)
     }
 
-    fn is_linear(_positions: &[(f32, f32)]) -> bool { false }
-    fn is_nested(_positions: &[(f32, f32)]) -> bool { false }
-    fn is_framed(_positions: &[(f32, f32)], _manifold: &EntityManifold) -> bool { false }
-    fn forms_rectangular_border(_pixels: &[(f32, f32)]) -> bool { false }
+    fn is_linear(_positions: &[(f32, f32)]) -> bool {
+        false
+    }
+    fn is_nested(_positions: &[(f32, f32)]) -> bool {
+        false
+    }
+    fn is_framed(_positions: &[(f32, f32)], _manifold: &EntityManifold) -> bool {
+        false
+    }
+    fn forms_rectangular_border(_pixels: &[(f32, f32)]) -> bool {
+        false
+    }
 
     fn gather_stats(manifold: &EntityManifold) -> ObjectStatistics {
         let active = manifold.active_count;
@@ -244,17 +262,25 @@ impl StructuralAnalyzer {
         }
     }
 
-    fn classify_dimension(in_stats: &ObjectStatistics, out_stats: &ObjectStatistics) -> DimensionRelation {
+    fn classify_dimension(
+        in_stats: &ObjectStatistics,
+        out_stats: &ObjectStatistics,
+    ) -> DimensionRelation {
         if in_stats.bounding_box == out_stats.bounding_box {
             DimensionRelation::Equal
-        } else if out_stats.bounding_box.0 > in_stats.bounding_box.0 || out_stats.bounding_box.1 > in_stats.bounding_box.1 {
+        } else if out_stats.bounding_box.0 > in_stats.bounding_box.0
+            || out_stats.bounding_box.1 > in_stats.bounding_box.1
+        {
             DimensionRelation::Larger
         } else {
             DimensionRelation::Smaller
         }
     }
 
-    fn classify_object_delta(in_stats: &ObjectStatistics, out_stats: &ObjectStatistics) -> ObjectDelta {
+    fn classify_object_delta(
+        in_stats: &ObjectStatistics,
+        out_stats: &ObjectStatistics,
+    ) -> ObjectDelta {
         if in_stats.count == out_stats.count {
             ObjectDelta::SameCount
         } else if out_stats.count > in_stats.count {
@@ -264,7 +290,10 @@ impl StructuralAnalyzer {
         }
     }
 
-    fn extract_color_transitions(_input: &EntityManifold, _output: &EntityManifold) -> Vec<(u8, u8)> {
+    fn extract_color_transitions(
+        _input: &EntityManifold,
+        _output: &EntityManifold,
+    ) -> Vec<(u8, u8)> {
         vec![]
     }
 
@@ -272,7 +301,10 @@ impl StructuralAnalyzer {
         SymmetryChange::Preserved
     }
 
-    fn track_object_changes(_input: &EntityManifold, _output: &EntityManifold) -> Vec<ObjectChange> {
+    fn track_object_changes(
+        _input: &EntityManifold,
+        _output: &EntityManifold,
+    ) -> Vec<ObjectChange> {
         vec![]
     }
 
@@ -282,7 +314,9 @@ impl StructuralAnalyzer {
     pub fn get_chamber_bboxes(manifold: &EntityManifold) -> Vec<[f32; 4]> {
         let width = manifold.global_width as usize;
         let height = manifold.global_height as usize;
-        if width == 0 || height == 0 { return vec![]; }
+        if width == 0 || height == 0 {
+            return vec![];
+        }
 
         let mut grid = vec![vec![0; width]; height];
         for i in 0..manifold.active_count {
@@ -312,10 +346,18 @@ impl StructuralAnalyzer {
                     visited[y][x] = true;
 
                     while let Some((cx, cy)) = queue.pop_front() {
-                        if cx < min_x { min_x = cx; }
-                        if cx > max_x { max_x = cx; }
-                        if cy < min_y { min_y = cy; }
-                        if cy > max_y { max_y = cy; }
+                        if cx < min_x {
+                            min_x = cx;
+                        }
+                        if cx > max_x {
+                            max_x = cx;
+                        }
+                        if cy < min_y {
+                            min_y = cy;
+                        }
+                        if cy > max_y {
+                            max_y = cy;
+                        }
 
                         let neighbors = [(0, 1), (1, 0), (0, -1_i32), (-1_i32, 0)];
                         for (dx, dy) in neighbors.iter() {
@@ -345,7 +387,6 @@ impl StructuralAnalyzer {
         chambers
     }
 
-
     /// Calculates the Bounding Box [min_x, min_y, max_x, max_y] of a specific color.
     pub fn get_color_bbox(manifold: &EntityManifold, color: i32) -> Option<[f32; 4]> {
         let mut min_x = f32::MAX;
@@ -358,10 +399,18 @@ impl StructuralAnalyzer {
             if manifold.masses[i] > 0.0 && manifold.tokens[i] == color {
                 let x = manifold.centers_x[i];
                 let y = manifold.centers_y[i];
-                if x < min_x { min_x = x; }
-                if x > max_x { max_x = x; }
-                if y < min_y { min_y = y; }
-                if y > max_y { max_y = y; }
+                if x < min_x {
+                    min_x = x;
+                }
+                if x > max_x {
+                    max_x = x;
+                }
+                if y < min_y {
+                    min_y = y;
+                }
+                if y > max_y {
+                    max_y = y;
+                }
                 found = true;
             }
         }

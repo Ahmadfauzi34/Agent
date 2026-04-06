@@ -1,14 +1,14 @@
 pub mod core;
 pub mod memory;
-pub mod reasoning;
-pub mod shared;
 pub mod perception;
+pub mod reasoning;
 pub mod self_awareness;
+pub mod shared;
 
+use reasoning::rrm_agent::RrmAgent;
+use serde_json::Value;
 use std::fs;
 use std::time::Instant;
-use serde_json::Value;
-use reasoning::rrm_agent::RrmAgent;
 
 fn main() {
     println!("🌌 RRM Quantum Sandbox (Rust Edition) Initialized.");
@@ -30,7 +30,8 @@ fn main() {
         data = fs::read_to_string(format!("../{}", path)).unwrap_or_else(|_| String::new());
     }
     if data.is_empty() {
-        data = fs::read_to_string(format!("../ARC-AGI-1.0.2/data/training/{}", path)).expect("Failed to read JSON");
+        data = fs::read_to_string(format!("../ARC-AGI-1.0.2/data/training/{}", path))
+            .expect("Failed to read JSON");
     }
 
     let json: Value = serde_json::from_str(&data).expect("Invalid JSON");
@@ -39,9 +40,17 @@ fn main() {
     let test = json["test"].as_array().unwrap();
 
     let parse_grid = |arr: &Value| -> Vec<Vec<i32>> {
-        arr.as_array().unwrap().iter().map(|row| {
-            row.as_array().unwrap().iter().map(|v| v.as_i64().unwrap() as i32).collect()
-        }).collect()
+        arr.as_array()
+            .unwrap()
+            .iter()
+            .map(|row| {
+                row.as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| v.as_i64().unwrap() as i32)
+                    .collect()
+            })
+            .collect()
     };
 
     let mut train_in = Vec::new();

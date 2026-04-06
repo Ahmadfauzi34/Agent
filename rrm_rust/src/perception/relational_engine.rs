@@ -4,21 +4,21 @@ use std::collections::HashSet;
 /// V8-Optimized SoA representation of the Relational Graph
 pub struct RelationalStateSoA {
     // Meso-Level (Objects / Gestalt Atoms)
-    pub obj_masses: Vec<f32>,           // 0.0 = ghost
+    pub obj_masses: Vec<f32>, // 0.0 = ghost
     pub obj_tokens: Vec<i32>,
     pub obj_centroids_x: Vec<f32>,
     pub obj_centroids_y: Vec<f32>,
-    pub obj_bboxes: Vec<[f32; 4]>,      // [min_x, min_y, max_x, max_y]
+    pub obj_bboxes: Vec<[f32; 4]>, // [min_x, min_y, max_x, max_y]
     pub obj_areas: Vec<f32>,
-    pub obj_rectilinearity: Vec<f32>,   // 1.0 = perfect rectangle
-    pub obj_euler_chars: Vec<i32>,      // 1 = solid, <=0 = hollow/has holes
+    pub obj_rectilinearity: Vec<f32>, // 1.0 = perfect rectangle
+    pub obj_euler_chars: Vec<i32>,    // 1 = solid, <=0 = hollow/has holes
 
     // Micro-Level (Edges / Relations)
-    pub edge_masses: Vec<f32>,          // 0.0 = ghost
+    pub edge_masses: Vec<f32>, // 0.0 = ghost
     pub edge_source_idx: Vec<u16>,
     pub edge_target_idx: Vec<u16>,
-    pub edge_relation_type: Vec<u8>,    // 1=TOUCHING, 2=ENCLOSED, 3=RAY_HIT
-    pub edge_fuzzy_score: Vec<f32>,     // 0.0 - 1.0 Probability/Confidence
+    pub edge_relation_type: Vec<u8>, // 1=TOUCHING, 2=ENCLOSED, 3=RAY_HIT
+    pub edge_fuzzy_score: Vec<f32>,  // 0.0 - 1.0 Probability/Confidence
 
     pub max_objects: usize,
     pub max_edges: usize,
@@ -83,7 +83,9 @@ impl RelationalStateSoA {
     fn extract_meso_objects(&mut self, manifold: &EntityManifold) {
         let width = manifold.global_width as usize;
         let height = manifold.global_height as usize;
-        if width == 0 || height == 0 { return; }
+        if width == 0 || height == 0 {
+            return;
+        }
 
         let mut grid = vec![vec![-1_i32; width]; height];
         for i in 0..manifold.active_count {
@@ -103,7 +105,9 @@ impl RelationalStateSoA {
             for x in 0..width {
                 let token = grid[y][x];
                 if token != -1 && !visited[y][x] {
-                    if self.active_objects >= self.max_objects { return; } // Safety
+                    if self.active_objects >= self.max_objects {
+                        return;
+                    } // Safety
 
                     let mut min_x = x;
                     let mut max_x = x;
@@ -122,10 +126,18 @@ impl RelationalStateSoA {
                         sum_x += cx as f32;
                         sum_y += cy as f32;
 
-                        if cx < min_x { min_x = cx; }
-                        if cx > max_x { max_x = cx; }
-                        if cy < min_y { min_y = cy; }
-                        if cy > max_y { max_y = cy; }
+                        if cx < min_x {
+                            min_x = cx;
+                        }
+                        if cx > max_x {
+                            max_x = cx;
+                        }
+                        if cy < min_y {
+                            min_y = cy;
+                        }
+                        if cy > max_y {
+                            max_y = cy;
+                        }
 
                         let neighbors = [(0, 1), (1, 0), (0, -1_i32), (-1_i32, 0)];
                         for (dx, dy) in neighbors.iter() {
@@ -150,7 +162,8 @@ impl RelationalStateSoA {
                     self.obj_areas[obj_idx] = area;
                     self.obj_centroids_x[obj_idx] = sum_x / area;
                     self.obj_centroids_y[obj_idx] = sum_y / area;
-                    self.obj_bboxes[obj_idx] = [min_x as f32, min_y as f32, max_x as f32, max_y as f32];
+                    self.obj_bboxes[obj_idx] =
+                        [min_x as f32, min_y as f32, max_x as f32, max_y as f32];
 
                     // RECTILINEARITY: Area / Bounding Box Area
                     let bbox_area = (max_x - min_x + 1) as f32 * (max_y - min_y + 1) as f32;
@@ -168,11 +181,12 @@ impl RelationalStateSoA {
                         }
                     }
 
-                    self.obj_euler_chars[obj_idx] = if internal_zeros > 0 && self.obj_rectilinearity[obj_idx] < 0.9 {
-                        0 // Hollow (Genus 1+)
-                    } else {
-                        1 // Solid
-                    };
+                    self.obj_euler_chars[obj_idx] =
+                        if internal_zeros > 0 && self.obj_rectilinearity[obj_idx] < 0.9 {
+                            0 // Hollow (Genus 1+)
+                        } else {
+                            1 // Solid
+                        };
 
                     self.active_objects += 1;
                 }
@@ -189,10 +203,14 @@ impl RelationalStateSoA {
         let n = self.active_objects;
 
         for i in 0..n {
-            if self.obj_masses[i] == 0.0 { continue; }
+            if self.obj_masses[i] == 0.0 {
+                continue;
+            }
 
             for j in 0..n {
-                if i == j || self.obj_masses[j] == 0.0 { continue; }
+                if i == j || self.obj_masses[j] == 0.0 {
+                    continue;
+                }
 
                 let bbox_a = self.obj_bboxes[i];
                 let bbox_b = self.obj_bboxes[j];
@@ -207,14 +225,16 @@ impl RelationalStateSoA {
 
                 // 2. IS_ENCLOSED (BBox A completely inside BBox B)
                 // A is inside B if A's min >= B's min AND A's max <= B's max
-                if bbox_a[0] >= bbox_b[0] && bbox_a[1] >= bbox_b[1] &&
-                   bbox_a[2] <= bbox_b[2] && bbox_a[3] <= bbox_b[3] {
+                if bbox_a[0] >= bbox_b[0]
+                    && bbox_a[1] >= bbox_b[1]
+                    && bbox_a[2] <= bbox_b[2]
+                    && bbox_a[3] <= bbox_b[3]
+                {
+                    // Fuzzy probability based on area ratio (if A is very small compared to B)
+                    let area_ratio = self.obj_areas[i] / (self.obj_areas[j] + 1e-15);
+                    let fuzzy_score = (1.0 - area_ratio).max(0.0);
 
-                   // Fuzzy probability based on area ratio (if A is very small compared to B)
-                   let area_ratio = self.obj_areas[i] / (self.obj_areas[j] + 1e-15);
-                   let fuzzy_score = (1.0 - area_ratio).max(0.0);
-
-                   self.add_edge(i, j, RelationType::Enclosed as u8, fuzzy_score);
+                    self.add_edge(i, j, RelationType::Enclosed as u8, fuzzy_score);
                 }
 
                 // 3. RAY_CAST (Directional alignment without intersection)
@@ -243,7 +263,9 @@ impl RelationalStateSoA {
     }
 
     fn add_edge(&mut self, source: usize, target: usize, rel_type: u8, score: f32) {
-        if self.active_edges >= self.max_edges { return; }
+        if self.active_edges >= self.max_edges {
+            return;
+        }
 
         let idx = self.active_edges;
         self.edge_masses[idx] = 1.0;
@@ -260,7 +282,9 @@ impl RelationalStateSoA {
     // =========================================================================
 
     fn compute_macro_relations(&mut self) {
-        if self.active_objects == 0 { return; }
+        if self.active_objects == 0 {
+            return;
+        }
 
         let mut max_area = -1.0;
         let mut min_area = 999999.0;
@@ -270,7 +294,9 @@ impl RelationalStateSoA {
         let mut color_counts = [0; 10]; // Colors 0-9
 
         for i in 0..self.active_objects {
-            if self.obj_masses[i] == 0.0 { continue; }
+            if self.obj_masses[i] == 0.0 {
+                continue;
+            }
 
             let area = self.obj_areas[i];
             if area > max_area {
@@ -289,7 +315,9 @@ impl RelationalStateSoA {
 
             // Check Macro-Alignments
             for j in (i + 1)..self.active_objects {
-                if self.obj_masses[j] == 0.0 { continue; }
+                if self.obj_masses[j] == 0.0 {
+                    continue;
+                }
 
                 let cy_i = self.obj_centroids_y[i];
                 let cy_j = self.obj_centroids_y[j];
@@ -299,7 +327,8 @@ impl RelationalStateSoA {
                 // ARE_ALIGNED_HORIZONTALLY (Centers share similar Y)
                 if (cy_i - cy_j).abs() < 1.0 {
                     self.add_edge(i, j, RelationType::AlignedHorizontally as u8, 1.0);
-                    self.add_edge(j, i, RelationType::AlignedHorizontally as u8, 1.0); // Symmetric
+                    self.add_edge(j, i, RelationType::AlignedHorizontally as u8, 1.0);
+                    // Symmetric
                 }
 
                 // ARE_ALIGNED_VERTICALLY (Centers share similar X)
@@ -318,7 +347,8 @@ impl RelationalStateSoA {
         let mut most_freq = None;
         let mut rarest = None;
 
-        for c in 1..10 { // Ignore background 0
+        for c in 1..10 {
+            // Ignore background 0
             let count = color_counts[c];
             if count > 0 {
                 if count > max_color_count {

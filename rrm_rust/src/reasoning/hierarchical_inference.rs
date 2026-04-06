@@ -1,8 +1,8 @@
-use crate::core::entity_manifold::EntityManifold;
-use crate::reasoning::structures::Axiom;
-use crate::core::fhrr::FHRR;
-use crate::core::core_seeds::CoreSeeds;
 use crate::core::config::GLOBAL_DIMENSION;
+use crate::core::core_seeds::CoreSeeds;
+use crate::core::entity_manifold::EntityManifold;
+use crate::core::fhrr::FHRR;
+use crate::reasoning::structures::Axiom;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Copy, PartialEq)]
@@ -59,8 +59,8 @@ pub struct CeoConfig {
 impl Default for CeoConfig {
     fn default() -> Self {
         Self {
-            max_waves: 1000, // Reduced from 100,000 to 1,000
-            max_entities: 100, // Reduced from 1000 to 100
+            max_waves: 1000,       // Reduced from 100,000 to 1,000
+            max_entities: 100,     // Reduced from 1000 to 100
             global_dimension: 512, // Temporarily reduced dimension for memory safety locally
             max_frontier: 100,
             initial_temperature: 1.0,
@@ -161,9 +161,15 @@ impl CeoDispatcher {
         let mut found = false;
 
         for i in 0..self.config.max_waves {
-            if self.wave_parent_indices[i] == -1 { continue; }
-            if self.frontier_active_indices.contains(&i) { continue; }
-            if self.wave_first_child_indices[i] != -1 { continue; }
+            if self.wave_parent_indices[i] == -1 {
+                continue;
+            }
+            if self.frontier_active_indices.contains(&i) {
+                continue;
+            }
+            if self.wave_first_child_indices[i] != -1 {
+                continue;
+            }
 
             let access_time = self.wave_last_access[i];
             if access_time < oldest_time {
@@ -194,7 +200,7 @@ impl CeoDispatcher {
         parent_idx: usize,
         candidate_axioms: &[u16],
         expected_state: &EntityManifold,
-        axioms_map: &[Axiom]
+        axioms_map: &[Axiom],
     ) -> Vec<usize> {
         let parent_depth = self.wave_depths[parent_idx];
         if parent_depth >= self.horizon_limit {
@@ -238,11 +244,11 @@ impl CeoDispatcher {
 
         self.state_spatial_tensors.copy_within(
             from_spatial_offset..from_spatial_offset + copy_len,
-            to_spatial_offset
+            to_spatial_offset,
         );
         self.state_semantic_tensors.copy_within(
             from_spatial_offset..from_spatial_offset + copy_len,
-            to_spatial_offset
+            to_spatial_offset,
         );
 
         let from_scalar_offset = from_idx * e * 10;
@@ -251,7 +257,7 @@ impl CeoDispatcher {
 
         self.state_scalar_data.copy_within(
             from_scalar_offset..from_scalar_offset + scalar_len,
-            to_scalar_offset
+            to_scalar_offset,
         );
 
         self.state_global_dims[to_idx * 2] = self.state_global_dims[from_idx * 2];
@@ -282,7 +288,9 @@ impl CeoDispatcher {
         for entity_idx in 0..self.state_entity_counts[wave_idx] as usize {
             let mass_offset = wave_idx * e * 10 + entity_idx * 10;
             let mass = self.state_scalar_data[mass_offset];
-            if mass == 0.0 { continue; }
+            if mass == 0.0 {
+                continue;
+            }
 
             let cx_offset = mass_offset + 1;
             let cy_offset = mass_offset + 2;
@@ -348,7 +356,9 @@ impl CeoDispatcher {
         let mut found = false;
 
         for i in 0..self.config.max_waves {
-            if self.wave_masses[i] == 0.0 { continue; }
+            if self.wave_masses[i] == 0.0 {
+                continue;
+            }
             let energy = self.metric_free_energies[i];
             if energy < best_energy {
                 best_energy = energy;
@@ -356,7 +366,11 @@ impl CeoDispatcher {
                 found = true;
             }
         }
-        if found { Some(best_idx) } else { None }
+        if found {
+            Some(best_idx)
+        } else {
+            None
+        }
     }
 
     pub fn update_all_probabilities(&mut self) {
@@ -380,9 +394,15 @@ impl CeoDispatcher {
 
         let mut candidates: Vec<(usize, f32)> = Vec::with_capacity(self.config.max_waves / 10);
         for i in 0..self.config.max_waves {
-            if self.wave_masses[i] == 0.0 { continue; }
-            if self.wave_first_child_indices[i] != -1 { continue; }
-            if self.wave_depths[i] >= self.horizon_limit { continue; }
+            if self.wave_masses[i] == 0.0 {
+                continue;
+            }
+            if self.wave_first_child_indices[i] != -1 {
+                continue;
+            }
+            if self.wave_depths[i] >= self.horizon_limit {
+                continue;
+            }
             candidates.push((i, self.metric_free_energies[i]));
         }
 
@@ -407,7 +427,7 @@ impl CeoDispatcher {
         &mut self,
         candidate_axioms: &[u16],
         expected: &EntityManifold,
-        axioms_map: &[Axiom]
+        axioms_map: &[Axiom],
     ) -> ExpansionResult {
         let mut total_new = 0;
         let mut best_new_energy: f32 = 999.0;
@@ -429,7 +449,11 @@ impl CeoDispatcher {
         self.update_frontier();
         ExpansionResult {
             new_waves: total_new,
-            best_new_wave: if total_new > 0 { Some(best_new_idx) } else { None },
+            best_new_wave: if total_new > 0 {
+                Some(best_new_idx)
+            } else {
+                None
+            },
             frontier_size: self.frontier_size,
         }
     }
@@ -459,13 +483,17 @@ impl CeoDispatcher {
 
         for i in 0..active_indices.len() {
             let idx_a = active_indices[i];
-            if self.wave_masses[idx_a] == 0.0 { continue; }
+            if self.wave_masses[idx_a] == 0.0 {
+                continue;
+            }
 
             let energy_a = self.metric_free_energies[idx_a];
 
             for j in (i + 1)..active_indices.len() {
                 let idx_b = active_indices[j];
-                if self.wave_masses[idx_b] == 0.0 { continue; }
+                if self.wave_masses[idx_b] == 0.0 {
+                    continue;
+                }
 
                 // Compare state scalars (a lightweight check before checking 8192-D tensors)
                 let offset_a = idx_a * e * 10;
@@ -473,7 +501,8 @@ impl CeoDispatcher {
 
                 let mut diff_sq = 0.0;
                 for k in 0..(e * 10) {
-                    let diff = self.state_scalar_data[offset_a + k] - self.state_scalar_data[offset_b + k];
+                    let diff =
+                        self.state_scalar_data[offset_a + k] - self.state_scalar_data[offset_b + k];
                     diff_sq += diff * diff;
                 }
 
@@ -497,7 +526,8 @@ impl CeoDispatcher {
         }
 
         // Remove dead waves from frontier
-        self.frontier_active_indices.retain(|&idx| self.wave_masses[idx] > 0.0);
+        self.frontier_active_indices
+            .retain(|&idx| self.wave_masses[idx] > 0.0);
         self.frontier_size = self.frontier_active_indices.len();
 
         duplicates
@@ -521,9 +551,15 @@ impl CeoDispatcher {
     pub fn prune_waves(&mut self, threshold: f32) -> usize {
         let mut pruned = 0;
         for i in 0..self.config.max_waves {
-            if self.wave_masses[i] == 0.0 { continue; }
-            if self.wave_parent_indices[i] == -1 { continue; }
-            if self.frontier_active_indices.contains(&i) { continue; }
+            if self.wave_masses[i] == 0.0 {
+                continue;
+            }
+            if self.wave_parent_indices[i] == -1 {
+                continue;
+            }
+            if self.frontier_active_indices.contains(&i) {
+                continue;
+            }
 
             if self.metric_free_energies[i] > threshold {
                 self.free_wave(i);
@@ -534,20 +570,27 @@ impl CeoDispatcher {
     }
 
     fn calculate_percentile_energy(&self, p: f32) -> f32 {
-        let mut energies: Vec<f32> = self.metric_free_energies.iter()
+        let mut energies: Vec<f32> = self
+            .metric_free_energies
+            .iter()
             .enumerate()
             .filter(|(i, _)| self.wave_masses[*i] > 0.0)
             .map(|(_, &e)| e)
             .collect();
 
-        if energies.is_empty() { return 999.0; }
+        if energies.is_empty() {
+            return 999.0;
+        }
         energies.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let idx = ((energies.len() as f32) * p) as usize;
         energies[idx.min(energies.len() - 1)]
     }
 
     fn get_timestamp(&self) -> u64 {
-        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64
     }
 
     fn reconstruct_manifold(&self, wave_idx: usize) -> EntityManifold {
@@ -570,11 +613,15 @@ impl CeoDispatcher {
         man
     }
 
-    fn calculate_pragmatic_error(&self, current: &EntityManifold, expected: &EntityManifold) -> f32 {
+    fn calculate_pragmatic_error(
+        &self,
+        current: &EntityManifold,
+        expected: &EntityManifold,
+    ) -> f32 {
         // Penalty for dimension mismatch
         let mut error = 0.0;
         let dim_diff = (current.global_width - expected.global_width).abs()
-                     + (current.global_height - expected.global_height).abs();
+            + (current.global_height - expected.global_height).abs();
 
         if dim_diff > 0.1 {
             error += dim_diff * 500.0; // Heavy penalty for wrong dimensions
@@ -613,7 +660,8 @@ impl CeoDispatcher {
 
         let mut diff_sq = 0.0;
         for i in 0..(e * 10) {
-            let diff = self.state_scalar_data[child_offset + i] - self.state_scalar_data[parent_offset + i];
+            let diff = self.state_scalar_data[child_offset + i]
+                - self.state_scalar_data[parent_offset + i];
             diff_sq += diff * diff;
         }
 
@@ -624,9 +672,18 @@ impl CeoDispatcher {
     pub fn switch_mode(&mut self, mode: SimulationMode) {
         self.current_mode = mode;
         match mode {
-            SimulationMode::StrictVSA => { self.temperature = 0.1; self.config.epistemic_weight = 10.0; },
-            SimulationMode::Probabilistic => { self.temperature = 2.0; self.config.epistemic_weight = 100.0; },
-            SimulationMode::Counterfactual => { self.temperature = 1.0; self.config.epistemic_weight = 50.0; },
+            SimulationMode::StrictVSA => {
+                self.temperature = 0.1;
+                self.config.epistemic_weight = 10.0;
+            }
+            SimulationMode::Probabilistic => {
+                self.temperature = 2.0;
+                self.config.epistemic_weight = 100.0;
+            }
+            SimulationMode::Counterfactual => {
+                self.temperature = 1.0;
+                self.config.epistemic_weight = 50.0;
+            }
         }
     }
 }
@@ -637,7 +694,9 @@ pub struct DeepActiveInferenceEngine {
 
 impl DeepActiveInferenceEngine {
     pub fn new() -> Self {
-        Self { current_mode: SimulationMode::StrictVSA }
+        Self {
+            current_mode: SimulationMode::StrictVSA,
+        }
     }
 
     pub fn switch_mode(&mut self, mode: SimulationMode) {

@@ -1,11 +1,13 @@
-use crate::core::entity_manifold::EntityManifold;
-use crate::reasoning::counterfactual_engine::{CounterfactualEngine, SequenceResult, OutcomeStatus};
-use crate::self_awareness::skill_ontology::{SkillOntology, TierCapability};
-use crate::reasoning::structures::Axiom;
-use crate::core::fhrr::FHRR;
-use crate::core::core_seeds::CoreSeeds;
 use crate::core::config::GLOBAL_DIMENSION;
+use crate::core::core_seeds::CoreSeeds;
+use crate::core::entity_manifold::EntityManifold;
+use crate::core::fhrr::FHRR;
 use crate::perception::structural_analyzer::{StructuralAnalyzer, TopologyHint};
+use crate::reasoning::counterfactual_engine::{
+    CounterfactualEngine, OutcomeStatus, SequenceResult,
+};
+use crate::reasoning::structures::Axiom;
+use crate::self_awareness::skill_ontology::{SkillOntology, TierCapability};
 
 pub struct MentalReplay {
     pub dream_masses: Vec<f32>,
@@ -94,12 +96,17 @@ impl MentalReplay {
     }
 
     pub fn generate_dreams(&mut self, solved_tasks: &[TaskMemorySoA], count_per_task: usize) {
-        println!("💤 [MentalReplay] Generating {} dreams...", solved_tasks.len() * count_per_task);
+        println!(
+            "💤 [MentalReplay] Generating {} dreams...",
+            solved_tasks.len() * count_per_task
+        );
         let mut dream_idx = 0;
 
         for task_idx in 0..solved_tasks.len() {
             let task = &solved_tasks[task_idx];
-            if task.task_mass == 0.0 { continue; }
+            if task.task_mass == 0.0 {
+                continue;
+            }
 
             for variation in 0..count_per_task {
                 dream_idx = self.find_or_create_dream_slot(dream_idx);
@@ -123,10 +130,19 @@ impl MentalReplay {
             }
         }
 
-        println!("  ✅ Generated {} active dreams", self.dream_masses.iter().filter(|&&m| m > 0.0).count());
+        println!(
+            "  ✅ Generated {} active dreams",
+            self.dream_masses.iter().filter(|&&m| m > 0.0).count()
+        );
     }
 
-    fn generate_dream_state(&mut self, dream_idx: usize, base_task: &TaskMemorySoA, var_type: u8, var_param: f32) {
+    fn generate_dream_state(
+        &mut self,
+        dream_idx: usize,
+        base_task: &TaskMemorySoA,
+        var_type: u8,
+        var_param: f32,
+    ) {
         let offset = dream_idx * self.config.state_size;
         self.copy_task_to_dream_buffer(base_task, offset);
 
@@ -148,7 +164,9 @@ impl MentalReplay {
 
         for e in 0..entity_count {
             let mass = self.dream_initial_states[offset + e];
-            if mass == 0.0 { continue; }
+            if mass == 0.0 {
+                continue;
+            }
 
             let cx_offset = offset + self.config.state_size / 10 + e * 2;
             let cy_offset = cx_offset + 1;
@@ -184,7 +202,9 @@ impl MentalReplay {
 
         for e in 0..entity_count {
             let mass = self.dream_initial_states[offset + e];
-            if mass == 0.0 { continue; }
+            if mass == 0.0 {
+                continue;
+            }
 
             let cx_offset = offset + self.config.state_size / 10 + e * 2;
             let cy_offset = cx_offset + 1;
@@ -212,17 +232,27 @@ impl MentalReplay {
         let mut new_discoveries = Vec::new();
 
         for dream_idx in 0..self.config.max_dreams {
-            if self.dream_masses[dream_idx] == 0.0 { continue; }
+            if self.dream_masses[dream_idx] == 0.0 {
+                continue;
+            }
 
-            println!("  🌙 Dream {}: difficulty {:.1}", dream_idx, self.dream_difficulty[dream_idx]);
+            println!(
+                "  🌙 Dream {}: difficulty {:.1}",
+                dream_idx, self.dream_difficulty[dream_idx]
+            );
 
             let offset = dream_idx * self.config.state_size;
 
             let end = offset + self.config.state_size;
-            self.dream_current_states[offset..end].copy_from_slice(&self.dream_initial_states[offset..end]);
+            self.dream_current_states[offset..end]
+                .copy_from_slice(&self.dream_initial_states[offset..end]);
 
-
-            let attempts = self.practice_compositions_in_dream(dream_idx, engine, ontology, max_attempts_per_dream);
+            let attempts = self.practice_compositions_in_dream(
+                dream_idx,
+                engine,
+                ontology,
+                max_attempts_per_dream,
+            );
 
             self.dream_success_counts[dream_idx] += attempts.success as u32;
             self.dream_failure_counts[dream_idx] += attempts.failure as u32;
@@ -239,7 +269,10 @@ impl MentalReplay {
             }
         }
 
-        println!("  💡 {} new skills discovered in dreams", new_discoveries.len());
+        println!(
+            "  💡 {} new skills discovered in dreams",
+            new_discoveries.len()
+        );
         new_discoveries
     }
 
@@ -268,14 +301,23 @@ impl MentalReplay {
             historical_success_rate: 1.0,
             typical_signatures: vec![],
         }];
-        let primitives: Vec<Axiom> = primitive_caps.into_iter().map(Axiom::from_capability).collect();
+        let primitives: Vec<Axiom> = primitive_caps
+            .into_iter()
+            .map(Axiom::from_capability)
+            .collect();
 
-        let max_compositions = (primitives.len() * primitives.len()).min(100).min(max_attempts);
+        let max_compositions = (primitives.len() * primitives.len())
+            .min(100)
+            .min(max_attempts);
 
         for i in 0..primitives.len() {
             for j in 0..primitives.len() {
-                if i * primitives.len() + j >= max_compositions { break; }
-                if i == j { continue; }
+                if i * primitives.len() + j >= max_compositions {
+                    break;
+                }
+                if i == j {
+                    continue;
+                }
 
                 let seq = vec![primitives[i].clone(), primitives[j].clone()];
 
@@ -289,7 +331,10 @@ impl MentalReplay {
                     let skill = DiscoveredSkillSoA {
                         skill_mass: 1.0,
                         sequence_length: 2,
-                        sequence_axiom_types: vec![primitives[i].name.clone(), primitives[j].name.clone()],
+                        sequence_axiom_types: vec![
+                            primitives[i].name.clone(),
+                            primitives[j].name.clone(),
+                        ],
                         sequence_tiers: vec![primitives[i].tier, primitives[j].tier],
                         preconditions: vec![],
                         postconditions: vec![],
@@ -304,18 +349,28 @@ impl MentalReplay {
             }
         }
 
-        DreamPracticeResult { success, failure, discovered }
+        DreamPracticeResult {
+            success,
+            failure,
+            discovered,
+        }
     }
 
     pub fn generalize_skill(&self, skill_idx: usize) -> GeneralizationConfidence {
         if skill_idx >= self.discovered_sequences.len() {
-            return GeneralizationConfidence { score: 0.0, based_on_dreams: 0, recommended_for_real: false };
+            return GeneralizationConfidence {
+                score: 0.0,
+                based_on_dreams: 0,
+                recommended_for_real: false,
+            };
         }
 
         let skill = &self.discovered_sequences[skill_idx];
         let dream_success_rate = if skill.usage_count > 0 {
             (skill.real_world_success as f32) / (skill.usage_count as f32)
-        } else { 0.0 };
+        } else {
+            0.0
+        };
 
         let similar_dreams = self.count_similar_origin(skill.dream_origin);
         let base_confidence = dream_success_rate.min(0.95);
@@ -337,7 +392,11 @@ impl MentalReplay {
         engine: &mut CounterfactualEngine,
     ) -> RealWorldResult {
         if skill_idx >= self.discovered_sequences.len() {
-            return RealWorldResult { success: false, verified_in_dream: false, dream_confidence: 0.0 };
+            return RealWorldResult {
+                success: false,
+                verified_in_dream: false,
+                dream_confidence: 0.0,
+            };
         }
 
         let skill = &self.discovered_sequences[skill_idx];
@@ -346,7 +405,16 @@ impl MentalReplay {
 
         if pre_check.is_success() {
             for axiom in axioms {
-                crate::reasoning::multiverse_sandbox::MultiverseSandbox::apply_axiom(real_state, &axiom.condition_tensor, &axiom.delta_spatial, &axiom.delta_semantic, axiom.delta_x, axiom.delta_y, axiom.tier, &axiom.name);
+                crate::reasoning::multiverse_sandbox::MultiverseSandbox::apply_axiom(
+                    real_state,
+                    &axiom.condition_tensor,
+                    &axiom.delta_spatial,
+                    &axiom.delta_semantic,
+                    axiom.delta_x,
+                    axiom.delta_y,
+                    axiom.tier,
+                    &axiom.name,
+                );
             }
 
             let exact_match = self.check_exact_match(real_state, real_expected);
@@ -363,13 +431,19 @@ impl MentalReplay {
             }
         } else {
             self.discovered_sequences[skill_idx].skill_mass = 0.3;
-            RealWorldResult { success: false, verified_in_dream: false, dream_confidence: 0.0 }
+            RealWorldResult {
+                success: false,
+                verified_in_dream: false,
+                dream_confidence: 0.0,
+            }
         }
     }
 
     fn find_or_create_dream_slot(&mut self, start_idx: usize) -> usize {
         for i in start_idx..self.config.max_dreams {
-            if self.dream_masses[i] == 0.0 { return i; }
+            if self.dream_masses[i] == 0.0 {
+                return i;
+            }
         }
         for i in 0..self.config.max_dreams {
             if self.dream_masses[i] == 0.5 {
@@ -386,7 +460,9 @@ impl MentalReplay {
 
     fn is_novel_skill(&self, skill: &DiscoveredSkillSoA) -> bool {
         for existing in &self.discovered_sequences {
-            if existing.skill_mass == 0.0 { continue; }
+            if existing.skill_mass == 0.0 {
+                continue;
+            }
             if existing.sequence_length == skill.sequence_length {
                 // Simplified comparison for brevity
                 return false;
@@ -399,14 +475,20 @@ impl MentalReplay {
         (variation as f32 * 0.1).fract()
     }
 
-    fn read_entity_count_from_buffer(&self, _offset: usize) -> usize { 10 }
+    fn read_entity_count_from_buffer(&self, _offset: usize) -> usize {
+        10
+    }
 
     fn copy_task_to_dream_buffer(&mut self, task: &TaskMemorySoA, offset: usize) {}
     fn generate_variated_target(&mut self, dream_idx: usize, offset: usize) {}
     fn copy_buffer(&self, src: &[f32], src_offset: usize, dst: &mut [f32], dst_offset: usize) {}
 
-    fn buffer_to_manifold(&self, _offset: usize) -> EntityManifold { EntityManifold::new() }
-    fn buffer_to_target(&self, _dream_idx: usize) -> EntityManifold { EntityManifold::new() }
+    fn buffer_to_manifold(&self, _offset: usize) -> EntityManifold {
+        EntityManifold::new()
+    }
+    fn buffer_to_target(&self, _dream_idx: usize) -> EntityManifold {
+        EntityManifold::new()
+    }
 
     fn register_discovered_skill(&mut self, skill: DiscoveredSkillSoA, _dream_idx: usize) {
         if self.discovered_sequences.len() < self.config.max_discovered_skills {
@@ -414,10 +496,25 @@ impl MentalReplay {
         }
     }
 
-    fn count_similar_origin(&self, _origin: usize) -> usize { 1 }
+    fn count_similar_origin(&self, _origin: usize) -> usize {
+        1
+    }
 
     fn skill_to_axioms(&self, skill: &DiscoveredSkillSoA) -> Vec<Axiom> {
-        skill.sequence_axiom_types.iter().map(|name| Axiom::new(name, 0, ndarray::Array1::zeros(GLOBAL_DIMENSION), ndarray::Array1::zeros(GLOBAL_DIMENSION), 0.0, 0.0)).collect()
+        skill
+            .sequence_axiom_types
+            .iter()
+            .map(|name| {
+                Axiom::new(
+                    name,
+                    0,
+                    ndarray::Array1::zeros(GLOBAL_DIMENSION),
+                    ndarray::Array1::zeros(GLOBAL_DIMENSION),
+                    0.0,
+                    0.0,
+                )
+            })
+            .collect()
     }
 
     fn check_exact_match(&self, state: &EntityManifold, expected: &EntityManifold) -> bool {
@@ -425,6 +522,10 @@ impl MentalReplay {
     }
 
     pub fn get_all_discovered_skills(&self) -> Vec<DiscoveredSkillSoA> {
-        self.discovered_sequences.iter().filter(|s| s.skill_mass > 0.0).cloned().collect()
+        self.discovered_sequences
+            .iter()
+            .filter(|s| s.skill_mass > 0.0)
+            .cloned()
+            .collect()
     }
 }

@@ -1,11 +1,13 @@
-use std::collections::{VecDeque, HashSet};
-use crate::core::entity_manifold::EntityManifold;
-use crate::reasoning::structures::Axiom;
-use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
-use crate::perception::structural_analyzer::{StructuralSignature, DimensionRelation, ObjectDelta, TopologyHint};
 use crate::core::config::GLOBAL_DIMENSION;
 use crate::core::core_seeds::CoreSeeds;
+use crate::core::entity_manifold::EntityManifold;
 use crate::core::fhrr::FHRR;
+use crate::perception::structural_analyzer::{
+    DimensionRelation, ObjectDelta, StructuralSignature, TopologyHint,
+};
+use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
+use crate::reasoning::structures::Axiom;
+use std::collections::{HashSet, VecDeque};
 
 pub struct CounterfactualEngine {
     pub simulation_buffer: Vec<f32>,
@@ -49,14 +51,45 @@ pub struct SuccessPatternSoA {
 
 #[derive(Clone, Debug)]
 pub enum FailureMode {
-    DimensionMismatch { expected: (u8, u8), got: (u8, u8), step: usize },
-    ObjectLost { expected_count: usize, got_count: usize, missing_colors: Vec<u8> },
-    ObjectMisplaced { expected_positions: Vec<(u8, u8)>, got_positions: Vec<(f32, f32)>, displacement_error: f32 },
-    ObjectCorrupted { expected_color: u8, got_color: u8, position: (f32, f32) },
-    NonCommutativeViolation { first: Axiom, second: Axiom, consequence: String },
-    PreconditionViolated { axiom: Axiom, violated: String, current_state: String },
-    UnexpectedSideEffect { axiom: Axiom, expected_side_effects: Vec<String>, unexpected: String },
-    TooManySteps { attempted: usize, limit: usize },
+    DimensionMismatch {
+        expected: (u8, u8),
+        got: (u8, u8),
+        step: usize,
+    },
+    ObjectLost {
+        expected_count: usize,
+        got_count: usize,
+        missing_colors: Vec<u8>,
+    },
+    ObjectMisplaced {
+        expected_positions: Vec<(u8, u8)>,
+        got_positions: Vec<(f32, f32)>,
+        displacement_error: f32,
+    },
+    ObjectCorrupted {
+        expected_color: u8,
+        got_color: u8,
+        position: (f32, f32),
+    },
+    NonCommutativeViolation {
+        first: Axiom,
+        second: Axiom,
+        consequence: String,
+    },
+    PreconditionViolated {
+        axiom: Axiom,
+        violated: String,
+        current_state: String,
+    },
+    UnexpectedSideEffect {
+        axiom: Axiom,
+        expected_side_effects: Vec<String>,
+        unexpected: String,
+    },
+    TooManySteps {
+        attempted: usize,
+        limit: usize,
+    },
 }
 
 impl FailureMode {
@@ -147,11 +180,11 @@ impl CounterfactualEngine {
             SimulationOutcomeCode::Success => {
                 self.simulation_masses[sim_idx] = 0.5;
                 self.learn_from_success_soa(sim_idx);
-            },
+            }
             SimulationOutcomeCode::Failure | SimulationOutcomeCode::Catastrophic => {
                 self.learn_from_failure_soa(sim_idx, &outcome);
                 self.simulation_masses[sim_idx] = 0.0;
-            },
+            }
             _ => {
                 self.simulation_masses[sim_idx] = 0.0;
             }
@@ -266,7 +299,11 @@ impl CounterfactualEngine {
             }
         }
 
-        if found { Some(best_idx) } else { None }
+        if found {
+            Some(best_idx)
+        } else {
+            None
+        }
     }
 
     fn find_ghost_slot(&mut self) -> usize {
@@ -310,26 +347,52 @@ impl CounterfactualEngine {
         // This is a simplified representation of flattening for the example
         // to maintain compile success with previous code.
         let source_len = source.spatial_tensors.len().min(tensor_end - tensor_start);
-        dst[tensor_start..tensor_start + source_len].copy_from_slice(&source.spatial_tensors[..source_len]);
+        dst[tensor_start..tensor_start + source_len]
+            .copy_from_slice(&source.spatial_tensors[..source_len]);
     }
 
-    fn read_width_from_buffer(&self, _offset: usize) -> f32 { 10.0 }
-    fn read_entity_count(&self, _offset: usize) -> usize { 1 }
-    fn read_mass(&self, _offset: usize, _entity_idx: usize) -> f32 { 1.0 }
-    fn read_center_x(&self, _offset: usize, _entity_idx: usize) -> f32 { 5.0 }
-    fn read_center_y(&self, _offset: usize, _entity_idx: usize) -> f32 { 5.0 }
+    fn read_width_from_buffer(&self, _offset: usize) -> f32 {
+        10.0
+    }
+    fn read_entity_count(&self, _offset: usize) -> usize {
+        1
+    }
+    fn read_mass(&self, _offset: usize, _entity_idx: usize) -> f32 {
+        1.0
+    }
+    fn read_center_x(&self, _offset: usize, _entity_idx: usize) -> f32 {
+        5.0
+    }
+    fn read_center_y(&self, _offset: usize, _entity_idx: usize) -> f32 {
+        5.0
+    }
     fn write_center_x(&mut self, _offset: usize, _entity_idx: usize, _val: f32) {}
     fn write_spatial_tensor(&mut self, _offset: usize, _entity_idx: usize, _tensor: &[f32]) {}
 
     fn apply_axiom_to_buffer(&mut self, _axiom: &Axiom, _offset: usize) {}
-    fn analyze_buffer_outcome(&self, _offset: usize, _expected: &EntityManifold, _initial: &EntityManifold) -> SimulationOutcome {
-        SimulationOutcome { code: SimulationOutcomeCode::Success }
+    fn analyze_buffer_outcome(
+        &self,
+        _offset: usize,
+        _expected: &EntityManifold,
+        _initial: &EntityManifold,
+    ) -> SimulationOutcome {
+        SimulationOutcome {
+            code: SimulationOutcomeCode::Success,
+        }
     }
-    fn calculate_divergence_safe(&self, _offset: usize, _expected: &EntityManifold) -> f32 { 0.0 }
+    fn calculate_divergence_safe(&self, _offset: usize, _expected: &EntityManifold) -> f32 {
+        0.0
+    }
     fn learn_from_success_soa(&mut self, _idx: usize) {}
     fn learn_from_failure_soa(&mut self, _idx: usize, _outcome: &SimulationOutcome) {}
 
-    fn what_if_reuse_slot(&mut self, sim_idx: usize, axiom: &Axiom, initial: &EntityManifold, expected: &EntityManifold) -> SimulationOutcome {
+    fn what_if_reuse_slot(
+        &mut self,
+        sim_idx: usize,
+        axiom: &Axiom,
+        initial: &EntityManifold,
+        expected: &EntityManifold,
+    ) -> SimulationOutcome {
         let offset = sim_idx * self.config.state_size;
         self.copy_manifold_to_buffer(initial, offset);
         self.apply_axiom_to_buffer(axiom, offset);
@@ -338,11 +401,17 @@ impl CounterfactualEngine {
         outcome
     }
 
-        pub fn is_success(&self, result: &SimulationOutcome) -> bool {
+    pub fn is_success(&self, result: &SimulationOutcome) -> bool {
         matches!(result.code, SimulationOutcomeCode::Success)
     }
 
-    pub fn explore_branches(&mut self, _candidates: &[Axiom], _initial: &EntityManifold, _expected: &EntityManifold, _depth: usize) -> BranchingResult {
+    pub fn explore_branches(
+        &mut self,
+        _candidates: &[Axiom],
+        _initial: &EntityManifold,
+        _expected: &EntityManifold,
+        _depth: usize,
+    ) -> BranchingResult {
         BranchingResult {
             branches: vec![],
             best_path: None,
@@ -350,10 +419,21 @@ impl CounterfactualEngine {
         }
     }
 
-    pub fn recall_similar_failure(&self, _initial: &EntityManifold, _axiom: &Axiom) -> Option<&FailurePatternSoA> { None }
+    pub fn recall_similar_failure(
+        &self,
+        _initial: &EntityManifold,
+        _axiom: &Axiom,
+    ) -> Option<&FailurePatternSoA> {
+        None
+    }
 
     // Support for Sequence
-    pub fn what_if_sequence(&mut self, _sequence: &[Axiom], _initial: &EntityManifold, _expected: &EntityManifold) -> SequenceResult {
+    pub fn what_if_sequence(
+        &mut self,
+        _sequence: &[Axiom],
+        _initial: &EntityManifold,
+        _expected: &EntityManifold,
+    ) -> SequenceResult {
         SequenceResult::Complete(SimulationResult {
             outcome: OutcomeStatus::Success,
             final_state: EntityManifold::default(),

@@ -1,8 +1,10 @@
-use crate::self_awareness::skill_ontology::SkillOntology;
-use crate::reasoning::structures::Axiom;
 use crate::core::entity_manifold::EntityManifold;
 use crate::perception::structural_analyzer::StructuralSignature;
-use crate::reasoning::counterfactual_engine::{CounterfactualEngine, SequenceResult, OutcomeStatus};
+use crate::reasoning::counterfactual_engine::{
+    CounterfactualEngine, OutcomeStatus, SequenceResult,
+};
+use crate::reasoning::structures::Axiom;
+use crate::self_awareness::skill_ontology::SkillOntology;
 // no DreamScenarioSoA import needed
 use crate::core::config::GLOBAL_DIMENSION;
 
@@ -91,7 +93,10 @@ impl SkillComposer {
             self.primitive_count += 1;
         }
 
-        println!("🔧 [SkillComposer] Registered {} primitives", self.primitive_count);
+        println!(
+            "🔧 [SkillComposer] Registered {} primitives",
+            self.primitive_count
+        );
         self.compute_compatibility_matrix(ontology);
     }
 
@@ -176,8 +181,12 @@ impl SkillComposer {
         let mut created = 0;
 
         for bin_idx in 0..self.config.max_compositions {
-            if self.composition_masses[bin_idx] == 0.0 { continue; }
-            if self.composition_masses[bin_idx] < 0.7 { continue; }
+            if self.composition_masses[bin_idx] == 0.0 {
+                continue;
+            }
+            if self.composition_masses[bin_idx] < 0.7 {
+                continue;
+            }
 
             for k in 0..self.primitive_count {
                 let slot = self.find_ghost_composition();
@@ -191,7 +200,9 @@ impl SkillComposer {
                 let last_step_tier = self.get_last_step_tier(bin_idx);
                 let compat = self.check_compatibility(last_step_tier, tier_k);
 
-                if compat < 0.5 { continue; }
+                if compat < 0.5 {
+                    continue;
+                }
 
                 self.composition_masses[slot] = 1.0;
                 self.composition_lengths[slot] = 3;
@@ -201,7 +212,8 @@ impl SkillComposer {
                 let dst_offset = slot * self.config.max_steps_per_composition;
 
                 self.composition_step_data[dst_offset] = self.composition_step_data[src_offset];
-                self.composition_step_data[dst_offset + 1] = self.composition_step_data[src_offset + 1];
+                self.composition_step_data[dst_offset + 1] =
+                    self.composition_step_data[src_offset + 1];
                 self.composition_step_data[dst_offset + 2] = k as u8;
 
                 created += 1;
@@ -214,12 +226,24 @@ impl SkillComposer {
 
     fn detect_emergence(&self, tier_a: u8, tier_b: u8) -> u8 {
         let mut flags: u8 = 0;
-        if tier_a == 7 && tier_b == 4 { flags |= 0b00000001; }
-        if tier_a == 4 && tier_b == 7 { flags |= 0b00000010; }
-        if tier_a == 6 && tier_b == 7 { flags |= 0b00000100; }
-        if tier_a == 7 && tier_b == 6 { flags |= 0b00001000; }
-        if tier_a == 0 && tier_b == 0 { flags |= 0b00010000; }
-        if tier_a == 0 && tier_b == 4 { flags |= 0b00100000; }
+        if tier_a == 7 && tier_b == 4 {
+            flags |= 0b00000001;
+        }
+        if tier_a == 4 && tier_b == 7 {
+            flags |= 0b00000010;
+        }
+        if tier_a == 6 && tier_b == 7 {
+            flags |= 0b00000100;
+        }
+        if tier_a == 7 && tier_b == 6 {
+            flags |= 0b00001000;
+        }
+        if tier_a == 0 && tier_b == 0 {
+            flags |= 0b00010000;
+        }
+        if tier_a == 0 && tier_b == 4 {
+            flags |= 0b00100000;
+        }
         flags
     }
 
@@ -227,14 +251,30 @@ impl SkillComposer {
         let flags = self.emergence_flags[composition_idx];
         let mut explanations = Vec::new();
 
-        if flags & 0b00000001 != 0 { explanations.push("Template-Aware: CROP kemudian GEOMETRY"); }
-        if flags & 0b00000010 != 0 { explanations.push("Risky: GEOMETRY kemudian CROP, bbox berubah"); }
-        if flags & 0b00000100 != 0 { explanations.push("Context-Aware: SPAWN di area yang akan di-CROP"); }
-        if flags & 0b00001000 != 0 { explanations.push("Smart Canvas: CROP kemudian SPAWN"); }
-        if flags & 0b00010000 != 0 { explanations.push("Cumulative: Translasi bertambah"); }
-        if flags & 0b00100000 != 0 { explanations.push("Color-Preserving: Warna dijaga saat geometry"); }
+        if flags & 0b00000001 != 0 {
+            explanations.push("Template-Aware: CROP kemudian GEOMETRY");
+        }
+        if flags & 0b00000010 != 0 {
+            explanations.push("Risky: GEOMETRY kemudian CROP, bbox berubah");
+        }
+        if flags & 0b00000100 != 0 {
+            explanations.push("Context-Aware: SPAWN di area yang akan di-CROP");
+        }
+        if flags & 0b00001000 != 0 {
+            explanations.push("Smart Canvas: CROP kemudian SPAWN");
+        }
+        if flags & 0b00010000 != 0 {
+            explanations.push("Cumulative: Translasi bertambah");
+        }
+        if flags & 0b00100000 != 0 {
+            explanations.push("Color-Preserving: Warna dijaga saat geometry");
+        }
 
-        if explanations.is_empty() { "No special emergent properties".to_string() } else { explanations.join("; ") }
+        if explanations.is_empty() {
+            "No special emergent properties".to_string()
+        } else {
+            explanations.join("; ")
+        }
     }
 
     pub fn validate_in_dreams(
@@ -247,22 +287,27 @@ impl SkillComposer {
         let mut successes = 0;
 
         for comp_idx in 0..self.config.max_compositions {
-            if self.composition_masses[comp_idx] == 0.0 { continue; }
+            if self.composition_masses[comp_idx] == 0.0 {
+                continue;
+            }
 
             let mut scenario_success = 0;
             let mut scenario_failure = 0;
 
             for dream in dream_scenarios.iter().take(5) {
-                if dream.task_mass == 0.0 { continue; }
+                if dream.task_mass == 0.0 {
+                    continue;
+                }
 
                 let sequence = self.composition_to_axioms(comp_idx);
-                let result = engine.what_if_sequence(&sequence, &dream.initial_state, &dream.target_state);
+                let result =
+                    engine.what_if_sequence(&sequence, &dream.initial_state, &dream.target_state);
                 total_tests += 1;
 
                 match result {
                     SequenceResult::Complete(r) if matches!(r.outcome, OutcomeStatus::Success) => {
                         scenario_success += 1;
-                    },
+                    }
                     _ => {
                         scenario_failure += 1;
                     }
@@ -273,7 +318,11 @@ impl SkillComposer {
             self.composition_dream_failure[comp_idx] = scenario_failure as u32;
 
             let total = scenario_success + scenario_failure;
-            let rate = if total > 0 { (scenario_success as f32) / (total as f32 + 1e-15) } else { 0.0 };
+            let rate = if total > 0 {
+                (scenario_success as f32) / (total as f32 + 1e-15)
+            } else {
+                0.0
+            };
 
             if rate >= self.config.min_validation_threshold {
                 self.composition_masses[comp_idx] = 0.8;
@@ -283,7 +332,10 @@ impl SkillComposer {
             }
         }
 
-        println!("  ✅ {} compositions validated ({} tests run)", successes, total_tests);
+        println!(
+            "  ✅ {} compositions validated ({} tests run)",
+            successes, total_tests
+        );
 
         ValidationSummary {
             total_compositions: self.count_active_compositions(),
@@ -294,7 +346,9 @@ impl SkillComposer {
     }
 
     pub fn score_composition(&self, comp_idx: usize) -> f32 {
-        if self.composition_masses[comp_idx] == 0.0 { return -999.0; }
+        if self.composition_masses[comp_idx] == 0.0 {
+            return -999.0;
+        }
 
         let dream_s = self.composition_dream_success[comp_idx] as f32;
         let dream_f = self.composition_dream_failure[comp_idx] as f32;
@@ -305,11 +359,21 @@ impl SkillComposer {
         let real_f = self.composition_real_failure[comp_idx] as f32;
         let real_total = real_s + real_f;
 
-        let real_rate = if real_total > 0.0 { real_s / (real_total + 1e-15) } else { 0.5 };
+        let real_rate = if real_total > 0.0 {
+            real_s / (real_total + 1e-15)
+        } else {
+            0.5
+        };
         let length_penalty = (self.composition_lengths[comp_idx] as f32) * 0.05;
-        let emergence_bonus = if self.emergence_flags[comp_idx] > 0 { 0.1 } else { 0.0 };
+        let emergence_bonus = if self.emergence_flags[comp_idx] > 0 {
+            0.1
+        } else {
+            0.0
+        };
 
-        (dream_rate * 0.4 + real_rate * 0.5 + emergence_bonus - length_penalty).max(0.0).min(0.99)
+        (dream_rate * 0.4 + real_rate * 0.5 + emergence_bonus - length_penalty)
+            .max(0.0)
+            .min(0.99)
     }
 
     pub fn select_for_situation(
@@ -322,9 +386,13 @@ impl SkillComposer {
         let mut found = false;
 
         for i in 0..self.config.max_compositions {
-            if self.composition_masses[i] < 0.7 { continue; }
+            if self.composition_masses[i] < 0.7 {
+                continue;
+            }
             let match_score = self.match_to_signature(i, signature, ontology);
-            if match_score < 0.5 { continue; }
+            if match_score < 0.5 {
+                continue;
+            }
 
             let score = self.score_composition(i) * match_score;
             if score > best_score {
@@ -334,19 +402,37 @@ impl SkillComposer {
             }
         }
 
-        if found { Some(best_idx) } else { None }
+        if found {
+            Some(best_idx)
+        } else {
+            None
+        }
     }
 
     fn find_ghost_composition(&self) -> usize {
         for i in 0..self.config.max_compositions {
-            if self.composition_masses[i] == 0.0 { return i; }
+            if self.composition_masses[i] == 0.0 {
+                return i;
+            }
         }
         self.config.max_compositions
     }
 
-    fn count_active_compositions(&self) -> usize { self.composition_masses.iter().filter(|&&m| m > 0.0).count() }
-    fn count_ghost_compositions(&self) -> usize { self.composition_masses.iter().filter(|&&m| m == 0.0).count() }
-    fn count_pending_compositions(&self) -> usize { self.composition_masses.iter().filter(|&&m| m > 0.0 && m < 0.7).count() }
+    fn count_active_compositions(&self) -> usize {
+        self.composition_masses.iter().filter(|&&m| m > 0.0).count()
+    }
+    fn count_ghost_compositions(&self) -> usize {
+        self.composition_masses
+            .iter()
+            .filter(|&&m| m == 0.0)
+            .count()
+    }
+    fn count_pending_compositions(&self) -> usize {
+        self.composition_masses
+            .iter()
+            .filter(|&&m| m > 0.0 && m < 0.7)
+            .count()
+    }
 
     pub fn composition_to_axioms(&self, comp_idx: usize) -> Vec<Axiom> {
         let len = self.composition_lengths[comp_idx] as usize;
@@ -355,7 +441,14 @@ impl SkillComposer {
         for i in 0..len {
             let prim_idx = self.composition_step_data[offset + i] as usize;
             let tier = self.primitive_indices[prim_idx];
-            axioms.push(Axiom::new("COMP", tier, ndarray::Array1::zeros(GLOBAL_DIMENSION), ndarray::Array1::zeros(GLOBAL_DIMENSION), 0.0, 0.0));
+            axioms.push(Axiom::new(
+                "COMP",
+                tier,
+                ndarray::Array1::zeros(GLOBAL_DIMENSION),
+                ndarray::Array1::zeros(GLOBAL_DIMENSION),
+                0.0,
+                0.0,
+            ));
         }
         axioms
     }
@@ -376,9 +469,13 @@ impl SkillComposer {
     fn find_repeated_pattern(&self) -> Option<(Vec<u8>, usize)> {
         for len in 2..=4 {
             for comp_idx in 0..self.config.max_compositions {
-                if self.composition_masses[comp_idx] == 0.0 { continue; }
+                if self.composition_masses[comp_idx] == 0.0 {
+                    continue;
+                }
                 let comp_len = self.composition_lengths[comp_idx] as usize;
-                if comp_len < len * 2 { continue; }
+                if comp_len < len * 2 {
+                    continue;
+                }
                 let offset = comp_idx * self.config.max_steps_per_composition;
                 let steps = &self.composition_step_data[offset..offset + comp_len];
                 let first = &steps[0..len];
@@ -398,20 +495,28 @@ impl SkillComposer {
     }
 
     pub fn compose_recursive(&mut self, depth: usize, _engine: &mut CounterfactualEngine) -> usize {
-        if depth == 0 { return 0; }
+        if depth == 0 {
+            return 0;
+        }
         let mut created = 0;
-        let validated: Vec<usize> = (0..self.config.max_compositions).filter(|&i| self.composition_masses[i] >= 0.8).collect();
+        let validated: Vec<usize> = (0..self.config.max_compositions)
+            .filter(|&i| self.composition_masses[i] >= 0.8)
+            .collect();
 
         for &i in &validated {
             for &j in &validated {
                 let slot = self.find_ghost_composition();
-                if slot >= self.config.max_compositions { return created; }
+                if slot >= self.config.max_compositions {
+                    return created;
+                }
 
                 let len_i = self.composition_lengths[i] as usize;
                 let len_j = self.composition_lengths[j] as usize;
                 let new_len = len_i + len_j;
 
-                if new_len > self.config.max_steps_per_composition { continue; }
+                if new_len > self.config.max_steps_per_composition {
+                    continue;
+                }
 
                 self.composition_masses[slot] = 1.0;
                 self.composition_lengths[slot] = new_len as u8;
@@ -421,10 +526,12 @@ impl SkillComposer {
                 let offset_new = slot * self.config.max_steps_per_composition;
 
                 for k in 0..len_i {
-                    self.composition_step_data[offset_new + k] = self.composition_step_data[offset_i + k];
+                    self.composition_step_data[offset_new + k] =
+                        self.composition_step_data[offset_i + k];
                 }
                 for k in 0..len_j {
-                    self.composition_step_data[offset_new + len_i + k] = self.composition_step_data[offset_j + k];
+                    self.composition_step_data[offset_new + len_i + k] =
+                        self.composition_step_data[offset_j + k];
                 }
 
                 created += 1;
@@ -434,7 +541,10 @@ impl SkillComposer {
     }
 
     pub fn count_validated_compositions(&self) -> usize {
-        self.composition_masses.iter().filter(|&&m| m >= 0.8).count()
+        self.composition_masses
+            .iter()
+            .filter(|&&m| m >= 0.8)
+            .count()
     }
 
     pub fn record_real_success(&mut self, comp_idx: usize) {
@@ -443,11 +553,30 @@ impl SkillComposer {
         }
     }
 
-    fn are_commutative(&self, _tier_i: u8, _tier_j: u8, _ontology: &SkillOntology) -> bool { true }
-    fn are_sequential_safe(&self, _tier_i: u8, _tier_j: u8, _ontology: &SkillOntology) -> bool { true }
-    fn are_conditional(&self, _tier_i: u8, _tier_j: u8, _ontology: &SkillOntology) -> bool { false }
-    fn are_never_compatible(&self, _tier_i: u8, _tier_j: u8, _ontology: &SkillOntology) -> bool { false }
-    fn get_last_step_tier(&self, _bin_idx: usize) -> u8 { 0 }
-    fn check_compatibility(&self, _tier_a: u8, _tier_b: u8) -> f32 { 1.0 }
-    fn match_to_signature(&self, _comp_idx: usize, _signature: &StructuralSignature, _ontology: &SkillOntology) -> f32 { 1.0 }
+    fn are_commutative(&self, _tier_i: u8, _tier_j: u8, _ontology: &SkillOntology) -> bool {
+        true
+    }
+    fn are_sequential_safe(&self, _tier_i: u8, _tier_j: u8, _ontology: &SkillOntology) -> bool {
+        true
+    }
+    fn are_conditional(&self, _tier_i: u8, _tier_j: u8, _ontology: &SkillOntology) -> bool {
+        false
+    }
+    fn are_never_compatible(&self, _tier_i: u8, _tier_j: u8, _ontology: &SkillOntology) -> bool {
+        false
+    }
+    fn get_last_step_tier(&self, _bin_idx: usize) -> u8 {
+        0
+    }
+    fn check_compatibility(&self, _tier_a: u8, _tier_b: u8) -> f32 {
+        1.0
+    }
+    fn match_to_signature(
+        &self,
+        _comp_idx: usize,
+        _signature: &StructuralSignature,
+        _ontology: &SkillOntology,
+    ) -> f32 {
+        1.0
+    }
 }

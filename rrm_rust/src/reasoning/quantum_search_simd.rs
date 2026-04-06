@@ -32,14 +32,18 @@ impl SimdEnergyCalculator {
         expected: &[Vec<i32>],
         m_width: usize,
         m_height: usize,
-        phase: &CognitivePhase
+        phase: &CognitivePhase,
     ) -> f32 {
         let expected_height = expected.len();
-        let expected_width = if expected_height > 0 { expected[0].len() } else { 0 };
+        let expected_width = if expected_height > 0 {
+            expected[0].len()
+        } else {
+            0
+        };
         let grid_size = expected_width * expected_height;
 
-        let dim_diff = (m_width as f32 - expected_width as f32).abs() +
-                       (m_height as f32 - expected_height as f32).abs();
+        let dim_diff = (m_width as f32 - expected_width as f32).abs()
+            + (m_height as f32 - expected_height as f32).abs();
 
         // 🌟 GERBANG FASE 1: STRUKTUR MAKRO 🌟
         if *phase == CognitivePhase::MacroStructural {
@@ -127,7 +131,9 @@ impl SimdEnergyCalculator {
                 continue;
             }
 
-            if !state_active { continue; }
+            if !state_active {
+                continue;
+            }
 
             let dx = (state.centers_x[e] - initial.centers_x[e]).abs();
             let dy = (state.centers_y[e] - initial.centers_y[e]).abs();
@@ -140,6 +146,10 @@ impl SimdEnergyCalculator {
             }
         }
 
-        if changes > 0.0 { (1.0f32 + changes).ln() } else { 0.0 }
+        if changes > 0.0 {
+            (1.0f32 + changes).ln()
+        } else {
+            0.0
+        }
     }
 }
