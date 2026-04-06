@@ -387,7 +387,16 @@ impl CeoDispatcher {
         }
 
         candidates.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
-        for (idx, _) in candidates.into_iter().take(target_size) {
+
+        // Fast-Path Exploitation (Temperature Cooling)
+        // If the best candidate has a very low free energy, collapse the beam width to 1.
+        let actual_target_size = if !candidates.is_empty() && candidates[0].1 < 0.1 {
+            1
+        } else {
+            target_size
+        };
+
+        for (idx, _) in candidates.into_iter().take(actual_target_size) {
             self.frontier_active_indices.push(idx);
         }
         self.frontier_size = self.frontier_active_indices.len();
@@ -440,6 +449,58 @@ impl CeoDispatcher {
 
         path.reverse();
         path
+    }
+
+    pub fn deduplicate_waves(&mut self) -> usize {
+        let mut duplicates = 0;
+        let active_indices: Vec<usize> = self.frontier_active_indices.clone();
+
+        let e = self.config.max_entities;
+
+        for i in 0..active_indices.len() {
+            let idx_a = active_indices[i];
+            if self.wave_masses[idx_a] == 0.0 { continue; }
+
+            let energy_a = self.metric_free_energies[idx_a];
+
+            for j in (i + 1)..active_indices.len() {
+                let idx_b = active_indices[j];
+                if self.wave_masses[idx_b] == 0.0 { continue; }
+
+                // Compare state scalars (a lightweight check before checking 8192-D tensors)
+                let offset_a = idx_a * e * 10;
+                let offset_b = idx_b * e * 10;
+
+                let mut diff_sq = 0.0;
+                for k in 0..(e * 10) {
+                    let diff = self.state_scalar_data[offset_a + k] - self.state_scalar_data[offset_b + k];
+                    diff_sq += diff * diff;
+                }
+
+                let dist = diff_sq.sqrt();
+
+                // If they are nearly identical states (distance < epsilon)
+                if dist < 0.1 {
+                    let energy_b = self.metric_free_energies[idx_b];
+
+                    // Annihilate the one with higher (worse) free energy
+                    if energy_a < energy_b {
+                        self.free_wave(idx_b);
+                        duplicates += 1;
+                    } else {
+                        self.free_wave(idx_a);
+                        duplicates += 1;
+                        break; // idx_a is dead, stop checking it against others
+                    }
+                }
+            }
+        }
+
+        // Remove dead waves from frontier
+        self.frontier_active_indices.retain(|&idx| self.wave_masses[idx] > 0.0);
+        self.frontier_size = self.frontier_active_indices.len();
+
+        duplicates
     }
 
     pub fn auto_prune(&mut self) -> usize {
@@ -509,12 +570,55 @@ impl CeoDispatcher {
         man
     }
 
-    fn calculate_pragmatic_error(&self, _current: &EntityManifold, _expected: &EntityManifold) -> f32 {
-        0.5 // Stub for calculating error
+    fn calculate_pragmatic_error(&self, current: &EntityManifold, expected: &EntityManifold) -> f32 {
+        // Penalty for dimension mismatch
+        let mut error = 0.0;
+        let dim_diff = (current.global_width - expected.global_width).abs()
+                     + (current.global_height - expected.global_height).abs();
+
+        if dim_diff > 0.1 {
+            error += dim_diff * 500.0; // Heavy penalty for wrong dimensions
+        }
+
+        // Vectorized pixel mismatch calculation
+        let mut pixels_mismatch = 0.0;
+        let active_expected = expected.active_count;
+        let active_current = current.active_count;
+
+        error += (active_expected as f32 - active_current as f32).abs() * 50.0;
+
+        // Simple continuous heuristic: sum of distances between tokens if same count, or just diff in sums
+        let mut sum_expected_tokens = 0.0;
+        for i in 0..active_expected {
+            sum_expected_tokens += expected.tokens[i] as f32 * expected.masses[i];
+        }
+
+        let mut sum_current_tokens = 0.0;
+        for i in 0..active_current {
+            sum_current_tokens += current.tokens[i] as f32 * current.masses[i];
+        }
+
+        error += (sum_expected_tokens - sum_current_tokens).abs() * 10.0;
+
+        error.max(0.0)
     }
 
-    fn calculate_epistemic_gain(&self, _parent_idx: usize, _child_idx: usize) -> f32 {
-        0.1 // Stub for calculating information gain
+    fn calculate_epistemic_gain(&self, parent_idx: usize, child_idx: usize) -> f32 {
+        // Epistemic gain is the L2 distance (change) between parent and child state
+        let e = self.config.max_entities;
+        let d = self.config.global_dimension;
+
+        let parent_offset = parent_idx * e * 10;
+        let child_offset = child_idx * e * 10;
+
+        let mut diff_sq = 0.0;
+        for i in 0..(e * 10) {
+            let diff = self.state_scalar_data[child_offset + i] - self.state_scalar_data[parent_offset + i];
+            diff_sq += diff * diff;
+        }
+
+        // Small epsilon to prevent zero
+        (diff_sq.sqrt() + 1e-15).min(100.0) // Cap gain
     }
 
     pub fn switch_mode(&mut self, mode: SimulationMode) {
