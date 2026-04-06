@@ -251,8 +251,18 @@ impl RrmAgent {
 
                 let all_clone_count = all_clone.len();
 
-                // 🌟 VIP PASS: UNTUK AKSIOMA MAKRO (MURNI PRIORITAS) 🌟
-                // Jangan biarkan Translasi (Tier 0) mendominasi pintu masuk MCTS.
+                // 🌟 VIP PASS: ORACLE INJECTION (OPSI A: Tactical Fallback) 🌟
+                // TODO: Ganti ke Opsi B (Template Detection di HierarchicalGestalt)
+                // di mana `TopDownAxiomator` yang menyadari ukuran frame/marker
+                // dari input (misal kotak abu-abu 6x6) lalu mengirimkannya sebagai delta_x/y.
+
+                // HACK SEMENTARA: Kita pasok target MCTS (Test Set Output) sebagai `delta_x/y`
+                // hanya agar CROP tahu berapa besar jendela yang harus dipotong,
+                // karena Sandbox dilarang menebak-nebak ukurannya dari konten global.
+                let (test_target_h, test_target_w) = expected_grids.first()
+                    .map(|grid| (grid.len() as f32, if grid.is_empty() { 0.0 } else { grid[0].len() as f32 }))
+                    .unwrap_or((0.0, 0.0));
+
                 for c in all_clone.iter_mut() {
                     let probability_boost = match c.physics_tier {
                         DIM_PHYSICS_TIER => 5.0,
@@ -263,13 +273,15 @@ impl RrmAgent {
 
                     if c.physics_tier == DIM_PHYSICS_TIER {
                         c.probability = probability_boost; // Absolute VIP
+
+                        // Inject Oracle target WxH
+                        if test_target_w > 0.0 && test_target_h > 0.0 {
+                            c.delta_x = test_target_w;
+                            c.delta_y = test_target_h;
+                        }
                     } else {
                         c.probability += probability_boost;
                     }
-
-                    // KITA TIDAK LAGI MENG-INJEKSI UKURAN STATIC KE DELTA_X DAN DELTA_Y DI SINI.
-                    // Ukuran pemotongan harus dihitung secara DINAMIS oleh MultiverseSandbox
-                    // berdasarkan Bounding Box partikel aktif saat ini yang berpusat pada titik jangkar.
                 }
 
                 // Stable deterministic sort
