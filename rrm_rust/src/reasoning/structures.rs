@@ -38,12 +38,12 @@ impl Axiom {
 }
 
 #[derive(Clone, Debug)]
-pub struct StructuralDelta {
+pub struct OldStructuralDelta {
     pub input_dim: (usize, usize),
     pub output_dim: (usize, usize),
 }
 
-impl StructuralDelta {
+impl OldStructuralDelta {
     pub fn analyze(input: &EntityManifold, output: &EntityManifold) -> Self {
         Self {
             input_dim: (input.global_width as usize, input.global_height as usize),

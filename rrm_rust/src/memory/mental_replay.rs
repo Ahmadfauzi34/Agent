@@ -1,4 +1,4 @@
-use crate::memory::skill_ontology::{TaskMemory, SkillOntology};
+use crate::self_awareness::skill_ontology::{TaskMemory, SkillOntology};
 use crate::reasoning::structures::TopologyHint;
 use crate::reasoning::skill_composer::{SkillComposer, ComposedSkill};
 use crate::reasoning::counterfactual_engine::CounterfactualEngine;
@@ -38,17 +38,18 @@ impl MentalReplay {
     }
 
     pub fn generate_dreams(&mut self, count: usize) {
-        for task in &self.solved_tasks {
+        for task in self.solved_tasks.iter() {
             for i in 0..count {
                 let variation = match i % 4 {
                     0 => ScenarioVariation::SizeScaling(1.5 + (i as f32 * 0.5)),
-                    1 => ScenarioVariation::ColorPermutation(task.random_color_swap()),
+                    1 => ScenarioVariation::ColorPermutation((vec![(1, 2)])),
                     2 => ScenarioVariation::NoiseInjection(0.1 * (i as f32)),
                     _ => ScenarioVariation::TopologyChange(TopologyHint::random()),
                 };
 
                 let dream = CounterfactualScenario {
-                    base_task: task.clone(),
+                    base_task: crate::self_awareness::skill_ontology::TaskMemory::clone(task),
+
                     variation,
                     difficulty_modifier: 1.0 + (i as f32 * 0.2),
                 };

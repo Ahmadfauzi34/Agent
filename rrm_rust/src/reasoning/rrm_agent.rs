@@ -1,4 +1,7 @@
 use crate::core::entity_manifold::EntityManifold;
+use crate::perception::structural_analyzer::{StructuralAnalyzer, StructuralDelta};
+use crate::self_awareness::skill_ontology::{SkillOntology, SolutionStrategy, SkillUsage};
+use crate::self_awareness::self_reflection::SelfReflection;
 use crate::perception::universal_manifold::UniversalManifold;
 use crate::perception::entity_segmenter::EntitySegmenter;
 use crate::perception::hologram_decoder::HologramDecoder;
@@ -20,11 +23,21 @@ use futures_lite::future;
 pub struct RrmAgent {
     perceiver: UniversalManifold,
     decoder: HologramDecoder,
-    pruner: HamiltonianPruner, // Akan di-deprecate karena diganti AsyncWaveSearch, tapi biarkan untuk fallback
+    pruner: HamiltonianPruner, // Akan di-deprecate
     seed_bank: LogicSeedBank,
-    ontology: crate::memory::skill_ontology::SkillOntology,
+
+    // Self-Awareness Layer
+    ontology: SkillOntology,
+    self_reflection: SelfReflection,
+    structural_analyzer: StructuralAnalyzer,
+
+    // Reasoning
     counterfactual_engine: crate::reasoning::counterfactual_engine::CounterfactualEngine,
+    hierarchical_planner: crate::reasoning::hierarchical_planner::HierarchicalPlanner,
+
+    // Memory
     mental_replay: crate::memory::mental_replay::MentalReplay,
+    skill_composer: crate::reasoning::skill_composer::SkillComposer,
 }
 
 impl Default for RrmAgent {
@@ -35,14 +48,21 @@ impl Default for RrmAgent {
 
 impl RrmAgent {
     pub fn new() -> Self {
+        let ontology = SkillOntology::initialize();
+        let self_reflection = SelfReflection::new(ontology.clone());
+
         Self {
             perceiver: UniversalManifold::new(),
             decoder: HologramDecoder::new(),
             pruner: HamiltonianPruner::new(),
             seed_bank: LogicSeedBank::new(),
-            ontology: crate::memory::skill_ontology::SkillOntology::new(),
+            ontology,
+            self_reflection,
+            structural_analyzer: StructuralAnalyzer,
             counterfactual_engine: crate::reasoning::counterfactual_engine::CounterfactualEngine::new(),
+            hierarchical_planner: crate::reasoning::hierarchical_planner::HierarchicalPlanner::from_delta(&StructuralDelta { signature: crate::perception::structural_analyzer::StructuralSignature { dim_relation: crate::perception::structural_analyzer::DimensionRelation::Equal, object_delta: crate::perception::structural_analyzer::ObjectDelta::SameCount, color_transitions: vec![], topology_in: crate::perception::structural_analyzer::TopologyHint::Scatter, topology_out: crate::perception::structural_analyzer::TopologyHint::Scatter, has_template_frame: false, symmetry_change: crate::perception::structural_analyzer::SymmetryChange::Preserved }, input_stats: crate::perception::structural_analyzer::ObjectStatistics { count: 0, colors: std::collections::HashSet::new(), bounding_box: (0, 0), total_pixels: 0, density: 0.0 }, output_stats: crate::perception::structural_analyzer::ObjectStatistics { count: 0, colors: std::collections::HashSet::new(), bounding_box: (0, 0), total_pixels: 0, density: 0.0 }, per_object_changes: vec![] }, &SkillOntology::initialize()), // Will be recreated properly inside solve_task_v2
             mental_replay: crate::memory::mental_replay::MentalReplay::new(),
+            skill_composer: crate::reasoning::skill_composer::SkillComposer::new(),
         }
     }
 
@@ -53,14 +73,14 @@ impl RrmAgent {
         train_pairs: &[(EntityManifold, EntityManifold)],
         test_input: &EntityManifold,
     ) -> Vec<Vec<i32>> {
-        use crate::reasoning::structures::StructuralDelta;
+        use crate::perception::structural_analyzer::StructuralDelta;
         use crate::reasoning::hierarchical_planner::HierarchicalPlanner;
 
         let deltas: Vec<_> = train_pairs.iter()
-            .map(|(inp, out)| StructuralDelta::analyze(inp, out))
+            .map(|(inp, out)| StructuralAnalyzer::analyze(inp, out))
             .collect();
 
-        let consensus_delta = StructuralDelta::consensus(&deltas);
+        let consensus_delta = StructuralAnalyzer::consensus(&deltas);
 
         let strategy = self.ontology.can_solve(&consensus_delta)
             .expect("No strategy available for this task class");

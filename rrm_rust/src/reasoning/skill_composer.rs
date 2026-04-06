@@ -1,4 +1,4 @@
-use crate::memory::skill_ontology::{PropertyRequirement, PropertyGuarantee, SkillOntology};
+use crate::self_awareness::skill_ontology::{Precondition as PropertyRequirement, Postcondition as PropertyGuarantee, SkillOntology};
 use crate::reasoning::structures::Axiom;
 
 pub struct SkillComposer {

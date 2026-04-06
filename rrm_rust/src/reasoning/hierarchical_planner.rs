@@ -1,6 +1,7 @@
 use petgraph::graph::{DiGraph, NodeIndex};
-use crate::reasoning::structures::{StructuralDelta, TaskClass, Axiom};
-use crate::memory::skill_ontology::SkillOntology;
+use crate::perception::structural_analyzer::{StructuralDelta, TaskClass};
+use crate::reasoning::structures::Axiom;
+use crate::self_awareness::skill_ontology::SkillOntology;
 use crate::reasoning::counterfactual_engine::CounterfactualEngine;
 use crate::core::entity_manifold::EntityManifold;
 
@@ -11,7 +12,7 @@ pub struct HierarchicalPlanner {
 }
 
 pub enum PlanningNode {
-    Goal(StructuralDelta),
+    Goal(crate::perception::structural_analyzer::StructuralDelta),
     Subgoal(SubgoalType),
     Operator(Axiom),
     Validation(ValidationCheck),
@@ -34,12 +35,12 @@ pub enum ValidationCheck {
 }
 
 impl HierarchicalPlanner {
-    pub fn from_delta(delta: &StructuralDelta, ontology: &SkillOntology) -> Self {
+    pub fn from_delta(delta: &crate::perception::structural_analyzer::StructuralDelta, ontology: &SkillOntology) -> Self {
         let mut graph = DiGraph::new();
 
         let root = graph.add_node(PlanningNode::Goal(delta.clone()));
 
-        let subgoals = match delta.classify() {
+        let subgoals = match crate::perception::structural_analyzer::StructuralAnalyzer::classify_task_class(delta) {
             TaskClass::StructuralTransform => vec![SubgoalType::NormalizeDimension, SubgoalType::ModifyObjects],
             TaskClass::ObjectManipulation => vec![SubgoalType::ModifyObjects],
             TaskClass::PureGeometry => vec![SubgoalType::FinalizeGeometry],
@@ -67,7 +68,7 @@ impl HierarchicalPlanner {
 
             let capabilities = ontology.get_capabilities_for(subg_type);
             for cap in capabilities {
-                let op = graph.add_node(PlanningNode::Operator(cap.to_axiom()));
+                let op = graph.add_node(PlanningNode::Operator(crate::reasoning::structures::Axiom::new(&cap.name, cap.tier_id, ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION), ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION), 0.0, 0.0))); let _op_node = op;
                 graph.add_edge(node_for_cap, op, PlanningEdge::Alternative);
             }
 
