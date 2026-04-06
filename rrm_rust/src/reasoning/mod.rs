@@ -22,3 +22,4 @@ pub mod counterfactual_engine;
 pub mod hierarchical_planner;
 pub mod skill_composer;
 pub mod causal_reasoning;
+pub mod crop_intelligence_test;
