@@ -149,6 +149,29 @@ impl TopDownAxiomator {
             }
         }
 
+        // --- CROP_TO_COLOR BBOX (Task 2dc579da fallback) ---
+        // If there's a unique non-background color, try cropping to its BBOX explicitly
+        for color in 1..=9 {
+            if let Some(bbox) =
+                crate::perception::structural_analyzer::StructuralAnalyzer::get_color_bbox(
+                    input, color,
+                )
+            {
+                let w = bbox[2] - bbox[0] + 1.0;
+                let h = bbox[3] - bbox[1] + 1.0;
+
+                let axiom = crate::reasoning::structures::Axiom::new(
+                    &format!("CROP_TO_BBOX_COLOR_{}", color),
+                    7,
+                    ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION),
+                    ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION),
+                    w,
+                    h,
+                );
+                axioms.push(axiom);
+            }
+        }
+
         // Add a CROP_TO_LARGEST_OBJECT fallback heuristic if needed
         // Generate CROP_TO_CHAMBER axioms
         let chambers =
