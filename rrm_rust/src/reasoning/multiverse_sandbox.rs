@@ -509,6 +509,7 @@ impl MultiverseSandbox {
         q_max_x = if left_only > 0.5 { pivot_x } else { q_max_x };
         q_min_x = if right_only > 0.5 { pivot_x } else { q_min_x };
 
+
         let has_top = if (quadrant_mask & 0b0011) != 0 { 1.0 } else { 0.0 };
         let has_bottom = if (quadrant_mask & 0b1100) != 0 { 1.0 } else { 0.0 };
         let top_only = has_top * (1.0 - has_bottom);
@@ -517,14 +518,17 @@ impl MultiverseSandbox {
         q_max_y = if top_only > 0.5 { pivot_y } else { q_max_y };
         q_min_y = if bottom_only > 0.5 { pivot_y } else { q_min_y };
 
-        let new_w = (q_max_x - q_min_x).round().max(1.0).min(u.global_width);
-        let new_h = (q_max_y - q_min_y).round().max(1.0).min(u.global_height);
-
         let actual_min_x = if q_min_x < 0.0 { 0.0 } else { q_min_x };
         let actual_min_y = if q_min_y < 0.0 { 0.0 } else { q_min_y };
+        let actual_max_x = if q_max_x > u.global_width { u.global_width } else { q_max_x };
+        let actual_max_y = if q_max_y > u.global_height { u.global_height } else { q_max_y };
+
+        let new_w = (actual_max_x - actual_min_x).round().max(1.0);
+        let new_h = (actual_max_y - actual_min_y).round().max(1.0);
 
         u.global_width = new_w;
         u.global_height = new_h;
+
 
         let x_seed = crate::core::core_seeds::CoreSeeds::x_axis_seed().clone();
         let y_seed = crate::core::core_seeds::CoreSeeds::y_axis_seed().clone();
