@@ -184,6 +184,7 @@ impl MultiverseSandbox {
             return;
         }
 
+
         // 🌟 FISIKA TIER 7: CROP / PEMOTONGAN DIMENSI (FULL OPTIMIZED) 🌟
         if physics_tier == 7 {
             let mut min_x = 0.0;
@@ -194,8 +195,41 @@ impl MultiverseSandbox {
             let mut target_h = 0.0;
             let mut found = false;
 
-            // 1. Evaluasi logika Bounding-Box atau Anchor-Window untuk mendapatkan min_x, max_x, dsb.
+            // 1. Evaluasi Tensor FHRR (Continuous) untuk QUADRANT CROP
+            let crop_seed = crate::core::core_seeds::CoreSeeds::action_crop_seed();
+            let tl_seed = crate::core::fhrr::FHRR::bind(crop_seed, crate::core::core_seeds::CoreSeeds::dir_tl_seed());
+            let tr_seed = crate::core::fhrr::FHRR::bind(crop_seed, crate::core::core_seeds::CoreSeeds::dir_tr_seed());
+            let bl_seed = crate::core::fhrr::FHRR::bind(crop_seed, crate::core::core_seeds::CoreSeeds::dir_bl_seed());
+            let br_seed = crate::core::fhrr::FHRR::bind(crop_seed, crate::core::core_seeds::CoreSeeds::dir_br_seed());
+
+            let sim_tl = crate::core::fhrr::FHRR::similarity(delta_semantic, &tl_seed);
+            let sim_tr = crate::core::fhrr::FHRR::similarity(delta_semantic, &tr_seed);
+            let sim_bl = crate::core::fhrr::FHRR::similarity(delta_semantic, &bl_seed);
+            let sim_br = crate::core::fhrr::FHRR::similarity(delta_semantic, &br_seed);
+
+            if sim_tl > 0.85 || sim_tr > 0.85 || sim_bl > 0.85 || sim_br > 0.85 {
+                let mode = "ANCHOR_COG";
+                let mut mask: u8 = 0;
+                if sim_tl > 0.85 { mask |= 0b0001; }
+                if sim_tr > 0.85 { mask |= 0b0010; }
+                if sim_bl > 0.85 { mask |= 0b0100; }
+                if sim_br > 0.85 { mask |= 0b1000; }
+
+                // Extract scalar string format since Fourier is too expensive for now
+                let parts: Vec<&str> = axiom_type.split('_').collect();
+                let anchor_color = if parts.len() > 4 {
+                    parts[4].parse::<i32>().unwrap_or(0)
+                } else {
+                    0
+                };
+
+                Self::crop_to_quadrant(u, anchor_color, mask, mode, 0.0);
+                return;
+            }
+
+            // 2. Evaluasi logika Bounding-Box atau Anchor-Window (String legacy)
             if axiom_type.starts_with("CROP_WINDOW_AROUND(") {
+
                 let start = axiom_type.find('(').unwrap() + 1;
                 let end = axiom_type.find(')').unwrap();
                 let anchor_color = axiom_type[start..end].parse::<i32>().unwrap_or(-1);
@@ -239,7 +273,8 @@ impl MultiverseSandbox {
                         max_y = min_y + target_h - 1.0;
                     }
                 }
-            } else if axiom_type.starts_with("CROP_TO_COLOR(") {
+
+        } else if axiom_type.starts_with("CROP_TO_COLOR(") {
                 let start = axiom_type.find('(').unwrap() + 1;
                 let end = axiom_type.find(')').unwrap();
                 let target_color = axiom_type[start..end].parse::<i32>().unwrap_or(-1);

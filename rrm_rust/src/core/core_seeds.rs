@@ -24,4 +24,30 @@ impl CoreSeeds {
         static TIME: OnceLock<Array1<f32>> = OnceLock::new();
         TIME.get_or_init(|| FHRR::create(Some(400)))
     }
+
+    // === DYNAMIC AXIOM SEEDS (Phase 5+) ===
+    pub fn action_crop_seed() -> &'static Array1<f32> {
+        static ACTION_CROP: OnceLock<Array1<f32>> = OnceLock::new();
+        ACTION_CROP.get_or_init(|| FHRR::create(Some(501)))
+    }
+
+    pub fn dir_tl_seed() -> &'static Array1<f32> {
+        static DIR_TL: OnceLock<Array1<f32>> = OnceLock::new();
+        DIR_TL.get_or_init(|| FHRR::create(Some(502)))
+    }
+
+    pub fn dir_tr_seed() -> &'static Array1<f32> {
+        static DIR_TR: OnceLock<Array1<f32>> = OnceLock::new();
+        DIR_TR.get_or_init(|| FHRR::create(Some(503)))
+    }
+
+    pub fn dir_bl_seed() -> &'static Array1<f32> {
+        static DIR_BL: OnceLock<Array1<f32>> = OnceLock::new();
+        DIR_BL.get_or_init(|| FHRR::create(Some(504)))
+    }
+
+    pub fn dir_br_seed() -> &'static Array1<f32> {
+        static DIR_BR: OnceLock<Array1<f32>> = OnceLock::new();
+        DIR_BR.get_or_init(|| FHRR::create(Some(505)))
+    }
 }
