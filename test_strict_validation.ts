@@ -69,7 +69,6 @@ interface BatchStatistics {
     startTime: number;
 }
 
-const agent = new RRM_Agent();
 const metrics: TaskMetrics[] = [];
 let batchStats: BatchStatistics | null = null;
 
@@ -128,6 +127,8 @@ async function runExternalTask(filename: string, logDir: string, current: number
     let finalFreeEnergy = 0;
     let outputGrid: any[][] | null = null;
     const expectedGrid = task.test[0]?.output; // Ambil Kunci Jawaban!
+
+    const agent = new RRM_Agent();
 
     try {
         const result = await agent.solveTask(task, log);
@@ -260,13 +261,14 @@ async function main() {
         minDuration: Infinity, maxDuration: 0, medianDuration: 0, throughput: 0, memoryPeak: 0, startTime: performance.now()
     };
 
-    for (let i = 0; i < files.length; i++) {
-        try {
-            await runExternalTask(path.join('training', files[i]), logDir, i + 1, files.length);
-        } catch (e: any) {
-            console.error(`   🔥 FATAL ERROR in ${files[i]}:`, e.message);
-        }
-    }
+    const promises = files.map((file, i) => {
+        return runExternalTask(path.join('training', file), logDir, i + 1, files.length)
+            .catch((e: any) => {
+                console.error(`   🔥 FATAL ERROR in ${file}:`, e.message);
+            });
+    });
+
+    await Promise.all(promises);
 
     console.log(generateFinalReport(logDir));
     console.log(`\n📁 Cek FINAL_REPORT.txt untuk melihat gambar emoji dari agen yang gagal!`);
