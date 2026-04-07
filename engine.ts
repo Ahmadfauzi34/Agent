@@ -1,6 +1,7 @@
 
 import * as tf from '@tensorflow/tfjs';
-import { Result, Ok, Err } from './types';
+import { Ok, Err } from './types.ts';
+import type { Result } from './types.ts';
 
 interface VectorRecord {
   id: string;
