@@ -31,9 +31,13 @@ class LSHIndex {
         this.projections = [];
         for (let i = 0; i < numProjections; i++) {
             const proj = new Float32Array(dimension);
+            const randomValues = new Uint32Array(dimension);
+            globalThis.crypto.getRandomValues(randomValues);
+
             let magSq = 0;
             for (let d = 0; d < dimension; d++) {
-                const val = (Math.random() * 2 - 1);
+                // Konversi dari Uint32 (0 hingga 4294967295) ke float (-1.0 hingga 1.0)
+                const val = (randomValues[d]! / 4294967295.0) * 2.0 - 1.0;
                 proj[d] = val;
                 magSq += val * val;
             }
