@@ -1,7 +1,7 @@
-use crate::core::config::GLOBAL_DIMENSION;
-use crate::core::core_seeds::CoreSeeds;
 use crate::core::entity_manifold::EntityManifold;
 use crate::core::fhrr::FHRR;
+use crate::core::config::GLOBAL_DIMENSION;
+use crate::core::core_seeds::CoreSeeds;
 use ndarray::Array1;
 use std::collections::HashMap;
 
@@ -21,10 +21,7 @@ pub struct TopologicalMatch {
 pub struct TopologicalAligner;
 
 impl TopologicalAligner {
-    pub fn align(
-        source_manifold: &EntityManifold,
-        target_manifold: &EntityManifold,
-    ) -> Vec<TopologicalMatch> {
+    pub fn align(source_manifold: &EntityManifold, target_manifold: &EntityManifold) -> Vec<TopologicalMatch> {
         let mut matches = Vec::new();
 
         // Menyimpan voting pergeseran berdasarkan Token Warna tertentu (Kondisional)
@@ -65,9 +62,7 @@ impl TopologicalAligner {
                     if dx.abs() > 0.0 || dy.abs() > 0.0 {
                         for anchor_idx in 0..target_manifold.active_count {
                             let anchor_color = target_manifold.tokens[anchor_idx];
-                            if anchor_color == 0 || anchor_color == s_color {
-                                continue;
-                            }
+                            if anchor_color == 0 || anchor_color == s_color { continue; }
 
                             let ax = target_manifold.centers_x[anchor_idx];
                             let ay = target_manifold.centers_y[anchor_idx];
@@ -91,8 +86,7 @@ impl TopologicalAligner {
         }
 
         let mut id_tensor = Array1::<f32>::zeros(GLOBAL_DIMENSION);
-        id_tensor[0] = 1.0;
-        id_tensor[GLOBAL_DIMENSION - 1] = 1.0;
+        id_tensor[0] = 1.0; id_tensor[GLOBAL_DIMENSION - 1] = 1.0;
 
         // Generate Hypothesis: TRANSLASI ABSOLUT
         let mut sorted_trans: Vec<(&String, &i32)> = conditional_trans_votes.iter().collect();
@@ -178,13 +172,7 @@ impl TopologicalAligner {
 
         // Generate Hypothesis: GEOMETRI GLOBAL & KONDISIONAL
         // Kita suntikkan aksioma geometri statis untuk dicoba oleh MCTS
-        let geometry_ops = vec![
-            "MIRROR_X",
-            "MIRROR_Y",
-            "ROTATE_90",
-            "ROTATE_180",
-            "ROTATE_270",
-        ];
+        let geometry_ops = vec!["MIRROR_X", "MIRROR_Y", "ROTATE_90", "ROTATE_180", "ROTATE_270"];
 
         // Coba apply secara global (tanpa kondisi warna)
         for (i, op) in geometry_ops.iter().enumerate() {
@@ -203,12 +191,7 @@ impl TopologicalAligner {
         }
 
         // Coba apply secara kondisional untuk setiap warna dominan di source
-        let mut source_colors: Vec<i32> = source_manifold
-            .tokens
-            .iter()
-            .cloned()
-            .filter(|&c| c > 0)
-            .collect();
+        let mut source_colors: Vec<i32> = source_manifold.tokens.iter().cloned().filter(|&c| c > 0).collect();
         source_colors.sort_unstable();
         source_colors.dedup();
 
@@ -266,12 +249,7 @@ impl TopologicalAligner {
 
         // Generate Hypothesis: SPAWN
         // Jika ada warna di target yang TIDAK ADA di source (Warna baru muncul)
-        let mut target_colors: Vec<i32> = target_manifold
-            .tokens
-            .iter()
-            .cloned()
-            .filter(|&c| c > 0)
-            .collect();
+        let mut target_colors: Vec<i32> = target_manifold.tokens.iter().cloned().filter(|&c| c > 0).collect();
         target_colors.sort_unstable();
         target_colors.dedup();
 
@@ -279,8 +257,7 @@ impl TopologicalAligner {
             if !source_colors.contains(t_color) {
                 // Warna baru ini pasti di-spawn. Coba tebak bounding box warna apa yang dia tempati.
                 for s_color in source_colors.iter() {
-                    let condition_phase =
-                        FHRR::fractional_bind(CoreSeeds::color_seed(), *s_color as f32);
+                    let condition_phase = FHRR::fractional_bind(CoreSeeds::color_seed(), *s_color as f32);
                     matches.push(TopologicalMatch {
                         source_index: 0,
                         target_index: -1,

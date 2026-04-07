@@ -1,6 +1,6 @@
+use std::collections::HashMap;
 use crate::core::entity_manifold::EntityManifold;
 use ndarray::Array1;
-use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Axiom {
@@ -14,14 +14,7 @@ pub struct Axiom {
 }
 
 impl Axiom {
-    pub fn new(
-        name: &str,
-        tier: u8,
-        delta_spatial: Array1<f32>,
-        delta_semantic: Array1<f32>,
-        delta_x: f32,
-        delta_y: f32,
-    ) -> Self {
+    pub fn new(name: &str, tier: u8, delta_spatial: Array1<f32>, delta_semantic: Array1<f32>, delta_x: f32, delta_y: f32) -> Self {
         Self {
             name: name.to_string(),
             tier,
@@ -35,54 +28,12 @@ impl Axiom {
 
     pub fn crop_to_content() -> Self {
         use crate::core::config::GLOBAL_DIMENSION;
-        Self::new(
-            "CROP_TO_COLOR",
-            7,
-            Array1::zeros(GLOBAL_DIMENSION),
-            Array1::zeros(GLOBAL_DIMENSION),
-            0.0,
-            0.0,
-        )
+        Self::new("CROP_TO_COLOR", 7, Array1::zeros(GLOBAL_DIMENSION), Array1::zeros(GLOBAL_DIMENSION), 0.0, 0.0)
     }
 
     pub fn identity() -> Self {
         use crate::core::config::GLOBAL_DIMENSION;
-        Self::new(
-            "IDENTITY",
-            0,
-            Array1::zeros(GLOBAL_DIMENSION),
-            Array1::zeros(GLOBAL_DIMENSION),
-            0.0,
-            0.0,
-        )
-    }
-
-    pub fn from_capability(cap: crate::self_awareness::skill_ontology::TierCapability) -> Self {
-        use crate::core::config::GLOBAL_DIMENSION;
-        Self::new(
-            &cap.name,
-            0,
-            ndarray::Array1::zeros(GLOBAL_DIMENSION),
-            ndarray::Array1::zeros(GLOBAL_DIMENSION),
-            0.0,
-            0.0,
-        )
-    }
-
-    pub fn description(&self) -> String {
-        format!("Axiom({})", self.name)
-    }
-
-    pub fn short_name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn similarity(&self, other: &Self) -> f32 {
-        if self.name == other.name {
-            1.0
-        } else {
-            0.0
-        }
+        Self::new("IDENTITY", 0, Array1::zeros(GLOBAL_DIMENSION), Array1::zeros(GLOBAL_DIMENSION), 0.0, 0.0)
     }
 }
 
@@ -101,10 +52,7 @@ impl OldStructuralDelta {
     }
 
     pub fn consensus(deltas: &[Self]) -> Self {
-        deltas.first().cloned().unwrap_or(Self {
-            input_dim: (0, 0),
-            output_dim: (0, 0),
-        })
+        deltas.first().cloned().unwrap_or(Self { input_dim: (0, 0), output_dim: (0, 0) })
     }
 
     pub fn classify(&self) -> TaskClass {

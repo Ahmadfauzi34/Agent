@@ -1,5 +1,5 @@
-use crate::core::entity_manifold::EntityManifold;
 use crate::core::fhrr::FHRR;
+use crate::core::entity_manifold::EntityManifold;
 use ndarray::Array1;
 
 pub struct Hypothesis {
@@ -52,9 +52,7 @@ impl HamiltonianPruner {
 
             let mut cond_match = false;
             if let (Some(c1), Some(c2)) = (&hyp.condition_tensor, &condition) {
-                if FHRR::similarity(c1, c2) > 0.99 {
-                    cond_match = true;
-                }
+                if FHRR::similarity(c1, c2) > 0.99 { cond_match = true; }
             } else if hyp.condition_tensor.is_none() && condition.is_none() {
                 cond_match = true;
             }
@@ -88,9 +86,7 @@ impl HamiltonianPruner {
     pub fn calculate_free_energy(actual: &Vec<Vec<i32>>, expected: &Vec<Vec<i32>>) -> f32 {
         let mut energy = 0.0;
 
-        if actual.len() != expected.len()
-            || (!actual.is_empty() && actual[0].len() != expected[0].len())
-        {
+        if actual.len() != expected.len() || (!actual.is_empty() && actual[0].len() != expected[0].len()) {
             energy += 9999.0;
             return energy;
         }
@@ -116,21 +112,16 @@ impl HamiltonianPruner {
         expected: &[Vec<i32>],
         m_width: usize,
         m_height: usize,
-        depth_ratio: f32,
+        depth_ratio: f32
     ) -> f32 {
         let mut energy = 0.0;
         let expected_height = expected.len();
-        let expected_width = if expected_height > 0 {
-            expected[0].len()
-        } else {
-            0
-        };
+        let expected_width = if expected_height > 0 { expected[0].len() } else { 0 };
 
         // Hukum Pengecualian Pruner: Jika dimensi tidak cocok secara makroskopis,
         // Pinalti Dimensi Adaptif: Kecil di awal iterasi, mematikan di akhir (depth ratio mendekati 1.0)
         if m_width != expected_width || m_height != expected_height {
-            let dim_diff = (m_width as f32 - expected_width as f32).abs()
-                + (m_height as f32 - expected_height as f32).abs();
+            let dim_diff = (m_width as f32 - expected_width as f32).abs() + (m_height as f32 - expected_height as f32).abs();
             let penalty_multiplier = 10.0 * depth_ratio.max(0.1); // Minimal 0.1 agar tetap terarah
             energy += penalty_multiplier * dim_diff;
         } else {
@@ -150,9 +141,7 @@ impl HamiltonianPruner {
 
         // 1. Evaluasi Partikel di Universe terhadap Ground Truth
         for e in 0..manifold.active_count {
-            if manifold.masses[e] == 0.0 {
-                continue;
-            }
+            if manifold.masses[e] == 0.0 { continue; }
 
             let cx = manifold.centers_x[e].round() as isize;
             let cy = manifold.centers_y[e].round() as isize;
@@ -187,8 +176,7 @@ impl HamiltonianPruner {
     }
 
     pub fn enforce_dissipation(&mut self) {
-        self.hypotheses
-            .sort_by(|a, b| a.free_energy.partial_cmp(&b.free_energy).unwrap());
+        self.hypotheses.sort_by(|a, b| a.free_energy.partial_cmp(&b.free_energy).unwrap());
         if self.hypotheses.len() > self.max_branches {
             self.hypotheses.truncate(self.max_branches);
         }

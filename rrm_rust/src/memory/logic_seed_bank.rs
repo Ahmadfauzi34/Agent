@@ -1,7 +1,7 @@
 use crate::core::config::GLOBAL_DIMENSION;
-use fastrand;
 use ndarray::{Array1, ArrayView1, ArrayViewMut1};
 use std::collections::{HashMap, HashSet};
+use fastrand;
 
 const MAX_SEEDS: usize = 10000;
 

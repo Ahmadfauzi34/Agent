@@ -1,5 +1,5 @@
-use crate::reasoning::quantum_search::WaveNode;
 use std::collections::HashMap;
+use crate::reasoning::quantum_search::WaveNode;
 
 #[derive(Clone)]
 pub struct MacroSkill {
@@ -14,15 +14,11 @@ pub struct SkillLibrary {
 
 impl SkillLibrary {
     pub fn new() -> Self {
-        Self {
-            macros: HashMap::new(),
-        }
+        Self { macros: HashMap::new() }
     }
 
     pub fn register_chunk(&mut self, winning_path: &[WaveNode]) {
-        if winning_path.len() <= 1 {
-            return;
-        }
+        if winning_path.len() <= 1 { return; }
 
         // We can't map h.description directly since WaveNode doesn't have it.
         // Instead, we use axiom_type (the sequence of strings) of the FINAL winning node!
@@ -31,16 +27,12 @@ impl SkillLibrary {
         let final_node = winning_path.last().unwrap();
 
         // Filter out ROOT_START
-        let path: Vec<String> = final_node
-            .axiom_type
-            .iter()
+        let path: Vec<String> = final_node.axiom_type.iter()
             .filter(|s| *s != "ROOT_START")
             .cloned()
             .collect();
 
-        if path.len() <= 1 {
-            return;
-        } // Need at least 2 steps to form a macro
+        if path.len() <= 1 { return; } // Need at least 2 steps to form a macro
 
         let id = path.join("|");
 
@@ -54,25 +46,22 @@ impl SkillLibrary {
     }
 
     pub fn inject_macros_as_hypotheses(&self) -> Vec<WaveNode> {
-        self.macros
-            .values()
-            .map(|macro_skill| {
-                let first_axiom = &macro_skill.sequence[0];
+        self.macros.values().map(|macro_skill| {
+            let first_axiom = &macro_skill.sequence[0];
 
-                WaveNode {
-                    condition_tensor: first_axiom.condition_tensor.clone(),
-                    tensor_spatial: first_axiom.tensor_spatial.clone(),
-                    tensor_semantic: first_axiom.tensor_semantic.clone(),
-                    probability: 10.0, // VIP Pass: Sangat memprioritaskan prosedur yang sudah terbukti
-                    axiom_type: vec![macro_skill.id.clone()],
-                    delta_x: 0.0,
-                    delta_y: 0.0,
-                    depth: 0,
-                    physics_tier: 8, // Tier Makro
-                    state_manifolds: first_axiom.state_manifolds.clone(),
-                    state_modified: false,
-                }
-            })
-            .collect()
+            WaveNode {
+                condition_tensor: first_axiom.condition_tensor.clone(),
+                tensor_spatial: first_axiom.tensor_spatial.clone(),
+                tensor_semantic: first_axiom.tensor_semantic.clone(),
+                probability: 10.0, // VIP Pass: Sangat memprioritaskan prosedur yang sudah terbukti
+                axiom_type: vec![macro_skill.id.clone()],
+                delta_x: 0.0,
+                delta_y: 0.0,
+                depth: 0,
+                physics_tier: 8, // Tier Makro
+                state_manifolds: first_axiom.state_manifolds.clone(),
+                state_modified: false,
+            }
+        }).collect()
     }
 }
