@@ -41,14 +41,17 @@ impl SimdEnergyCalculator {
         let dim_diff = (m_width as f32 - expected_width as f32).abs() +
                        (m_height as f32 - expected_height as f32).abs();
 
+
         // 🌟 GERBANG FASE 1: STRUKTUR MAKRO 🌟
         if *phase == CognitivePhase::MacroStructural {
             if dim_diff > 0.0 {
-                return 1000.0 * dim_diff; // Pinalti brutal jika dimensi salah di Fase 1
+                // EXTREME PENALTY: FORCE MCTS TO AVOID TRANSLATIONS IF DIMENSIONS ARE WRONG
+                return 10000.0 * dim_diff;
             } else {
                 return -500.0; // Sukses mutlak di Fase 1! Abaikan piksel berantakan.
             }
         }
+
 
         // 🌟 GERBANG FASE 2: MIKROSKOPIS 🌟
         // Di fase ini, kita berasumsi dimensi sudah (atau sedang dicoba) diselesaikan.
