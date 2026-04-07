@@ -91,12 +91,7 @@ impl WaveDynamics {
         }
 
         let mut agent_tensor = manifold.get_spatial_tensor(agent_index);
-        Self::contrastive_update_in_place(
-            &mut agent_tensor,
-            &total_repulsor,
-            &total_attractor,
-            0.8,
-        );
+        Self::contrastive_update_in_place(&mut agent_tensor, &total_repulsor, &total_attractor, 0.8);
 
         let mut t_mut = manifold.get_spatial_tensor_mut(agent_index);
         for i in 0..GLOBAL_DIMENSION {

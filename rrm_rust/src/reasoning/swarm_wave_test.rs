@@ -1,7 +1,7 @@
 use crate::core::entity_manifold::EntityManifold;
 use crate::reasoning::entanglement_optimizer::EntanglementOptimizer;
-use crate::reasoning::swarm_dynamics::SwarmDynamics;
 use crate::reasoning::wave_dynamics::WaveDynamics;
+use crate::reasoning::swarm_dynamics::SwarmDynamics;
 
 #[test]
 fn test_entanglement_and_wave_dynamics() {

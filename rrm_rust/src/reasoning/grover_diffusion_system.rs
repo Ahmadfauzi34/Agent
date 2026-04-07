@@ -1,9 +1,9 @@
 use crate::core::config::GLOBAL_DIMENSION;
 use crate::core::entity_manifold::EntityManifold;
-use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
-use crate::reasoning::hierarchical_inference::SimulationMode;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
-use crate::reasoning::quantum_search_simd::{CognitivePhase, SimdEnergyCalculator};
+use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
+use crate::reasoning::quantum_search_simd::{SimdEnergyCalculator, CognitivePhase};
+use crate::reasoning::hierarchical_inference::SimulationMode;
 use ndarray::Array1;
 
 pub struct GroverConfig {
@@ -86,12 +86,7 @@ impl<'a> GroverDiffusionSystem<'a> {
     }
 
     /// CONTINUOUS FREE ENERGY ORACLE
-    pub fn evaluate_oracle(
-        &mut self,
-        candidates: &[GroverCandidate],
-        train_states: &[TrainState],
-        mode: &SimulationMode,
-    ) {
+    pub fn evaluate_oracle(&mut self, candidates: &[GroverCandidate], train_states: &[TrainState], mode: &SimulationMode) {
         let n = self.config.search_space_size.min(candidates.len());
         let d = self.config.dimensions;
 
@@ -108,8 +103,7 @@ impl<'a> GroverDiffusionSystem<'a> {
 
             for state in train_states {
                 let mut temp_state = state.in_state.clone();
-                let _dummy_spatial_delta =
-                    Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);
+                let _dummy_spatial_delta = Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);
 
                 MultiverseSandbox::apply_axiom(
                     &mut temp_state,
@@ -127,12 +121,11 @@ impl<'a> GroverDiffusionSystem<'a> {
                     &state.expected_grid,
                     temp_state.global_width as usize,
                     temp_state.global_height as usize,
-                    &CognitivePhase::MacroStructural, // Grover selalu beroperasi di fase penentuan dimensi!
+                    &CognitivePhase::MacroStructural // Grover selalu beroperasi di fase penentuan dimensi!
                 );
 
                 // Epistemic Value (Penghancuran sampah kosmik = bonus tinggi!)
-                let epistemic_value =
-                    SimdEnergyCalculator::calculate_epistemic(&temp_state, &state.in_state);
+                let epistemic_value = SimdEnergyCalculator::calculate_epistemic(&temp_state, &state.in_state);
 
                 // G(π)
                 total_free_energy += pragmatic_error - (epistemic_weight * epistemic_value);
@@ -145,12 +138,8 @@ impl<'a> GroverDiffusionSystem<'a> {
         let mut max_e = f32::MIN;
         for i in 0..n {
             let e = self.energies[i];
-            if e < min_e {
-                min_e = e;
-            }
-            if e > max_e {
-                max_e = e;
-            }
+            if e < min_e { min_e = e; }
+            if e > max_e { max_e = e; }
         }
 
         // 3. Terapkan Multiplier via Linear Mapping (Anti-Vanishing Gradient)
@@ -239,12 +228,7 @@ impl<'a> GroverDiffusionSystem<'a> {
     }
 
     /// Eksekusi Amplifikasi Kuantum (Grover Iteration)
-    pub fn search(
-        &mut self,
-        candidates: &[GroverCandidate],
-        train_states: &[TrainState],
-        mode: &SimulationMode,
-    ) -> Option<usize> {
+    pub fn search(&mut self, candidates: &[GroverCandidate], train_states: &[TrainState], mode: &SimulationMode) -> Option<usize> {
         let n = self.config.search_space_size.min(candidates.len());
         if n == 0 {
             return None;
