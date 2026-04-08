@@ -28,6 +28,7 @@ pub struct FailurePattern {
 pub struct SimulationResult {
     pub is_success: bool,
     pub failure: Option<FailureMode>,
+    pub final_state: EntityManifold,
 }
 
 pub enum SequenceResult {
@@ -67,7 +68,8 @@ impl CounterfactualEngine {
 
         MultiverseSandbox::apply_axiom(&mut sandbox, &axiom.condition_tensor, &axiom.delta_spatial, &axiom.delta_semantic, axiom.delta_x, axiom.delta_y, axiom.tier, &axiom.name);
 
-        let outcome = self.analyze_outcome(&sandbox, expected);
+        let mut outcome = self.analyze_outcome(&sandbox, expected);
+        outcome.final_state = sandbox;
 
         if let Some(ref failure) = outcome.failure {
             self.learn_from_failure(failure, axiom);
@@ -117,9 +119,10 @@ impl CounterfactualEngine {
                     expected: (expected.global_width as u8, expected.global_height as u8),
                     got: (simulated.global_width as u8, simulated.global_height as u8),
                 }),
+                final_state: simulated.clone(),
             }
         } else {
-            SimulationResult { is_success: true, failure: None }
+            SimulationResult { is_success: true, failure: None, final_state: simulated.clone() }
         }
     }
 
