@@ -146,6 +146,53 @@ pub struct DeterministicFractalAI {
 
 ---
 
+## 🌀 6. InfiniteDetailField (Fractal Manifold / Muscle Layer)
+
+Sebagai implementasi konkret dari prinsip *Infinite Detail*, entitas `EntityManifold` lama (yang mengalokasikan data mentah secara berlebihan) digantikan oleh `InfiniteDetailField`. Ini merupakan struktur **Copy-on-Write (CoW)** dengan hierarki Makro -> Meso -> Mikro yang diakses secara **On-Demand (Lazy Evaluation)**.
+
+```rust
+pub struct InfiniteDetailField {
+    /// Level 0: Makro (selalu ada di memori, lightweight)
+    pub coarse: MacroLevel,
+
+    /// Level 1 & 2: Detail muncul on-demand (lazy), cached, bounded
+    /// LRU eviction untuk OOM protection (menggunakan crate `lru`)
+    pub detail_cache: RwLock<DetailCache>,
+
+    /// Generator: Bisa membuat detail lebih halus dari coarse
+    pub detail_generator: Arc<dyn DetailGenerator>,
+
+    /// CoW State: Shared ownership antar level (Arc pointer ke data)
+    pub shared_base: Arc<CoarseData>,
+}
+
+/// Zero-Copy Arc View (Opsi B: Aman dari Lifetime RwLock Guard)
+pub enum ZeroCopyView {
+    Macro {
+        region_id: u32,
+        data: Arc<CoarseData>, // Arc menjamin data tetap hidup tanpa memblokir cache
+    },
+    Meso {
+        region_id: u32,
+        local_idx: usize,
+        data: Arc<MesoLevel>,  // Arc menjamin data tetap hidup tanpa memblokir cache
+    },
+    Micro {
+        region_id: u32,
+        local_idx: usize,
+        data: Arc<MicroLevel>, // Arc menjamin data tetap hidup tanpa memblokir cache
+    }
+}
+```
+
+**Mekanisme Lazy Evaluation (OOM-Proof):**
+- **MacroLevel:** Berisi bounding boxes kasar dan *dominant signatures*. Selalu *resident* di memori utama.
+- **MesoLevel:** Mengandung *quadtree subdivisions*. Di-generate hanya jika *complexity* > 0.5 atau butuh zoom.
+- **MicroLevel:** Mengandung detail *pixel-perfect* (1 piksel = 1 tensor Entity). Di-generate pada kondisi mendesak.
+- **DetailCache:** LRU Cache dengan **budget_bytes hard limit**. Menghindari OOM pada MCTS dengan menggusur (evicting) detail-detail yang jarang diakses (kembali menjadi *Ghost States* di *parent*).
+
+---
+
 ## 🎯 Kesimpulan: Arsitektur RRM V3 (The Fractal Vision)
 
 > "Fraktal AI adalah RRM yang self-similar di semua scale, dengan detail yang muncul on-demand seperti zoom pada Mandelbrot set"
