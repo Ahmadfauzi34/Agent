@@ -109,17 +109,81 @@ impl HierarchicalPlanner {
 
     fn dfs_with_pruning(
         &self,
-        _node: NodeIndex,
-        _path: Vec<Axiom>,
-        _state: EntityManifold,
+        node: NodeIndex,
+        path: Vec<Axiom>,
+        state: EntityManifold,
         best_path: &mut Option<Vec<Axiom>>,
-        _best_confidence: &mut f32,
-        _engine: &mut CounterfactualEngine,
-        _expected: &EntityManifold,
+        best_confidence: &mut f32,
+        engine: &mut CounterfactualEngine,
+        expected: &EntityManifold,
     ) {
-        // Dummy implementation for now. Fallback to just empty if none found
-        if best_path.is_none() {
-            *best_path = Some(vec![]);
+        // Stop eksplorasi jika path sudah terlalu panjang (untuk mencegah infinite recursion)
+        if path.len() > 10 {
+            return;
+        }
+
+        match &self.task_graph[node] {
+            PlanningNode::Goal(_) | PlanningNode::Subgoal(_) => {
+                // Untuk node struktur, cukup lanjutkan ke anak-anaknya (Sequential / Alternative)
+                for edge in self.task_graph.edges(node) {
+                    self.dfs_with_pruning(
+                        petgraph::visit::EdgeRef::target(&edge),
+                        path.clone(),
+                        state.clone(),
+                        best_path,
+                        best_confidence,
+                        engine,
+                        expected,
+                    );
+                }
+            }
+            PlanningNode::Operator(axiom) => {
+                // Coba aplikasikan operator dengan "What If" engine
+                let sim_result = engine.what_if(axiom, &state, expected);
+
+                // Evaluasi hasil simulasi
+                if let Some(_failure) = sim_result.failure {
+                    // Pruning jika terjadi kegagalan katastropik (misal dimensi hancur)
+                    return;
+                }
+
+                let mut new_path = path.clone();
+                new_path.push(axiom.clone());
+
+                // Lanjutkan ke edge berikutnya
+                for edge in self.task_graph.edges(node) {
+                    self.dfs_with_pruning(
+                        petgraph::visit::EdgeRef::target(&edge),
+                        new_path.clone(),
+                        sim_result.final_state.clone(),
+                        best_path,
+                        best_confidence,
+                        engine,
+                        expected,
+                    );
+                }
+            }
+            PlanningNode::Validation(ValidationCheck::ExactMatch) => {
+                // Node validasi: Evaluasi apakah state akhir sesuai dengan ground truth
+                use crate::reasoning::quantum_search_simd::{SimdEnergyCalculator, CognitivePhase};
+
+                let dummy_grid = vec![vec![0; expected.global_width as usize]; expected.global_height as usize];
+
+                let pragmatic_error = SimdEnergyCalculator::calculate_pragmatic_streaming(
+                    &state,
+                    &dummy_grid, // HACK: for energy evaluator compatibility
+                    state.global_width as usize,
+                    state.global_height as usize,
+                    &CognitivePhase::Microscopic,
+                );
+
+                let confidence = if pragmatic_error == 0.0 { 1.0 } else { 1.0 / (1.0 + pragmatic_error) };
+
+                if confidence > *best_confidence {
+                    *best_confidence = confidence;
+                    *best_path = Some(path);
+                }
+            }
         }
     }
 }

@@ -1,7 +1,5 @@
-use crate::core::config::GLOBAL_DIMENSION;
 use crate::core::entity_manifold::EntityManifold;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
-use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
 use crate::reasoning::quantum_search_simd::{SimdEnergyCalculator, CognitivePhase};
 use crate::reasoning::hierarchical_inference::SimulationMode;
 use ndarray::Array1;
@@ -40,7 +38,7 @@ pub struct GroverDiffusionSystem<'a> {
     pub multipliers: Vec<f32>,
     pub energies: Vec<f32>,
     mean_buffer: Vec<f32>,
-    sandbox: &'a mut MultiverseSandbox,
+    _sandbox: &'a mut MultiverseSandbox,
 }
 
 impl<'a> GroverDiffusionSystem<'a> {
@@ -52,7 +50,7 @@ impl<'a> GroverDiffusionSystem<'a> {
             energies: vec![0.0; config.search_space_size],
             mean_buffer: vec![0.0; config.dimensions],
             config,
-            sandbox,
+            _sandbox: sandbox,
         }
     }
 

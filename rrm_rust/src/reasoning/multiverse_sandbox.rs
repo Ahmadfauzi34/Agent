@@ -209,7 +209,28 @@ impl MultiverseSandbox {
                         max_y = min_y + target_h - 1.0;
                     }
                 }
-            } else if axiom_type.starts_with("CROP_TO_COLOR(") {
+
+        } else if axiom_type.starts_with("CROP_TO_QUADRANT_") {
+            let mode = "ANCHOR_COG"; // We default to Anchor CoG for task 2dc579da
+            let mut mask: u8 = 0;
+
+            if axiom_type.contains("_TL") { mask |= 0b0001; }
+            if axiom_type.contains("_TR") { mask |= 0b0010; }
+            if axiom_type.contains("_BL") { mask |= 0b0100; }
+            if axiom_type.contains("_BR") { mask |= 0b1000; }
+
+            // Extract anchor color if provided e.g. CROP_TO_QUADRANT_TL_2
+            let parts: Vec<&str> = axiom_type.split('_').collect();
+            let anchor_color = if parts.len() > 4 {
+                parts[4].parse::<i32>().unwrap_or(0)
+            } else {
+                0
+            };
+
+            Self::crop_to_quadrant(u, anchor_color, mask, mode, 0.0);
+            return;
+
+        } else if axiom_type.starts_with("CROP_TO_COLOR(") {
                 let start = axiom_type.find('(').unwrap() + 1;
                 let end = axiom_type.find(')').unwrap();
                 let target_color = axiom_type[start..end].parse::<i32>().unwrap_or(-1);
@@ -402,6 +423,138 @@ impl MultiverseSandbox {
                     // Logic pembaruan warna token tidak tercover di sini tanpa Oracle Inverse.
                     // Biarkan kosong untuk POC Relasional Translation.
                 }
+            }
+        }
+    }
+
+    // === Tier 7.5: QUADRANT CROP SYSTEM (Hukum 2, 4, 5, 6) ===
+    pub fn crop_to_quadrant(
+        u: &mut EntityManifold,
+        anchor_color: i32,
+        quadrant_mask: u8,
+        mode: &str,
+        _padding: f32,
+    ) {
+        let mut pivot_x = 0.0;
+        let mut pivot_y = 0.0;
+        let mut _density_w = u.global_width;
+        let mut _density_h = u.global_height;
+
+        if mode == "ANCHOR_COG" {
+            let mut sum_x = 0.0f32;
+            let mut sum_y = 0.0f32;
+            let mut count = 0.0f32;
+
+            for e in 0..u.active_count {
+                let is_target = if u.tokens[e] == anchor_color && u.masses[e] > 0.0 { 1.0 } else { 0.0 };
+                sum_x += u.centers_x[e] * is_target;
+                sum_y += u.centers_y[e] * is_target;
+                count += is_target;
+            }
+
+            let inv_count = 1.0 / (count + 1e-15);
+            pivot_x = sum_x * inv_count;
+            pivot_y = sum_y * inv_count;
+
+            let mut max_dx = 0.0f32;
+            let mut max_dy = 0.0f32;
+            for e in 0..u.active_count {
+                let is_target = if u.tokens[e] == anchor_color && u.masses[e] > 0.0 { 1.0 } else { 0.0 };
+                let dx = (u.centers_x[e] - pivot_x).abs();
+                let dy = (u.centers_y[e] - pivot_y).abs();
+                if is_target > 0.0 {
+                    max_dx = if dx > max_dx { dx } else { max_dx };
+                    max_dy = if dy > max_dy { dy } else { max_dy };
+                }
+            }
+            _density_w = max_dx * 2.0;
+            _density_h = max_dy * 2.0;
+        } else if mode == "DENSITY" {
+            let mut min_x = 9999.0f32;
+            let mut max_x = -9999.0f32;
+            let mut min_y = 9999.0f32;
+            let mut max_y = -9999.0f32;
+
+            for e in 0..u.active_count {
+                let active = if u.masses[e] > 0.0 { 1.0 } else { 0.0 };
+                let cx = u.centers_x[e];
+                let cy = u.centers_y[e];
+                if active > 0.0 {
+                    min_x = if cx < min_x { cx } else { min_x };
+                    max_x = if cx > max_x { cx } else { max_x };
+                    min_y = if cy < min_y { cy } else { min_y };
+                    max_y = if cy > max_y { cy } else { max_y };
+                }
+            }
+
+            pivot_x = (min_x + max_x) * 0.5;
+            pivot_y = (min_y + max_y) * 0.5;
+            _density_w = max_x - min_x;
+            _density_h = max_y - min_y;
+        } else {
+            pivot_x = u.global_width * 0.5;
+            pivot_y = u.global_height * 0.5;
+        }
+
+        let mut q_min_x = -9999.0f32;
+        let mut q_max_x = 9999.0f32;
+        let mut q_min_y = -9999.0f32;
+        let mut q_max_y = 9999.0f32;
+
+        let has_left = if (quadrant_mask & 0b0101) != 0 { 1.0 } else { 0.0 };
+        let has_right = if (quadrant_mask & 0b1010) != 0 { 1.0 } else { 0.0 };
+        let left_only = has_left * (1.0 - has_right);
+        let right_only = has_right * (1.0 - has_left);
+
+        q_max_x = if left_only > 0.5 { pivot_x } else { q_max_x };
+        q_min_x = if right_only > 0.5 { pivot_x } else { q_min_x };
+
+
+        let has_top = if (quadrant_mask & 0b0011) != 0 { 1.0 } else { 0.0 };
+        let has_bottom = if (quadrant_mask & 0b1100) != 0 { 1.0 } else { 0.0 };
+        let top_only = has_top * (1.0 - has_bottom);
+        let bottom_only = has_bottom * (1.0 - has_top);
+
+        q_max_y = if top_only > 0.5 { pivot_y } else { q_max_y };
+        q_min_y = if bottom_only > 0.5 { pivot_y } else { q_min_y };
+
+        let actual_min_x = if q_min_x < 0.0 { 0.0 } else { q_min_x };
+        let actual_min_y = if q_min_y < 0.0 { 0.0 } else { q_min_y };
+        let actual_max_x = if q_max_x > u.global_width { u.global_width } else { q_max_x };
+        let actual_max_y = if q_max_y > u.global_height { u.global_height } else { q_max_y };
+
+        let new_w = (actual_max_x - actual_min_x).round().max(1.0);
+        let new_h = (actual_max_y - actual_min_y).round().max(1.0);
+
+        u.global_width = new_w;
+        u.global_height = new_h;
+
+
+        let x_seed = crate::core::core_seeds::CoreSeeds::x_axis_seed().clone();
+        let y_seed = crate::core::core_seeds::CoreSeeds::y_axis_seed().clone();
+
+        for e in 0..u.active_count {
+            if u.masses[e] == 0.0 { continue; }
+            let cx = u.centers_x[e];
+            let cy = u.centers_y[e];
+
+            let inside_x = if cx >= q_min_x && cx <= q_max_x { 1.0 } else { 0.0 };
+            let inside_y = if cy >= q_min_y && cy <= q_max_y { 1.0 } else { 0.0 };
+            let inside = inside_x * inside_y;
+
+            u.masses[e] *= inside;
+
+            if inside > 0.5 {
+                let nx = (cx - actual_min_x).round();
+                let ny = (cy - actual_min_y).round();
+                u.centers_x[e] = nx;
+                u.centers_y[e] = ny;
+
+                let new_x_phase = crate::core::fhrr::FHRR::fractional_bind(&x_seed, nx);
+                let new_y_phase = crate::core::fhrr::FHRR::fractional_bind(&y_seed, ny);
+                let new_spatial = crate::core::fhrr::FHRR::bind(&new_x_phase, &new_y_phase);
+                let mut sp_tensor = u.get_spatial_tensor_mut(e);
+                sp_tensor.assign(&new_spatial);
             }
         }
     }

@@ -2,7 +2,6 @@ use std::sync::{Arc, RwLock};
 use ndarray::Array1;
 
 use crate::core::entity_manifold::EntityManifold;
-use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
 use crate::reasoning::quantum_search_simd::{SimdEnergyCalculator, CognitivePhase};
 use crate::shared::visualizer::{Visualizer, TransparencyLevel, MctsNodeInfo};
