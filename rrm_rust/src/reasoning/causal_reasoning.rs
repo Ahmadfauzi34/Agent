@@ -1,8 +1,6 @@
-use std::collections::{VecDeque, HashSet};
 use crate::core::entity_manifold::EntityManifold;
 use crate::reasoning::structures::{Axiom, StructuralSignature};
 use crate::reasoning::counterfactual_engine::CounterfactualEngine;
-use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
 
 pub struct CausalReasoner {
     engine: CounterfactualEngine,

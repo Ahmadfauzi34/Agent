@@ -1,6 +1,6 @@
 use crate::core::entity_manifold::EntityManifold;
-use crate::perception::structural_analyzer::{StructuralAnalyzer, StructuralDelta};
-use crate::self_awareness::skill_ontology::{SkillOntology, SolutionStrategy, SkillUsage};
+use crate::perception::structural_analyzer::StructuralAnalyzer;
+use crate::self_awareness::skill_ontology::SkillOntology;
 use crate::self_awareness::self_reflection::SelfReflection;
 use crate::perception::universal_manifold::UniversalManifold;
 use crate::perception::entity_segmenter::EntitySegmenter;
@@ -14,11 +14,11 @@ use crate::memory::logic_seed_bank::LogicSeedBank;
 use crate::reasoning::grover_diffusion_system::{GroverDiffusionSystem, GroverConfig, GroverCandidate, TrainState};
 use crate::reasoning::global_blackboard::GlobalBlackboard;
 use crate::reasoning::hierarchical_inference::{DeepActiveInferenceEngine, SimulationMode};
+use crate::reasoning::causal_reasoning::CausalReasoner;
 
 use std::collections::HashMap;
 use std::sync::Arc;
 use ndarray::Array1;
-use futures_lite::future;
 
 pub struct RrmAgent {
     perceiver: UniversalManifold,
@@ -33,6 +33,7 @@ pub struct RrmAgent {
 
     // Reasoning
     counterfactual_engine: crate::reasoning::counterfactual_engine::CounterfactualEngine,
+    causal_reasoner: CausalReasoner,
     hierarchical_planner: crate::reasoning::hierarchical_planner::HierarchicalPlanner,
 
     // Memory
@@ -48,6 +49,9 @@ impl Default for RrmAgent {
 
 impl RrmAgent {
     pub fn new() -> Self {
+        use crate::perception::structural_analyzer::{StructuralDelta, StructuralSignature, DimensionRelation, ObjectDelta, TopologyHint, SymmetryChange, ObjectStatistics};
+        use std::collections::HashSet;
+
         let ontology = SkillOntology::initialize();
         let self_reflection = SelfReflection::new(ontology.clone());
 
@@ -60,7 +64,8 @@ impl RrmAgent {
             self_reflection,
             structural_analyzer: StructuralAnalyzer,
             counterfactual_engine: crate::reasoning::counterfactual_engine::CounterfactualEngine::new(),
-            hierarchical_planner: crate::reasoning::hierarchical_planner::HierarchicalPlanner::from_delta(&StructuralDelta { signature: crate::perception::structural_analyzer::StructuralSignature { dim_relation: crate::perception::structural_analyzer::DimensionRelation::Equal, object_delta: crate::perception::structural_analyzer::ObjectDelta::SameCount, color_transitions: vec![], topology_in: crate::perception::structural_analyzer::TopologyHint::Scatter, topology_out: crate::perception::structural_analyzer::TopologyHint::Scatter, has_template_frame: false, symmetry_change: crate::perception::structural_analyzer::SymmetryChange::Preserved }, input_stats: crate::perception::structural_analyzer::ObjectStatistics { count: 0, colors: std::collections::HashSet::new(), bounding_box: (0, 0), total_pixels: 0, density: 0.0 }, output_stats: crate::perception::structural_analyzer::ObjectStatistics { count: 0, colors: std::collections::HashSet::new(), bounding_box: (0, 0), total_pixels: 0, density: 0.0 }, per_object_changes: vec![] }, &SkillOntology::initialize()), // Will be recreated properly inside solve_task_v2
+            causal_reasoner: CausalReasoner::new(),
+            hierarchical_planner: crate::reasoning::hierarchical_planner::HierarchicalPlanner::from_delta(&StructuralDelta { signature: StructuralSignature { dim_relation: DimensionRelation::Equal, object_delta: ObjectDelta::SameCount, color_transitions: vec![], topology_in: TopologyHint::Scatter, topology_out: TopologyHint::Scatter, has_template_frame: false, symmetry_change: SymmetryChange::Preserved }, input_stats: ObjectStatistics { count: 0, colors: HashSet::new(), bounding_box: (0, 0), total_pixels: 0, density: 0.0 }, output_stats: ObjectStatistics { count: 0, colors: HashSet::new(), bounding_box: (0, 0), total_pixels: 0, density: 0.0 }, per_object_changes: vec![] }, &SkillOntology::initialize()), // Will be recreated properly inside solve_task_v2
             mental_replay: crate::memory::mental_replay::MentalReplay::new(),
             skill_composer: crate::reasoning::skill_composer::SkillComposer::new(),
         }
@@ -73,8 +78,10 @@ impl RrmAgent {
         train_pairs: &[(EntityManifold, EntityManifold)],
         test_input: &EntityManifold,
     ) -> Vec<Vec<i32>> {
-        use crate::perception::structural_analyzer::StructuralDelta;
         use crate::reasoning::hierarchical_planner::HierarchicalPlanner;
+        use crate::reasoning::structures::Axiom;
+
+        println!("🧠 [Mental Simulation] Memulai counterfactual exploration...");
 
         let deltas: Vec<_> = train_pairs.iter()
             .map(|(inp, out)| StructuralAnalyzer::analyze(inp, out))
@@ -82,7 +89,52 @@ impl RrmAgent {
 
         let consensus_delta = StructuralAnalyzer::consensus(&deltas);
 
-        let strategy = self.ontology.can_solve(&consensus_delta)
+        // Pre-filter dengan simulasi cepat di CounterfactualEngine
+        let mut promising_axioms = Vec::new();
+
+        // Introspeksi dari ontology
+        let introspect_candidates = self.ontology.introspect(&consensus_delta.signature);
+        let mut candidates = vec![Axiom::identity(), Axiom::crop_to_content()];
+
+        for cap in introspect_candidates {
+            candidates.push(Axiom::new(&cap.name, cap.tier_id, ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION), ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION), 0.0, 0.0));
+        }
+
+        for axiom in candidates {
+            let result = self.counterfactual_engine.what_if(&axiom, &train_pairs[0].0, &train_pairs[0].1);
+            if result.is_success {
+                println!("    ✅ {} langsung sukses di CounterfactualEngine!", axiom.name);
+
+                // Kausalitas
+                let dummy_sig = crate::reasoning::structures::StructuralSignature {
+                    dim_relation: crate::reasoning::structures::DimensionRelation::Equal,
+                    object_delta: crate::reasoning::structures::ObjectDelta::Same,
+                    color_mapping: None,
+                    topology_hint: crate::reasoning::structures::TopologyHint::Grid,
+                };
+                let causal_result = self.causal_reasoner.assess_causality(&axiom, &train_pairs[0].0, &dummy_sig);
+                println!("    ✅ Evaluasi Kausalitas: {}", causal_result.explanation);
+
+                promising_axioms.push(axiom);
+                break;
+            } else {
+                println!("    ❌ {} tidak cocok", axiom.name);
+            }
+        }
+
+        if !promising_axioms.is_empty() {
+             let mut test_state = test_input.clone();
+             for axiom in &promising_axioms {
+                 MultiverseSandbox::apply_axiom(&mut test_state, &axiom.condition_tensor, &axiom.delta_spatial, &axiom.delta_semantic, axiom.delta_x, axiom.delta_y, axiom.tier, &axiom.name);
+             }
+
+             return self.decoder.collapse_to_grid(&test_state, test_state.global_width as usize, test_state.global_height as usize, 0.5);
+        }
+
+        // Fallback ke Hierarchical Planner
+        println!("  🔄 Fallback ke hierarchical planning...");
+
+        let _strategy = self.ontology.can_solve(&consensus_delta)
             .expect("No strategy available for this task class");
 
         let planner = HierarchicalPlanner::from_delta(&consensus_delta, &self.ontology);
@@ -100,20 +152,16 @@ impl RrmAgent {
                     MultiverseSandbox::apply_axiom(&mut test_state, &axiom.condition_tensor, &axiom.delta_spatial, &axiom.delta_semantic, axiom.delta_x, axiom.delta_y, axiom.tier, &axiom.name);
                 }
 
-                let mut output = vec![vec![0; test_state.global_width as usize]; test_state.global_height as usize];
-                let output_grid = self.decoder.collapse_to_grid(&test_state, test_state.global_width as usize, test_state.global_height as usize, 0.5); output = output_grid;
-                output
+                self.decoder.collapse_to_grid(&test_state, test_state.global_width as usize, test_state.global_height as usize, 0.5)
             },
             None => {
                 self.mental_replay.generate_dreams(10);
-                let discovered = self.mental_replay.practice_in_dreams(
+                let _discovered = self.mental_replay.practice_in_dreams(
                     &mut self.counterfactual_engine,
                     &self.ontology,
                 );
 
-                let mut output = vec![vec![0; test_input.global_width as usize]; test_input.global_height as usize];
-                let output_grid = self.decoder.collapse_to_grid(test_input, test_input.global_width as usize, test_input.global_height as usize, 0.5); output = output_grid;
-                output
+                self.decoder.collapse_to_grid(test_input, test_input.global_width as usize, test_input.global_height as usize, 0.5)
             }
         }
     }
@@ -287,6 +335,28 @@ impl RrmAgent {
 
                 let mut grover = GroverDiffusionSystem::new(&mut sandbox, config);
                 let best_grover_idx = grover.search(&candidates, &grover_train_states, &ceo_engine.current_mode);
+
+                // Jika Grover menemukan pemenang yang meyakinkan, kita bisa langsung pakai
+                if let Some(idx) = best_grover_idx {
+                    if grover.energies[idx] <= 0.001 {
+                        println!("   ✅ Grover Diffusion menemukan solusi eksak! Index: {}", idx);
+                        // Convert to WaveNode
+                        let winner = &candidates[idx];
+                        let mut w_node = WaveNode::new(
+                            winner.axiom_type.clone(),
+                            winner.condition_tensor.clone(),
+                            winner.tensor_rule.clone(),
+                            winner.tensor_rule.clone(),
+                            winner.delta_x,
+                            winner.delta_y,
+                            winner.physics_tier,
+                            std::sync::Arc::new(train_states.iter().map(|(m, _)| std::sync::RwLock::new(m.clone())).collect::<Vec<_>>()),
+                        );
+                        w_node.probability = 1.0;
+                        best_rule = Some(w_node);
+                        break; // Selesai!
+                    }
+                }
 
                 // 1. Buat Tensor Identitas (Keadaan Diam / Tidak ada fisika yang berubah)
                 let mut id_tensor = ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION);
