@@ -6,6 +6,23 @@ use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
 use crate::reasoning::quantum_search_simd::{SimdEnergyCalculator, CognitivePhase};
 use crate::shared::visualizer::{Visualizer, TransparencyLevel, MctsNodeInfo};
 use futures_lite::future;
+use crate::core::config::GLOBAL_DIMENSION;
+
+#[derive(Clone)]
+pub struct FractalId {
+    pub level: u8,
+    pub index: u32,
+    pub path_hash: u64,
+}
+
+#[derive(Clone)]
+pub struct FractalScale {
+    pub spatial_resolution: f32,
+    pub temporal_horizon: f32,
+    pub abstraction_level: u8,
+    pub confidence_threshold: f32,
+    pub max_branching_factor: u8,
+}
 
 /// Struktur untuk satu Node di dalam Pencarian Gelombang
 #[derive(Clone)]
@@ -67,13 +84,216 @@ impl WaveNode {
     }
 }
 
+#[derive(Clone, PartialEq)]
+pub enum CognitiveMode {
+    StrictVSA,
+    Probabilistic,
+    Counterfactual,
+}
+
+pub struct FractalArena {
+    pub ids: Vec<FractalId>,
+    pub parents: Vec<Option<usize>>,
+    pub children_ranges: Vec<(usize, u8)>,
+    pub scales: Vec<FractalScale>,
+    pub amplitudes: Vec<f32>,
+    pub phases: Vec<f32>,
+    pub states: Vec<Arc<Vec<RwLock<EntityManifold>>>>,
+    pub modified_flags: Vec<bool>,
+
+    // Extracted fields for logical grouping
+    pub perception_sensory: Vec<Array1<f32>>,
+    pub reasoning_pragmatic: Vec<f32>,
+    pub reasoning_epistemic: Vec<f32>,
+    pub reasoning_mode: Vec<CognitiveMode>,
+
+    pub action_spatial: Vec<Array1<f32>>,
+    pub action_semantic: Vec<Array1<f32>>,
+    pub action_condition: Vec<Option<Array1<f32>>>,
+    pub action_dx: Vec<f32>,
+    pub action_dy: Vec<f32>,
+    pub action_tier: Vec<u8>,
+
+    pub axiom_path: Vec<Vec<String>>,
+
+    pub free_indices: Vec<usize>,
+    pub active_count: usize,
+    pub capacity: usize,
+}
+
+impl FractalArena {
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            ids: Vec::with_capacity(capacity),
+            parents: Vec::with_capacity(capacity),
+            children_ranges: Vec::with_capacity(capacity),
+            scales: Vec::with_capacity(capacity),
+            amplitudes: Vec::with_capacity(capacity),
+            phases: Vec::with_capacity(capacity),
+            states: Vec::with_capacity(capacity),
+            modified_flags: Vec::with_capacity(capacity),
+
+            perception_sensory: Vec::with_capacity(capacity),
+            reasoning_pragmatic: Vec::with_capacity(capacity),
+            reasoning_epistemic: Vec::with_capacity(capacity),
+            reasoning_mode: Vec::with_capacity(capacity),
+
+            action_spatial: Vec::with_capacity(capacity),
+            action_semantic: Vec::with_capacity(capacity),
+            action_condition: Vec::with_capacity(capacity),
+            action_dx: Vec::with_capacity(capacity),
+            action_dy: Vec::with_capacity(capacity),
+            action_tier: Vec::with_capacity(capacity),
+
+            axiom_path: Vec::with_capacity(capacity),
+
+            free_indices: Vec::new(),
+            active_count: 0,
+            capacity,
+        }
+    }
+
+    pub fn spawn_node(&mut self, parent: Option<usize>, scale: FractalScale, state: Arc<Vec<RwLock<EntityManifold>>>) -> Option<usize> {
+        let level = parent.map(|p| self.ids[p].level + 1).unwrap_or(0);
+
+        if let Some(idx) = self.free_indices.pop() {
+            self.parents[idx] = parent;
+            self.scales[idx] = scale;
+            self.amplitudes[idx] = 1.0;
+            self.phases[idx] = 0.0;
+            self.modified_flags[idx] = false;
+            self.states[idx] = state;
+            self.ids[idx] = FractalId { level, index: idx as u32, path_hash: 0 };
+
+            // Clean up state memory to avoid leakage
+            self.perception_sensory[idx].fill(0.0);
+            self.reasoning_pragmatic[idx] = 0.0;
+            self.reasoning_epistemic[idx] = 0.0;
+            self.reasoning_mode[idx] = CognitiveMode::StrictVSA;
+
+            self.action_spatial[idx].fill(0.0);
+            self.action_semantic[idx].fill(0.0);
+            self.action_condition[idx] = None;
+            self.action_dx[idx] = 0.0;
+            self.action_dy[idx] = 0.0;
+            self.action_tier[idx] = 0;
+
+            self.axiom_path[idx].clear();
+
+            return Some(idx);
+        }
+
+        if self.active_count >= self.capacity {
+            return None;
+        }
+
+        let idx = self.active_count;
+        self.active_count += 1;
+
+        self.ids.push(FractalId { level, index: idx as u32, path_hash: 0 });
+        self.parents.push(parent);
+        self.children_ranges.push((0, 0));
+        self.scales.push(scale);
+        self.amplitudes.push(1.0);
+        self.phases.push(0.0);
+        self.states.push(state);
+        self.modified_flags.push(false);
+
+        self.perception_sensory.push(Array1::zeros(GLOBAL_DIMENSION));
+        self.reasoning_pragmatic.push(0.0);
+        self.reasoning_epistemic.push(0.0);
+        self.reasoning_mode.push(crate::reasoning::quantum_search::CognitiveMode::StrictVSA);
+
+        self.action_spatial.push(Array1::zeros(GLOBAL_DIMENSION));
+        self.action_semantic.push(Array1::zeros(GLOBAL_DIMENSION));
+        self.action_condition.push(None);
+        self.action_dx.push(0.0);
+        self.action_dy.push(0.0);
+        self.action_tier.push(0);
+
+        self.axiom_path.push(Vec::new());
+
+        Some(idx)
+    }
+
+    pub fn kill_node(&mut self, idx: usize) {
+        if idx < self.active_count {
+            self.amplitudes[idx] = 0.0;
+            self.free_indices.push(idx);
+
+            let (start, count) = self.children_ranges[idx];
+            for i in 0..count as usize {
+                self.kill_node(start + i);
+            }
+        }
+    }
+
+    pub fn ensure_unique_state(&mut self, idx: usize) {
+        if !self.modified_flags[idx] {
+            let cloned: Vec<RwLock<EntityManifold>> = self.states[idx]
+                .iter()
+                .map(|m| RwLock::new(m.read().unwrap().clone()))
+                .collect();
+            self.states[idx] = Arc::new(cloned);
+            self.modified_flags[idx] = true;
+        }
+    }
+
+    /// Reason: Active Inference (Minimize Free Energy) mapped to Fractal Nodes
+    pub fn reason(&mut self, idx: usize, expected_grids: &[Vec<Vec<i32>>], initial_manifolds: &Arc<Vec<RwLock<EntityManifold>>>) {
+        let mut total_pragmatic_error = 0.0;
+        let mut total_epistemic_value = 0.0;
+
+        let current_depth = self.ids[idx].level as usize;
+        let current_phase = if current_depth <= 1 {
+            CognitivePhase::MacroStructural // Langkah pertama HARUS menyelesaikan dimensi!
+        } else {
+            CognitivePhase::Microscopic     // Langkah kedua merapikan isi (piksel)
+        };
+
+        for (i, expected_grid) in expected_grids.iter().enumerate() {
+            let width = expected_grid[0].len();
+            let height = expected_grid.len();
+
+            let manifold_read = self.states[idx][i].read().unwrap();
+            let initial_read = initial_manifolds[i].read().unwrap();
+
+            let m_width = if manifold_read.global_width > 0.0 { manifold_read.global_width as usize } else { width };
+            let m_height = if manifold_read.global_height > 0.0 { manifold_read.global_height as usize } else { height };
+
+            total_pragmatic_error += SimdEnergyCalculator::calculate_pragmatic_streaming(&*manifold_read, expected_grid, m_width, m_height, &current_phase);
+            total_epistemic_value += SimdEnergyCalculator::calculate_epistemic(&*manifold_read, &*initial_read);
+        }
+
+        self.reasoning_pragmatic[idx] = total_pragmatic_error;
+        self.reasoning_epistemic[idx] = total_epistemic_value;
+
+        // Expected Free Energy: G = E - I + C
+        let expected_free_energy = total_pragmatic_error - total_epistemic_value;
+        let g_bounded = expected_free_energy.max(0.0);
+
+        // Update amplitude based on dynamic free energy
+        self.amplitudes[idx] = if total_pragmatic_error <= 0.0 { 1.0 } else { 0.99 - (expected_free_energy / 50000.0).clamp(0.0, 0.95) };
+
+        // Switch cognitive mode berdasarkan posisi (Mandelbrot Boundary logic)
+        self.reasoning_mode[idx] = if g_bounded < 0.1 {
+            CognitiveMode::StrictVSA // Inside set: stable
+        } else if g_bounded < 1.0 {
+            CognitiveMode::Probabilistic // Boundary: optimal
+        } else {
+            CognitiveMode::Counterfactual // Outside: explore
+        };
+    }
+}
+
 pub struct AsyncWaveSearch {
     // Referensi ke Ground Truth (Expected Grids) untuk Oracle
     expected_grids: Vec<Vec<Vec<i32>>>,
     max_depth: usize,
 
-    // Hasil gelombang yang berhasil mencapai Ground State (Energy 0)
-    pub ground_states: Arc<RwLock<Vec<WaveNode>>>,
+    // Fractal Engine menggantikan Vec<WaveNode> allocation
+    pub arena: Arc<RwLock<FractalArena>>,
+    pub ground_states: Arc<RwLock<Vec<WaveNode>>>, // Keeping WaveNode here just for the legacy output conversion interface for now
 }
 
 impl AsyncWaveSearch {
@@ -81,263 +301,207 @@ impl AsyncWaveSearch {
         Self {
             expected_grids,
             max_depth,
+            arena: Arc::new(RwLock::new(FractalArena::new(20000))), // Alokasikan 20k slot flat
             ground_states: Arc::new(RwLock::new(Vec::new())),
         }
     }
 
-    /// Evaluasi EXPECTED Free Energy: (Pragmatic Error, Epistemic Value)
-    /// Pragmatic Error: Seberapa jauh dari Ground Truth (Makin kecil makin baik)
-    /// Epistemic Value: Seberapa banyak information gain/perubahan state yang relevan (Makin besar makin baik)
-    fn evaluate_efe_streaming(
-        &self,
-        state_manifolds: &Arc<Vec<RwLock<EntityManifold>>>,
-        initial_manifolds: &Arc<Vec<RwLock<EntityManifold>>>,
-        current_depth: usize
-    ) -> (f32, f32) {
-        let mut total_pragmatic_error = 0.0;
-        let mut total_epistemic_value = 0.0;
-
-        // Tentukan fase rencana berdasarkan kedalaman saat ini
-        let current_phase = if current_depth <= 1 {
-            CognitivePhase::MacroStructural // Langkah pertama HARUS menyelesaikan dimensi!
-        } else {
-            CognitivePhase::Microscopic     // Langkah kedua merapikan isi (piksel)
-        };
-
-        for (i, expected_grid) in self.expected_grids.iter().enumerate() {
-            let width = expected_grid[0].len();
-            let height = expected_grid.len();
-
-            let manifold_read = state_manifolds[i].read().unwrap();
-            let initial_read = initial_manifolds[i].read().unwrap();
-
-            // 1. Pragmatic Error (Seberapa beda dengan Ground Truth)
-            let m_width = if manifold_read.global_width > 0.0 { manifold_read.global_width as usize } else { width };
-            let m_height = if manifold_read.global_height > 0.0 { manifold_read.global_height as usize } else { height };
-            total_pragmatic_error += SimdEnergyCalculator::calculate_pragmatic_streaming(&*manifold_read, expected_grid, m_width, m_height, &current_phase);
-
-            // 2. Epistemic Value (Information Gain / Curiosity)
-            // Seberapa banyak partikel yang berubah state (posisi/warna/eksistensi) dibandingkan state awal?
-            total_epistemic_value += SimdEnergyCalculator::calculate_epistemic(&*manifold_read, &*initial_read);
-        }
-
-        (total_pragmatic_error, total_epistemic_value)
-    }
-
-    /// Menjalankan perambatan gelombang secara Asinkron
-    /// Future ini akan mengembalikan Poll::Ready ketika gelombang runtuh (Pruned)
-    /// atau menemukan Ground State.
+    /// Evaluasi EXPECTED Free Energy menggunakan SoA Fractal Nodes (Iteratif, bukan rekursif!)
+    /// Menjalankan perambatan gelombang
     pub fn propagate_wave(
         self: Arc<Self>,
-        mut wave: WaveNode,
-        initial_manifolds: Arc<Vec<RwLock<EntityManifold>>>, // Referensi ke state awal untuk menghitung Epistemic Value
-        all_possible_axioms: Vec<WaveNode> // Digunakan untuk depth > 1 (Branching)
+        wave: WaveNode,
+        initial_manifolds: Arc<Vec<RwLock<EntityManifold>>>,
+        all_possible_axioms: Vec<WaveNode>
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> {
         Box::pin(async move {
 
-        // COPY-ON-WRITE: Hanya clone array raksasa ini ke memory JIKA kita menerapkan fisika!
-        // Di node pertama yang memodifikasi, array akan diclone. Child akan otomatis mewarisi pointer.
-        wave.ensure_unique_state();
+            // 1. Inisiasi Root Fractal Node
+            let root_idx;
+            {
+                let mut arena = self.arena.write().unwrap();
+                let root_scale = FractalScale {
+                    spatial_resolution: 1.0,
+                    temporal_horizon: 1000.0,
+                    abstraction_level: 10,
+                    confidence_threshold: 0.9,
+                    max_branching_factor: 20,
+                };
 
-        // 1. Terapkan Aksioma (Fisika) ke seluruh state dalam gelombang ini
-        for manifold_lock in wave.state_manifolds.iter() {
-            let mut manifold = manifold_lock.write().unwrap();
+                root_idx = arena.spawn_node(None, root_scale, wave.state_manifolds.clone()).unwrap();
 
-            // Kita gunakan aksioma terakhir yang di-push ke dalam history path
-            let current_axiom_str = wave.axiom_type.last().map(|s| s.as_str()).unwrap_or("IDENTITY_STATIC");
+                // Sync initial state dari Legacy WaveNode
+                arena.axiom_path[root_idx] = wave.axiom_type.clone();
+                arena.action_condition[root_idx] = wave.condition_tensor.clone();
+                arena.action_spatial[root_idx] = wave.tensor_spatial.clone();
+                arena.action_semantic[root_idx] = wave.tensor_semantic.clone();
+                arena.action_dx[root_idx] = wave.delta_x;
+                arena.action_dy[root_idx] = wave.delta_y;
+                arena.action_tier[root_idx] = wave.physics_tier;
+            }
 
-            MultiverseSandbox::apply_axiom(
-                &mut *manifold,
-                &wave.condition_tensor,
-                &wave.tensor_spatial,
-                &wave.tensor_semantic,
-                wave.delta_x,
-                wave.delta_y,
-                wave.physics_tier,
-                current_axiom_str,
-            );
-        }
+            // Queue iteratif untuk simulasi Tree-Search Zero-GC
+            let mut frontier = vec![root_idx];
 
-        // Cooperative Yield: Beri kesempatan gelombang lain untuk dieksekusi oleh Executor
-        // karena simulasi Sandbox dan Decoder memakan waktu CPU.
-        future::yield_now().await;
+            while let Some(current_idx) = frontier.pop() {
+                // Cooperative Yield untuk async runtime compatibility
+                future::yield_now().await;
 
-        // Optimization: Early exit if a perfect solution was already found
-        if self.ground_states.read().unwrap().len() > 0 {
-            return;
-        }
-
-        // 2. Evaluasi EXPECTED Free Energy (Active Inference: Pragmatic - Epistemic)
-        let (mut pragmatic_error, epistemic_value) = self.evaluate_efe_streaming(
-            &wave.state_manifolds,
-            &initial_manifolds,
-            wave.depth
-        );
-
-        // Deferred Evaluation: Jika ini adalah task multi-part (misal translasi multi-color),
-        // jangan hancurkan branch hanya karena 1 part sudah digeser tapi part lain belum.
-        // Kita berikan toleransi (skip hard pragmatic error calculation) selama ada progress epistemic
-        // dan kita belum mencapai max depth.
-        let is_multi_part = wave.axiom_type.iter().filter(|a| !a.contains("IDENTITY")).count() > 0
-                            && all_possible_axioms.len() > 1;
-
-        if is_multi_part && wave.depth < self.max_depth && epistemic_value > 0.0 {
-            // Berikan discount untuk pragmatic error di intermediate steps untuk mendorong iterasi
-            pragmatic_error = (pragmatic_error * 0.5).max(0.0);
-        }
-
-        // 3. The Quantum Eraser (Pruning) dengan Active Inference G(π)
-        // Expected Free Energy G(π) = Pragmatic Error - Epistemic Bonus
-        let expected_free_energy = pragmatic_error - epistemic_value;
-        let g_bounded = expected_free_energy.max(0.0); // G tidak boleh negatif
-
-        // Semakin besar G(π), semakin kecil probability.
-        // Jika pragmatic_error 0, probability otomatis 1.0 (Sempurna).
-        let interference = if pragmatic_error == 0.0 { 1.0 } else { 1.0 / (g_bounded + 1.0) };
-
-        // Disable aggressive interference scaling, use it just for ranking
-        wave.probability = if pragmatic_error <= 0.0 { 1.0 } else { 0.99 - (expected_free_energy / 50000.0).clamp(0.0, 0.95) };
-
-        // Di Fase 1 (MacroStructural), pragmatic error akan menjadi -500.0 jika sukses.
-        // Kita JANGAN menandai ini sebagai is_ground_state agar pencarian diteruskan ke Microscopic.
-        // Hanya di Microscopic (Depth > 1) nilai 0.0 benar-benar berarti ground state sejati.
-        let is_ground_state = pragmatic_error <= 0.0 && wave.depth > 1;
-        let is_pruned = wave.probability < 0.01; // Hanya prune path yang sangat jelek
-
-        // Diagnostic Print
-        let m_width = wave.state_manifolds[0].read().unwrap().global_width;
-        let m_height = wave.state_manifolds[0].read().unwrap().global_height;
-        println!(
-            "[Depth {}] Axioms: {:?} | Pragmatic: {:.2} | Epistemic: {:.2} | Prob: {:.4} | Dim: {}x{}",
-            wave.depth,
-            wave.axiom_type,
-            pragmatic_error,
-            epistemic_value,
-            wave.probability,
-            m_width, m_height
-        );
-
-        // VISUALIZER DIAGNOSTIC
-        // Tampilkan pohon MCTS dengan Visualizer v2.0
-        if wave.probability >= 0.0 {
-            let mcts_node = MctsNodeInfo {
-                id: 0, // Placeholder ID
-                depth: wave.depth,
-                probability: wave.probability,
-                pragmatic_error,
-                epistemic_value,
-                complexity: 0.0, // Belum ada penalty complexity
-                threshold: 0.05,
-                is_pruned,
-                is_ground_state,
-                is_expanding: !is_pruned && !is_ground_state && wave.depth < self.max_depth,
-                path: wave.axiom_type.clone(),
-                axiom_type: wave.axiom_type.last().cloned().unwrap_or_else(|| "UNKNOWN".to_string()),
-            };
-
-            // Beri mock siblings list agar visualizer menampilkan prob bar
-            let mut mock_siblings = vec![mcts_node.clone()];
-            mock_siblings.push(MctsNodeInfo { probability: 0.8, ..mcts_node.clone() });
-
-            Visualizer::print_mcts_transparent(&mcts_node, &mock_siblings, TransparencyLevel::Standard);
-
-            // Cetak Barcode & Memory Map untuk contoh universe pertama di node ini
-            let debug_manifold = wave.state_manifolds[0].read().unwrap();
-            Visualizer::print_particle_memory_map(&*debug_manifold);
-        }
-
-        if is_ground_state {
-            // Ground State Ditemukan! (Zero pragmatic error) Simpan ke Results
-            self.ground_states.write().unwrap().push(wave.clone());
-
-            println!("\n🌟 === GROUND STATE DITEMUKAN (Zero Error) === 🌟");
-            let debug_manifold = wave.state_manifolds[0].read().unwrap();
-            Visualizer::print_tensor_quantum("Semantic T[0]", &debug_manifold.get_semantic_tensor(0), TransparencyLevel::Standard, None);
-            Visualizer::print_tensor_quantum("Spatial T[0]", &debug_manifold.get_spatial_tensor(0), TransparencyLevel::Standard, None);
-            println!("🌟 ===========================================\n");
-
-            return; // Gelombang selesai dengan sukses
-        }
-
-        // ENERGY PREDICTION PRUNING
-        // Hard prune branch yang probabilitasnya terlalu kecil untuk selamat
-        if wave.probability < 0.05 {
-            return;
-        }
-
-        // Prediksi sisa energi setelah N langkah ke depan
-        // Jika energi pragmatis saat ini masih sangat tinggi (misal > 20) dan kita sudah di depth >= 1
-        // asumsikan mustahil mencapai 0.0 di sisa sisa depth.
-        let predicted_min_energy = pragmatic_error * 0.9f32.powi((self.max_depth as i32) - (wave.depth as i32));
-        if predicted_min_energy > 5.0 && wave.depth >= 2 {
-            return; // Mustahil mencapai Ground State
-        }
-
-        // UPDATE: With true async futures-lite, we can afford slightly wider branching
-        // without instantly OOMing, but we still want to prune bad paths.
-        // Let's allow branching if probability > 0.1 and it passed the prediction pruning.
-        if wave.probability > 0.1 && wave.depth < self.max_depth {
-            let mut branch_futures = Vec::new();
-            let mut branch_count = 0;
-
-            // PELEBARAN SINAR ADAPTIF (ADAPTIVE BEAM WIDTH)
-            // Di kedalaman awal (MacroStructural Phase), kita buka keran simulasi lebih lebar
-            // agar aksioma seperti CROP (yang berada di peringkat atas berkat VIP Pass)
-            // dijamin mendapat panggung untuk disimulasikan.
-            let max_branches = if wave.depth == 0 { 20 } else { 2 };
-
-            for next_axiom in all_possible_axioms.iter() {
-                // Optimisasi: Jangan branch ke rule yang sama dua kali berurut
-                if wave.axiom_type.last() == next_axiom.axiom_type.last() {
-                    continue;
-                }
-
-                // Limit to max_branches max for validation bounds
-                branch_count += 1;
-                if branch_count > max_branches {
+                // Cek jika Ground State sudah ditemukan
+                if self.ground_states.read().unwrap().len() > 0 {
                     break;
                 }
 
-                // Jangan branch ke operasi geometry / crop / spawn secara rekursif terus menerus untuk menghindari ledakan OOM ekstrim
-                if next_axiom.physics_tier >= 3 && wave.physics_tier >= 3 {
+                let mut arena = self.arena.write().unwrap();
+
+                // Copy-On-Write State sebelum modifikasi
+                arena.ensure_unique_state(current_idx);
+
+                // Apply Axiom
+                let current_axiom_str = arena.axiom_path[current_idx].last().map(|s: &String| s.clone()).unwrap_or_else(|| "IDENTITY_STATIC".to_string());
+
+                for manifold_lock in arena.states[current_idx].iter() {
+                    let mut manifold = manifold_lock.write().unwrap();
+                    MultiverseSandbox::apply_axiom(
+                        &mut *manifold,
+                        &arena.action_condition[current_idx],
+                        &arena.action_spatial[current_idx],
+                        &arena.action_semantic[current_idx],
+                        arena.action_dx[current_idx],
+                        arena.action_dy[current_idx],
+                        arena.action_tier[current_idx],
+                        &current_axiom_str,
+                    );
+                }
+
+                // Reasoning (Free Energy)
+                arena.reason(current_idx, &self.expected_grids, &initial_manifolds);
+
+                let pragmatic_error = arena.reasoning_pragmatic[current_idx];
+                let epistemic_value = arena.reasoning_epistemic[current_idx];
+                let amplitude = arena.amplitudes[current_idx];
+                let current_depth = arena.ids[current_idx].level as usize;
+
+                // Visualizer & Logging
+                let m_width = arena.states[current_idx][0].read().unwrap().global_width;
+                let m_height = arena.states[current_idx][0].read().unwrap().global_height;
+
+                let is_ground_state = pragmatic_error <= 0.0 && current_depth > 1;
+                let is_pruned = amplitude < 0.01;
+
+                println!(
+                    "[Depth {}] Axioms: {:?} | Pragmatic: {:.2} | Epistemic: {:.2} | Prob: {:.4} | Dim: {}x{}",
+                    current_depth,
+                    arena.axiom_path[current_idx],
+                    pragmatic_error,
+                    epistemic_value,
+                    amplitude,
+                    m_width, m_height
+                );
+
+                if amplitude >= 0.0 {
+                    let mcts_node = MctsNodeInfo {
+                        id: 0,
+                        depth: current_depth,
+                        probability: amplitude,
+                        pragmatic_error,
+                        epistemic_value,
+                        complexity: 0.0,
+                        threshold: 0.05,
+                        is_pruned,
+                        is_ground_state,
+                        is_expanding: !is_pruned && !is_ground_state && current_depth < self.max_depth,
+                        path: arena.axiom_path[current_idx].clone(),
+                        axiom_type: current_axiom_str.clone(),
+                    };
+
+                    let mut mock_siblings = vec![mcts_node.clone()];
+                    mock_siblings.push(MctsNodeInfo { probability: 0.8, ..mcts_node.clone() });
+
+                    Visualizer::print_mcts_transparent(&mcts_node, &mock_siblings, TransparencyLevel::Standard);
+
+                    let debug_manifold = arena.states[current_idx][0].read().unwrap();
+                    Visualizer::print_particle_memory_map(&*debug_manifold);
+                }
+
+                // Cek Ground State
+                if is_ground_state {
+                    let result_wave = WaveNode {
+                        axiom_type: arena.axiom_path[current_idx].clone(),
+                        condition_tensor: arena.action_condition[current_idx].clone(),
+                        tensor_spatial: arena.action_spatial[current_idx].clone(),
+                        tensor_semantic: arena.action_semantic[current_idx].clone(),
+                        delta_x: arena.action_dx[current_idx],
+                        delta_y: arena.action_dy[current_idx],
+                        physics_tier: arena.action_tier[current_idx],
+                        state_manifolds: arena.states[current_idx].clone(),
+                        state_modified: arena.modified_flags[current_idx],
+                        probability: amplitude,
+                        depth: current_depth,
+                    };
+                    self.ground_states.write().unwrap().push(result_wave);
+
+                    println!("\n🌟 === GROUND STATE DITEMUKAN (Zero Error) === 🌟");
+                    let debug_manifold = arena.states[current_idx][0].read().unwrap();
+                    Visualizer::print_tensor_quantum("Semantic T[0]", &debug_manifold.get_semantic_tensor(0), TransparencyLevel::Standard, None);
+                    Visualizer::print_tensor_quantum("Spatial T[0]", &debug_manifold.get_spatial_tensor(0), TransparencyLevel::Standard, None);
+                    println!("🌟 ===========================================\n");
+                    break;
+                }
+
+                // Pruning Checks
+                if amplitude < 0.05 {
+                    arena.kill_node(current_idx);
                     continue;
                 }
 
-                let mut child_wave = wave.clone();
-                // RESET CoW Flag agar child memaksa clone sebelum memodifikasi `state_manifolds` dari parent!
-                child_wave.state_modified = false;
+                let predicted_min_energy = pragmatic_error * 0.9f32.powi((self.max_depth as i32) - (current_depth as i32));
+                if predicted_min_energy > 5.0 && current_depth >= 2 {
+                    arena.kill_node(current_idx);
+                    continue;
+                }
 
-                // Track Path
-                child_wave.axiom_type.push(next_axiom.axiom_type[0].clone());
-                child_wave.depth += 1;
+                // Branching Logic (Iteratif)
+                if amplitude > 0.1 && current_depth < self.max_depth {
+                    let max_branches = if current_depth == 0 { 20 } else { 2 };
+                    let mut branch_count = 0;
 
-                // Pada depth > 1, fisika diakumulasi (berurut).
-                // Sandbox akan menerapkan `next_axiom` ke atas `state_manifolds` yang
-                // SUDAH diubah oleh axiom sebelumnya.
-                child_wave.condition_tensor = next_axiom.condition_tensor.clone();
-                child_wave.tensor_spatial = next_axiom.tensor_spatial.clone();
-                child_wave.tensor_semantic = next_axiom.tensor_semantic.clone();
-                child_wave.delta_x = next_axiom.delta_x;
-                child_wave.delta_y = next_axiom.delta_y;
-                child_wave.physics_tier = next_axiom.physics_tier;
+                    for next_axiom in all_possible_axioms.iter() {
+                        if arena.axiom_path[current_idx].last() == next_axiom.axiom_type.last() { continue; }
 
-                let s_clone = Arc::clone(&self);
-                let all_clone = all_possible_axioms.clone();
-                let initial_manifolds_clone = Arc::clone(&initial_manifolds);
+                        branch_count += 1;
+                        if branch_count > max_branches { break; }
 
-                branch_futures.push(async move {
-                    s_clone.propagate_wave(child_wave, initial_manifolds_clone, all_clone).await;
-                });
+                        if next_axiom.physics_tier >= 3 && arena.action_tier[current_idx] >= 3 { continue; }
+
+                        // Spawn child iteratif di Arena, membagikan referensi state CoW
+                        let child_scale = FractalScale {
+                            spatial_resolution: arena.scales[current_idx].spatial_resolution * 0.5,
+                            temporal_horizon: arena.scales[current_idx].temporal_horizon * 0.5,
+                            abstraction_level: arena.scales[current_idx].abstraction_level.saturating_sub(2),
+                            confidence_threshold: arena.scales[current_idx].confidence_threshold * 0.9,
+                            max_branching_factor: max_branches as u8,
+                        };
+
+                        let parent_state = arena.states[current_idx].clone();
+                        if let Some(child_idx) = arena.spawn_node(Some(current_idx), child_scale, parent_state) {
+                            // Populate child aksioma
+                            arena.axiom_path[child_idx] = arena.axiom_path[current_idx].clone();
+                            arena.axiom_path[child_idx].push(next_axiom.axiom_type[0].clone());
+
+                            arena.action_condition[child_idx] = next_axiom.condition_tensor.clone();
+                            arena.action_spatial[child_idx] = next_axiom.tensor_spatial.clone();
+                            arena.action_semantic[child_idx] = next_axiom.tensor_semantic.clone();
+                            arena.action_dx[child_idx] = next_axiom.delta_x;
+                            arena.action_dy[child_idx] = next_axiom.delta_y;
+                            arena.action_tier[child_idx] = next_axiom.physics_tier;
+
+                            // Push ke frontier iteratif
+                            frontier.push(child_idx);
+                        }
+                    }
+                }
             }
-
-            // Await all branches (dijalankan berurutan saat ini untuk keamanan memori,
-            // jika kita punya executor parallel sungguhan, kita bisa spawn ke threadpool)
-            for f in branch_futures {
-                f.await;
-            }
-        }
-
-        // Jika sampai di sini, gelombang hancur (Destructive Interference)
         })
     }
 }
