@@ -316,20 +316,19 @@ impl InfiniteDetailField {
     where
         F: FnOnce(&mut Array1<f32>)
     {
-        if let ZeroCopyView::Micro { region_id, local_idx, data } = view {
+        if let ZeroCopyView::Micro { region_id, local_idx, data: _ } = view {
             if let Ok(mut cache) = self.detail_cache.write() {
                 let key = cache.hash_key(*region_id, 2, *local_idx as u32);
 
-                if let Some(micro) = cache.micro_cache.get(&key) {
-                    if Arc::strong_count(micro) > 1 {
-                        let mut cloned = (**micro).clone();
-                        if let Some(tensor) = cloned.spatial_tensors.get_mut(local_idx) {
-                             mutator(tensor);
-                        }
-                        cache.micro_cache.put(key, Arc::new(cloned));
-                    } else {
-                         // Safely mutate locally since no multiple owners exist. But we can't because it's Arc. We must always mutate clones.
+                // Get the Arc and pop it temporarily to modify if uniquely owned, or clone if shared
+                if let Some(mut micro_arc) = cache.micro_cache.pop(&key) {
+                    let micro_mut = Arc::make_mut(&mut micro_arc);
+                    if let Some(tensor) = micro_mut.spatial_tensors.get_mut(local_idx) {
+                        mutator(tensor);
                     }
+
+                    // Put it back
+                    cache.micro_cache.put(key, micro_arc);
                 }
             }
         }

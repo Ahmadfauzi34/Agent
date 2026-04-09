@@ -125,6 +125,29 @@ impl SkillOntology {
         ontology.register_tier_0_translation();
         ontology.register_tier_7_crop();
 
+        // Coba load dinamis dari Executable Wiki
+        let mut wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new("knowledge/skills/");
+        if let Ok(count) = wiki.load_all() {
+            if count > 0 {
+                println!("📚 Berhasil meload {} skill dari Executable Wiki (.md)", count);
+            }
+            for (_, page) in wiki.knowledge_base.iter() {
+                let cap = TierCapability {
+                    tier_id: page.tier,
+                    name: page.id.clone(),
+                    description: format!("(WIKI) {}", page.page_type),
+                    activation_triggers: vec![],
+                    preconditions: vec![],
+                    postconditions: vec![],
+                    side_effects: vec![],
+                    cost: 1.0,
+                    historical_success_rate: page.confidence,
+                    typical_signatures: vec![],
+                };
+                ontology.capabilities.insert(page.tier, cap);
+            }
+        }
+
         ontology.build_transition_rules();
         ontology.index_capabilities();
 

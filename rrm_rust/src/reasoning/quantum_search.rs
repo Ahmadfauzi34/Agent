@@ -164,6 +164,22 @@ impl FractalArena {
             self.modified_flags[idx] = false;
             self.states[idx] = state;
             self.ids[idx] = FractalId { level, index: idx as u32, path_hash: 0 };
+
+            // Clean up state memory to avoid leakage
+            self.perception_sensory[idx].fill(0.0);
+            self.reasoning_pragmatic[idx] = 0.0;
+            self.reasoning_epistemic[idx] = 0.0;
+            self.reasoning_mode[idx] = CognitiveMode::StrictVSA;
+
+            self.action_spatial[idx].fill(0.0);
+            self.action_semantic[idx].fill(0.0);
+            self.action_condition[idx] = None;
+            self.action_dx[idx] = 0.0;
+            self.action_dy[idx] = 0.0;
+            self.action_tier[idx] = 0;
+
+            self.axiom_path[idx].clear();
+
             return Some(idx);
         }
 
