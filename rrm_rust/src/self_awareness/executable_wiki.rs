@@ -135,4 +135,58 @@ impl ExecutableWiki {
     pub fn get_skill(&self, id: &str) -> Option<&WikiPage> {
         self.knowledge_base.get(id)
     }
+
+    /// Menulis (Create/Overwrite) file skill baru berformat .md ke knowledge_base
+    pub fn create_skill(&mut self, page: WikiPage) -> Result<(), String> {
+        let file_path = self.base_dir.join(format!("{}.md", page.id));
+
+        let mut content = String::new();
+        // Generate YAML Frontmatter
+        content.push_str("---\n");
+        content.push_str(&format!("id: {}\n", page.id));
+        content.push_str(&format!("type: {}\n", page.page_type));
+        content.push_str(&format!("tier: {}\n", page.tier));
+        content.push_str(&format!("confidence: {:.2}\n", page.confidence));
+        if let Some(parent) = &page.parent {
+            content.push_str(&format!("parent: {}\n", parent));
+        }
+        content.push_str("---\n\n");
+
+        // Append raw content
+        content.push_str(&page.content);
+
+        // Simpan ke disk
+        if let Err(e) = fs::write(&file_path, &content) {
+            return Err(format!("Gagal menyimpan skill ke {:?}: {}", file_path, e));
+        }
+
+        // Update knowledge base (hot-swapping)
+        self.knowledge_base.insert(page.id.clone(), page);
+        Ok(())
+    }
+
+    /// Menambahkan entri ke log metakognisi harian (Append)
+    pub fn append_to_log(&self, log_name: &str, entry: &str) -> Result<(), String> {
+        use std::io::Write;
+
+        let logs_dir = self.base_dir.join("../logs");
+        if !logs_dir.exists() {
+            let _ = fs::create_dir_all(&logs_dir);
+        }
+
+        let file_path = logs_dir.join(format!("{}.md", log_name));
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&file_path)
+            .map_err(|e| format!("Gagal membuka log {:?}: {}", file_path, e))?;
+
+        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
+        let formatted_entry = format!("### [{}] \n{}\n\n", timestamp, entry);
+
+        file.write_all(formatted_entry.as_bytes())
+            .map_err(|e| format!("Gagal menulis log: {}", e))?;
+
+        Ok(())
+    }
 }
