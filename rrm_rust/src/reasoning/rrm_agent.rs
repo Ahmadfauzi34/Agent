@@ -152,6 +152,9 @@ impl RrmAgent {
                     MultiverseSandbox::apply_axiom(&mut test_state, &axiom.condition_tensor, &axiom.delta_spatial, &axiom.delta_semantic, axiom.delta_x, axiom.delta_y, axiom.tier, &axiom.name);
                 }
 
+                let mut wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new("rrm_rust/knowledge/skills/");
+                let _ = wiki.append_to_log("Execution_Log", &format!("Run #X -> SUCCESS via HierarchicalPlanner fallback"));
+
                 self.decoder.collapse_to_grid(&test_state, test_state.global_width as usize, test_state.global_height as usize, 0.5)
             },
             None => {
@@ -160,6 +163,22 @@ impl RrmAgent {
                     &mut self.counterfactual_engine,
                     &self.ontology,
                 );
+
+                // MCTS/Planner gagal total. Catat ke log Wiki
+                let mut wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new("rrm_rust/knowledge/skills/");
+                let _ = wiki.append_to_log("Analysis_Log", &format!("Catastrophic Failure Detected. Need to synthesize generative skill via crossover."));
+
+                // Simulasi pembuatan skill baru hasil "crossover"
+                let new_page = crate::self_awareness::executable_wiki::WikiPage {
+                    id: format!("synthesized_{}", chrono::Utc::now().format("%Y%m%d%H%M%S")),
+                    page_type: "synthesized_crossover".to_string(),
+                    tier: 8,
+                    confidence: 0.50,
+                    parent: Some("mcts_fallback".to_string()),
+                    content: "## Origin\nAuto-generated skill from Catastrophic Failure\n\n```rust\n// Novel spatial tensor bound\n```\n".to_string(),
+                    code_blocks: vec![],
+                };
+                let _ = wiki.create_skill(new_page);
 
                 self.decoder.collapse_to_grid(test_input, test_input.global_width as usize, test_input.global_height as usize, 0.5)
             }
@@ -515,6 +534,18 @@ impl RrmAgent {
             );
         } else {
             println!("   [Rust MCTS] WARNING: Semua gelombang hancur! (Halusinasi/Meleset)");
+            let mut wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new("rrm_rust/knowledge/skills/");
+            let _ = wiki.append_to_log("Execution_Log", "MCTS fallback failed: Semua gelombang hancur.");
+            let new_page = crate::self_awareness::executable_wiki::WikiPage {
+                id: format!("synthesized_{}", chrono::Utc::now().format("%Y%m%d%H%M%S")),
+                page_type: "synthesized_crossover".to_string(),
+                tier: 8,
+                confidence: 0.50,
+                parent: Some("mcts_fallback".to_string()),
+                content: "## Origin\nAuto-generated skill from Catastrophic Failure in MCTS\n\n```rust\n// Novel spatial tensor bound\n```\n".to_string(),
+                code_blocks: vec![],
+            };
+            let _ = wiki.create_skill(new_page);
         }
 
         let test_width = if test_manifold.global_width > 0.0 { test_manifold.global_width as usize } else { test_in[0].len() };

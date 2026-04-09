@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 lru = "0.13.0"
+chrono = "0.4"
 petgraph = "0.6.4"
 fastrand = "2.3.0"
 futures-lite = "2.6.1"
