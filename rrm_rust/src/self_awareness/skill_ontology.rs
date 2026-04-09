@@ -126,7 +126,7 @@ impl SkillOntology {
         ontology.register_tier_7_crop();
 
         // Coba load dinamis dari Executable Wiki
-        let mut wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new("knowledge/skills/");
+        let mut wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new("rrm_rust/knowledge/skills/");
         if let Ok(count) = wiki.load_all() {
             if count > 0 {
                 println!("📚 Berhasil meload {} skill dari Executable Wiki (.md)", count);
