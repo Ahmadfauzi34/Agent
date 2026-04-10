@@ -16,6 +16,11 @@ use perception::anomalous_extractor::extract_anomalous_quadrant;
 fn main() {
     println!("🌌 RRM Quantum Sandbox (Rust Edition) Initialized.");
 
+    let base_dir = std::path::PathBuf::from(".");
+    let mut immortal = ImmortalEngine::new(base_dir);
+    immortal.resurrect(); // Bangkit dari crash / mulai Genesis
+
+
     // Testing Baseline ARC
     let mut agent = RrmAgent::new();
 
@@ -49,6 +54,12 @@ fn main() {
     let test_out = parse_grid(&test[0]["output"]);
 
     println!("Solving Task: 2dc579da.json");
+
+    immortal.append_event(SoulEvent::TaskAttempted {
+        task_id: "2dc579da".to_string(),
+        duration_ms: 0
+    });
+
     let start_time = Instant::now();
     let result = agent.solve_task(&train_in, &train_out, &test_in);
     let duration = start_time.elapsed();
@@ -94,10 +105,22 @@ fn main() {
     }
 
     println!("\nDuration: {:?}", duration);
+
     if success {
         println!("✅ SUCCESS (100% Match!)");
+        immortal.append_event(SoulEvent::TaskSolved {
+            task_id: "2dc579da".to_string(),
+            confidence: 0.99
+        });
     } else {
         println!("💀 FAILED (Mismatch)");
+        immortal.append_event(SoulEvent::MctsFailed {
+            reason: "Mismatch on 2dc579da".to_string()
+        });
     }
+
+    immortal.hibernate(); // Simpan state int8 ke soul_cache.bin
+
 }
 pub mod self_awareness;
+use self_awareness::immortal_loop::{ImmortalEngine, SoulEvent};
