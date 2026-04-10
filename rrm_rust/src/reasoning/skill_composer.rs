@@ -153,7 +153,19 @@ impl AutopoieticSynthesizer {
         // 2. Format Tensor ke String Rust (Hanya ambil 5 dimensi pertama sbg representasi)
         let tensor_str = novel_spatial.iter().take(5).map(|v| format!("{:.4}", v)).collect::<Vec<_>>().join(", ");
 
-        let skill_id = format!("synthesized_crossover_{}", Utc::now().format("%Y%m%d_%H%M%S"));
+        let parent_a_name = node_a.axiom_type.last().unwrap_or(&"UNKNOWN".to_string()).clone();
+        let parent_b_name = node_b.axiom_type.last().unwrap_or(&"UNKNOWN".to_string()).clone();
+
+        // Create a deterministic hash from the parents and the trigger task
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(trigger_task.as_bytes());
+        hasher.update(parent_a_name.as_bytes());
+        hasher.update(parent_b_name.as_bytes());
+        let hash_hex = hasher.finalize().to_hex().to_string();
+
+        // Take just the first 8 characters of the hash for brevity
+        let short_hash = &hash_hex[0..8];
+        let skill_id = format!("synthesized_crossover_{}", short_hash);
 
         // 3. Generate Markdown & Kode Rust (Git-style)
         let md_content = format!(r#"---
@@ -200,13 +212,17 @@ pub fn execute_novel_skill(input: &mut EntityManifold) -> Result<(), String> {{
             skill_id
         );
 
-        // 4. Tulis ke Wiki (File System)
+        // 4. Tulis ke Wiki (File System) dengan Deduplikasi
         let out_dir = PathBuf::from("knowledge/skills/auto");
         let _ = fs::create_dir_all(&out_dir);
         let out_path = out_dir.join(format!("{}.md", skill_id));
-        let _ = fs::write(&out_path, &md_content);
 
-        println!("🧬 [Autopoiesis] Kode genetik baru berhasil ditulis ke {:?}", out_path);
+        if out_path.exists() {
+            println!("🧬 [Autopoiesis] Kode genetik sudah ada di Wiki ({:?}). Menggunakan kembali tanpa menulis file baru.", out_path);
+        } else {
+            let _ = fs::write(&out_path, &md_content);
+            println!("🧬 [Autopoiesis] Kode genetik baru berhasil disintesis dan ditulis ke {:?}", out_path);
+        }
 
         Some(skill_id)
     }
