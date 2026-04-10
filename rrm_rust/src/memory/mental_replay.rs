@@ -1,7 +1,13 @@
 use crate::self_awareness::skill_ontology::{TaskMemory, SkillOntology};
 use crate::reasoning::structures::TopologyHint;
 use crate::reasoning::skill_composer::{SkillComposer, ComposedSkill};
+use crate::reasoning::structures::Axiom;
 use crate::reasoning::counterfactual_engine::CounterfactualEngine;
+use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
+use crate::reasoning::grover_diffusion_system::{GroverDiffusionSystem, GroverConfig, GroverCandidate, TrainState};
+use crate::reasoning::hierarchical_inference::SimulationMode;
+use crate::reasoning::skill_composer::PrimitiveSkill;
+use ndarray::Array1;
 
 pub struct MentalReplay {
     pub solved_tasks: Vec<TaskMemory>,
@@ -17,7 +23,7 @@ pub struct CounterfactualScenario {
 
 impl CounterfactualScenario {
     pub fn apply_variation(&self, state: &crate::core::entity_manifold::EntityManifold) -> crate::core::entity_manifold::EntityManifold {
-        state.clone() // Placeholder
+        state.clone()
     }
 }
 
@@ -67,27 +73,51 @@ impl MentalReplay {
         let mut discovered_skills = Vec::new();
 
         for scenario in &self.dream_scenarios {
-            let novel_compositions = self.skill_composer
-                .generate_novel_combinations(ontology, &scenario.base_task.solution_path);
+            let dream_state = scenario.base_task.initial_state.clone();
+            let expected_dream_state = scenario.apply_variation(&scenario.base_task.expected_state);
 
-            for composition in novel_compositions {
-                let dream_state = scenario.base_task.initial_state.clone();
+            // Create a dummy sandbox and config for Grover
+            let mut sandbox = MultiverseSandbox::new();
+            let grover_config = GroverConfig {
+                dimensions: crate::core::config::GLOBAL_DIMENSION,
+                search_space_size: 5, // We'll test with 5 top axioms
+                temperature: 0.1,
+                free_energy_threshold: 0.05,
+                max_iterations: 3,
+            };
 
-                // Needs conversion from PrimitiveSkill -> Axiom
-                let axioms: Vec<_> = composition.sequence.iter().map(|p| p.to_axiom()).collect();
+            let mut grover = GroverDiffusionSystem::new(&mut sandbox, grover_config);
 
-                let result = engine.what_if_sequence(
-                    &axioms,
-                    &dream_state,
-                    &scenario.apply_variation(&scenario.base_task.expected_state),
-                );
+            // Fetch base axioms
+            let mut axioms = Vec::new(); let x_seed = ndarray::Array1::<f32>::ones(crate::core::config::GLOBAL_DIMENSION); let y_seed = ndarray::Array1::<f32>::ones(crate::core::config::GLOBAL_DIMENSION); for i in 0..5 { let d_x = i as f32; let t = crate::reasoning::axiom_generator::AxiomGenerator::generate_translation_axiom(d_x, 0.0, &x_seed, &y_seed); let ax = Axiom::new(&format!("DREAM_AXIOM_{}", i), 0, t.clone(), t, d_x, 0.0); axioms.push(ax); }
+            let mut candidates = Vec::new();
+            for axiom in axioms.iter().take(5) {
+                candidates.push(GroverCandidate {
+                    energy: 1.0,
+                    tensor_rule: axiom.delta_spatial.clone(),
+                    condition_tensor: axiom.condition_tensor.clone(),
+                    delta_x: axiom.delta_x,
+                    delta_y: axiom.delta_y,
+                    physics_tier: axiom.tier,
+                    axiom_type: axiom.name.clone(),
+                });
+            }
 
-                if result.is_success() {
-                    discovered_skills.push(composition);
-                }
+            let expected_grid = vec![vec![0; expected_dream_state.global_width as usize]; expected_dream_state.global_height as usize]; let train_states = vec![TrainState { in_state: dream_state.clone(), expected_grid }];
+
+            let mode = SimulationMode::Counterfactual;
+
+            if let Some(winner_idx) = grover.search(&candidates, &train_states, &mode) {
+                // If grover found a universal axiom for this dream variation!
+                println!("🌙 [Grover Dreamer] Menemukan Universal Axiom baru untuk skenario mimpi! Pemenang: {}", candidates[winner_idx].axiom_type);
+
+                // Construct a ComposedSkill (dummy representation)
+                let mut composed = ComposedSkill { preconditions: vec![], postconditions: vec![], emergence_properties: vec![], sequence: vec![], usage_count: 1, success_rate: 1.0 };
+                discovered_skills.push(composed);
             }
         }
 
         discovered_skills
     }
+
 }

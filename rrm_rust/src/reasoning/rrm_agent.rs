@@ -207,6 +207,11 @@ impl RrmAgent {
 
         if discovered_skills.len() > 0 {
             println!("✨ [Eureka!] RRM menemukan {} komposisi skill baru di alam mimpinya!", discovered_skills.len());
+            for skill in discovered_skills {
+                // println!("  - Discovered Rule: {:?}", skill.emergence_properties);
+                let axiom_name = String::from("DreamAxiom_Unknown");
+                self.seed_bank.add_seed(&axiom_name, 9999, &ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION), crate::memory::logic_seed_bank::SeedType::Strategy);
+            }
         } else {
             println!("   -> Mimpi selesai. Sistem telah melatih otot kognitifnya.");
             let _ = wiki.append_to_log("soul_log", "### [tX] Mimpi Selesai: Otot kognitif tensor telah direkalibrasi.");
