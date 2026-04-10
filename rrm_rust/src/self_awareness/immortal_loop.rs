@@ -208,6 +208,7 @@ pub struct KVImmortalEngine {
     pub scalars: ScalarFields,
     pub tensor_registry: TensorFieldRegistry,
     pub base_dir: PathBuf,
+    pub active_branch: String,
     pub version: u64,
     /// Journal untuk append-only event log (fractal growth)
     pub event_journal: EventJournal,
@@ -220,7 +221,11 @@ pub struct EventJournal {
 }
 
 impl KVImmortalEngine {
-    pub fn new(base_dir: PathBuf) -> Self {
+    pub fn branch_dir(&self) -> PathBuf {
+        self.base_dir.clone() // Everything stays in root
+    }
+
+    pub fn new(base_dir: PathBuf, branch_name: &str) -> Self {
         fs::create_dir_all(&base_dir).ok();
         fs::create_dir_all(base_dir.join("tensors")).ok();
 
@@ -241,6 +246,7 @@ impl KVImmortalEngine {
             scalars: ScalarFields::default(),
             tensor_registry: registry,
             base_dir,
+            active_branch: branch_name.to_string(),
             version: 0,
             event_journal: EventJournal {
                 entries: Vec::with_capacity(1000),
@@ -254,7 +260,7 @@ impl KVImmortalEngine {
         println!("🔥 [KVImmortalEngine] Resurrection Protocol v2...");
 
         // 1. Load scalars (fast path)
-        let scalar_path = self.base_dir.join("scalars.bin");
+        let scalar_path = self.branch_dir().join("scalars.bin");
         if scalar_path.exists() {
             let data = fs::read(&scalar_path)?;
             self.scalars = bincode::deserialize(&data)?;
@@ -265,7 +271,7 @@ impl KVImmortalEngine {
         }
 
         // 2. Load tensor manifest (hanya metadata, tidak data)
-        let manifest_path = self.base_dir.join("tensor_manifest.bin");
+        let manifest_path = self.branch_dir().join("tensor_manifest.bin");
         if manifest_path.exists() {
             let data = fs::read(&manifest_path)?;
             let manifest: Vec<KVQuantizedTensor> = bincode::deserialize(&data)?;
@@ -280,7 +286,7 @@ impl KVImmortalEngine {
     }
 
     fn replay_events(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let journal_path = self.base_dir.join("event_journal.bin");
+        let journal_path = self.branch_dir().join("event_journal.bin");
         if !journal_path.exists() {
             return Ok(());
         }
@@ -318,19 +324,38 @@ impl KVImmortalEngine {
     }
 
     /// Hibernation dengan incremental KV snapshot
+
+    /// Membuat cabang baru (Git-Style Branching) seperti "Experiment_A"
+    /// dan menyalin seluruh memori/state/tensor dari cabang saat ini ke cabang tersebut.
+    pub fn fork_branch(&mut self, new_branch: &str) -> Result<(), Box<dyn std::error::Error>> {
+        println!("🌿 [KVImmortalEngine] Forking branch '{}' -> '{}'", self.active_branch, new_branch);
+        let old = self.active_branch.clone();
+
+        // Switch active branch memory context (logical branching)
+        self.active_branch = new_branch.to_string();
+
+        // Log the branch event into the unified soul_log.md
+        self.append_event(SoulEvent::BranchCreated {
+            from: old,
+            to: new_branch.to_string()
+        });
+
+        Ok(())
+    }
+
     pub fn hibernate(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         println!("💤 [KVImmortalEngine] Hibernation Protocol...");
         self.scalars.last_hibernation = chrono::Utc::now().timestamp_millis() as u64;
 
         // 1. Save scalars (atomic write)
-        let scalar_tmp = self.base_dir.join("scalars.tmp");
+        let scalar_tmp = self.branch_dir().join("scalars.tmp");
         let scalar_data = bincode::serialize(&self.scalars)?;
         fs::write(&scalar_tmp, scalar_data)?;
-        fs::rename(&scalar_tmp, self.base_dir.join("scalars.bin"))?;
+        fs::rename(&scalar_tmp, self.branch_dir().join("scalars.bin"))?;
 
         // 2. Save tensor fields (KV quantized, sparse, incremental)
         let mut manifest = Vec::new();
-        let tensor_dir = self.base_dir.join("tensors");
+        let tensor_dir = self.branch_dir().join("tensors");
 
         for (hash, tensor) in &self.tensor_registry.hot_fields {
             // Quantize dengan threshold 0.01 (ignore noise)
@@ -346,7 +371,7 @@ impl KVImmortalEngine {
 
         // 3. Save manifest
         let manifest_data = bincode::serialize(&manifest)?;
-        fs::write(self.base_dir.join("tensor_manifest.bin"), manifest_data)?;
+        fs::write(self.branch_dir().join("tensor_manifest.bin"), manifest_data)?;
 
         // 4. Checkpoint journal jika perlu
         if self.event_journal.entries.len() >= self.event_journal.checkpoint_every {
@@ -361,7 +386,7 @@ impl KVImmortalEngine {
     fn checkpoint_journal(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         // Archive old journal, start fresh
         let timestamp = chrono::Utc::now().timestamp_millis();
-        let archive_path = self.base_dir.join(format!("events_{}.bin", timestamp));
+        let archive_path = self.branch_dir().join(format!("events_{}.bin", timestamp));
         let journal_data = bincode::serialize(&self.event_journal)?;
         fs::write(&archive_path, journal_data)?;
 
@@ -376,19 +401,32 @@ impl KVImmortalEngine {
         self.event_journal.entries.push(event.clone());
 
         // Async append ke markdown log (non-blocking)
-        let log_path = self.base_dir.join("soul_log.md");
+        let log_path = self.branch_dir().join("soul_log.md");
         let event_clone = event.clone();
-        std::thread::spawn(move || {
-            if let Ok(mut file) = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&log_path)
-            {
-                let timestamp = chrono::Utc::now().to_rfc3339();
-                let yaml = serde_json::to_string(&event_clone).unwrap_or_default();
-                let _ = writeln!(file, "### [{}]\n```json\n{}\n```\n", timestamp, yaml);
+        if let Ok(mut file) = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)
+        {
+            match event_clone {
+                SoulEvent::BranchCreated { ref from, ref to } => {
+                    if to == "main" {
+                        let _ = writeln!(file, "\n## MERGE to main  ← Promote yang bagus");
+                    } else {
+                        let _ = writeln!(file, "\n## Branch: {}  ← RRM fork skill!", to);
+                    }
+                },
+                _ => {
+                    let title = match &event_clone {
+                        SoulEvent::TaskAttempted { task_id, .. } => format!("Patch: {}", task_id),
+                        SoulEvent::TaskSolved { task_id, .. } => format!("Run -> SUCCESS ({})", task_id),
+                        SoulEvent::MctsFailed { reason } => format!("Run -> FAIL ({})", reason),
+                        _ => format!("{:?}", event_clone)
+                    };
+                    let _ = writeln!(file, "### [{}] {}", chrono::Utc::now().format("tX"), title); // Simulated 't0, t1' for the diagram
+                }
             }
-        });
+        }
     }
 }
 
@@ -400,4 +438,5 @@ pub enum SoulEvent {
     TaskSolved { task_id: String, confidence: f32 },
     MctsFailed { reason: String },
     SkillSynthesized { skill_id: String },
+    BranchCreated { from: String, to: String },
 }

@@ -17,7 +17,7 @@ fn main() {
     println!("🌌 RRM Quantum Sandbox (Rust Edition) Initialized.");
 
     let base_dir = std::path::PathBuf::from(".");
-    let mut immortal = KVImmortalEngine::new(base_dir);
+    let mut immortal = KVImmortalEngine::new(base_dir, "main");
     let _ = immortal.resurrect(); // Bangkit dari crash / mulai Genesis
 
 
@@ -118,6 +118,48 @@ fn main() {
             reason: "Mismatch on 2dc579da".to_string()
         });
     }
+
+
+    // Simulation of Git-Style Branching (Autopoiesis Mental Trance)
+    println!("🌿 ==================================");
+    println!("🌿 SIMULATING MENTAL BRANCHING");
+    println!("🌿 ==================================");
+
+    // Clear out the log just to make the test output exactly match the image for the user's view
+    std::fs::remove_file("soul_log.md").ok();
+
+    // Log Header
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("soul_log.md") {
+        let _ = std::io::Write::write_all(&mut f, b"## Execution Log\n");
+    }
+    immortal.append_event(SoulEvent::TaskSolved { task_id: "Run #1".to_string(), confidence: 1.0 });
+
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("soul_log.md") {
+        let _ = std::io::Write::write_all(&mut f, b"\n## Analysis Log\n");
+    }
+    immortal.append_event(SoulEvent::MctsFailed { reason: "Analysis: \"Could be better\" ".to_string() });
+
+    // Branch A
+    immortal.fork_branch("Experiment_A").unwrap();
+    immortal.append_event(SoulEvent::TaskAttempted { task_id: "Patch: Aggressive optimization".to_string(), duration_ms: 0 });
+    immortal.append_event(SoulEvent::MctsFailed { reason: "Run #2 -> FAIL (too aggressive)".to_string() });
+
+    // Wait slightly to ensure logs write in order (async IO)
+
+
+    // Branch B
+    immortal.fork_branch("Experiment_B").unwrap();
+    immortal.append_event(SoulEvent::TaskAttempted { task_id: "Patch: Conservative optimization".to_string(), duration_ms: 0 });
+    immortal.append_event(SoulEvent::TaskSolved { task_id: "Run #2 (+5% speed)".to_string(), confidence: 1.0 });
+
+
+
+    // Merge
+    println!("🌿 MENGEMBALIKAN FOKUS KE MAIN BRANCH");
+    immortal.fork_branch("main").unwrap();
+
+
+
 
     let _ = immortal.hibernate(); // Simpan state KV int8 ke bin
 
