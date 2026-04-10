@@ -112,8 +112,20 @@ impl RrmAgent {
                     color_mapping: None,
                     topology_hint: crate::reasoning::structures::TopologyHint::Grid,
                 };
-                let causal_result = self.causal_reasoner.assess_causality(&axiom, &train_pairs[0].0, &dummy_sig);
+
+                let empty_alts: Vec<crate::reasoning::structures::Axiom> = vec![];
+                let causal_result = self.causal_reasoner.assess_causality(&axiom, &train_pairs[0].0, &dummy_sig, &empty_alts);
                 println!("    ✅ Evaluasi Kausalitas: {}", causal_result.explanation);
+
+                // === CAUSAL FEEDBACK LOOP ===
+                if causal_result.confidence > 0.6 && causal_result.is_sufficient {
+                    // Menyimpan kausalitas yang sukses sebagai "Memory Constraint"
+                    let causal_memory_str = format!("Causal_Success_{}", axiom.name);
+                    self.seed_bank.add_seed(&causal_memory_str, 9999, &ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION));
+                } else if !causal_result.is_necessary {
+                    println!("    ⚠️ Peringatan Kausalitas: Intervensi {} tidak Necessary. Mempertimbangkan untuk mencari Axiom lain yang lebih spesifik.", axiom.name);
+                }
+
 
                 promising_axioms.push(axiom);
                 break;
@@ -210,7 +222,7 @@ impl RrmAgent {
             for skill in discovered_skills {
                 // println!("  - Discovered Rule: {:?}", skill.emergence_properties);
                 let axiom_name = String::from("DreamAxiom_Unknown");
-                self.seed_bank.add_seed(&axiom_name, 9999, &ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION), crate::memory::logic_seed_bank::SeedType::Strategy);
+                self.seed_bank.add_seed(&axiom_name, 9999, &ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION));
             }
         } else {
             println!("   -> Mimpi selesai. Sistem telah melatih otot kognitifnya.");
