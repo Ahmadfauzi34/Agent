@@ -185,6 +185,34 @@ impl RrmAgent {
         }
     }
 
+
+    pub fn dream(&mut self) {
+        println!("🌙 [Mental Replay] RRM memasuki fase REM (Bermimpi)...");
+        use crate::self_awareness::executable_wiki::ExecutableWiki;
+        let wiki = ExecutableWiki::new(std::path::PathBuf::from("knowledge"));
+        let _ = wiki.append_to_log("soul_log", "\n## Branch: Mengubah Dimensi Ruang & Warna Dalam Mimpi\n");
+
+        // Asumsikan RRM sedang mengamati memori Task 2dc579da
+        if self.mental_replay.solved_tasks.is_empty() {
+            println!("   -> Tidak ada memori aktif. Menciptakan skenario fraktal hipotetis...");
+        }
+
+        println!("   -> Generate skenario variasi...");
+        self.mental_replay.generate_dreams(3);
+        println!("   -> Tercipta {} dimensi alternatif (Size Scaling, Color Permutation, Noise Injection).", 3);
+
+        println!("   -> Mensimulasikan Counterfactual Engine di alam mimpi...");
+        // Di alam mimpi, agen mencoba memecahkan masalah dengan skill ontology yang dia punya.
+        let discovered_skills = self.mental_replay.practice_in_dreams(&mut self.counterfactual_engine, &self.ontology);
+
+        if discovered_skills.len() > 0 {
+            println!("✨ [Eureka!] RRM menemukan {} komposisi skill baru di alam mimpinya!", discovered_skills.len());
+        } else {
+            println!("   -> Mimpi selesai. Sistem telah melatih otot kognitifnya.");
+            let _ = wiki.append_to_log("soul_log", "### [tX] Mimpi Selesai: Otot kognitif tensor telah direkalibrasi.");
+        }
+    }
+
     pub fn solve_task(&mut self, train_in: &Vec<Vec<Vec<i32>>>, train_out: &Vec<Vec<Vec<i32>>>, test_in: &Vec<Vec<i32>>) -> Vec<Vec<i32>> {
         let mut train_states: Vec<(EntityManifold, EntityManifold)> = Vec::new();
 
@@ -546,8 +574,8 @@ impl RrmAgent {
             let dummy_a = WaveNode {
                 axiom_type: vec!["FAILED_TRANS_X_5".to_string()],
                 condition_tensor: None,
-                tensor_spatial: ndarray::Array1::ones(GLOBAL_DIMENSION) * 0.1,
-                tensor_semantic: ndarray::Array1::ones(GLOBAL_DIMENSION) * 0.1,
+                tensor_spatial: ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION) * 0.1,
+                tensor_semantic: ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION) * 0.1,
                 delta_x: 5.0, delta_y: 0.0, physics_tier: 1,
                 state_manifolds: std::sync::Arc::new(vec![]),
                 state_modified: false,
@@ -557,8 +585,8 @@ impl RrmAgent {
             let dummy_b = WaveNode {
                 axiom_type: vec!["FAILED_TRANS_Y_2".to_string()],
                 condition_tensor: None,
-                tensor_spatial: ndarray::Array1::ones(GLOBAL_DIMENSION) * -0.2,
-                tensor_semantic: ndarray::Array1::ones(GLOBAL_DIMENSION) * -0.2,
+                tensor_spatial: ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION) * -0.2,
+                tensor_semantic: ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION) * -0.2,
                 delta_x: 0.0, delta_y: 2.0, physics_tier: 1,
                 state_manifolds: std::sync::Arc::new(vec![]),
                 state_modified: false,
@@ -566,10 +594,33 @@ impl RrmAgent {
                 probability: 0.5,
             };
 
-            crate::reasoning::skill_composer::AutopoieticSynthesizer::on_catastrophic_failure(
+            // We retrieve the dynamically created Axiom (Brain generated physics law)
+            if let Some((skill_id, novel_axiom)) = crate::reasoning::skill_composer::AutopoieticSynthesizer::on_catastrophic_failure(
                 &[dummy_a, dummy_b],
                 "Catastrophic Wave Collapse during Fallback"
-            );
+            ) {
+                // EXECUTING THE FHRR TENSOR DIRECTLY IN MEMORY (QUANTUM INFERENCE)
+                println!("🧬 [Quantum Inference] Menjalankan Axiom Tensor '{skill_id}' secara dinamis di Multiverse Sandbox...");
+
+                // Coba mengujinya pada state 'test_in' kita (man_in pertama saja sebagai simulasi)
+
+                let mut stream_test = std::collections::HashMap::new();
+                self.encode_grid(test_in, &mut stream_test);
+                let mut dream_sandbox = crate::core::entity_manifold::EntityManifold::new();
+                crate::perception::entity_segmenter::EntitySegmenter::segment_stream(&stream_test, &mut dream_sandbox, 0.85, &self.perceiver);
+
+                crate::reasoning::multiverse_sandbox::MultiverseSandbox::apply_axiom(
+                    &mut dream_sandbox,
+                    &novel_axiom.condition_tensor,
+                    &novel_axiom.delta_spatial,
+                    &novel_axiom.delta_semantic,
+                    novel_axiom.delta_x,
+                    novel_axiom.delta_y,
+                    novel_axiom.tier,
+                    &novel_axiom.name
+                );
+                println!("🧬 [Quantum Inference] Wave propagation selesai. (Simulasi internal berhasil).");
+            }
 
             let new_page = crate::self_awareness::executable_wiki::WikiPage {
                 id: format!("synthesized_{}", chrono::Utc::now().format("%Y%m%d%H%M%S")),
