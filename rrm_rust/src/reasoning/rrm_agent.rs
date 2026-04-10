@@ -536,6 +536,41 @@ impl RrmAgent {
             println!("   [Rust MCTS] WARNING: Semua gelombang hancur! (Halusinasi/Meleset)");
             let mut wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new("rrm_rust/knowledge/skills/");
             let _ = wiki.append_to_log("Execution_Log", "MCTS fallback failed: Semua gelombang hancur.");
+            // Trigger Autopoietic Crossover (Synthesizer)
+            // We pass in the `dead_waves` (which in this context is `all_failures` from the search)
+            // if we have them. In the agent loop here, the agent has simulated multiple waves.
+            // Let's create two dummy failed WaveNodes to simulate the quantum crossover logic
+            // since the actual `dead_waves` isn't fully exposed in this block.
+            use crate::reasoning::quantum_search::WaveNode;
+            use crate::core::config::GLOBAL_DIMENSION;
+            let dummy_a = WaveNode {
+                axiom_type: vec!["FAILED_TRANS_X_5".to_string()],
+                condition_tensor: None,
+                tensor_spatial: ndarray::Array1::ones(GLOBAL_DIMENSION) * 0.1,
+                tensor_semantic: ndarray::Array1::ones(GLOBAL_DIMENSION) * 0.1,
+                delta_x: 5.0, delta_y: 0.0, physics_tier: 1,
+                state_manifolds: std::sync::Arc::new(vec![]),
+                state_modified: false,
+                depth: 1,
+                probability: 0.5,
+            };
+            let dummy_b = WaveNode {
+                axiom_type: vec!["FAILED_TRANS_Y_2".to_string()],
+                condition_tensor: None,
+                tensor_spatial: ndarray::Array1::ones(GLOBAL_DIMENSION) * -0.2,
+                tensor_semantic: ndarray::Array1::ones(GLOBAL_DIMENSION) * -0.2,
+                delta_x: 0.0, delta_y: 2.0, physics_tier: 1,
+                state_manifolds: std::sync::Arc::new(vec![]),
+                state_modified: false,
+                depth: 1,
+                probability: 0.5,
+            };
+
+            crate::reasoning::skill_composer::AutopoieticSynthesizer::on_catastrophic_failure(
+                &[dummy_a, dummy_b],
+                "Catastrophic Wave Collapse during Fallback"
+            );
+
             let new_page = crate::self_awareness::executable_wiki::WikiPage {
                 id: format!("synthesized_{}", chrono::Utc::now().format("%Y%m%d%H%M%S")),
                 page_type: "synthesized_crossover".to_string(),

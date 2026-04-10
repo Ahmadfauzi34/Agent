@@ -17,8 +17,8 @@ fn main() {
     println!("🌌 RRM Quantum Sandbox (Rust Edition) Initialized.");
 
     let base_dir = std::path::PathBuf::from(".");
-    let mut immortal = ImmortalEngine::new(base_dir);
-    immortal.resurrect(); // Bangkit dari crash / mulai Genesis
+    let mut immortal = KVImmortalEngine::new(base_dir);
+    let _ = immortal.resurrect(); // Bangkit dari crash / mulai Genesis
 
 
     // Testing Baseline ARC
@@ -119,8 +119,8 @@ fn main() {
         });
     }
 
-    immortal.hibernate(); // Simpan state int8 ke soul_cache.bin
+    let _ = immortal.hibernate(); // Simpan state KV int8 ke bin
 
 }
 pub mod self_awareness;
-use self_awareness::immortal_loop::{ImmortalEngine, SoulEvent};
+use self_awareness::immortal_loop::{KVImmortalEngine, SoulEvent};
