@@ -1,12 +1,8 @@
 use crate::core::config::MAX_ENTITIES;
 use crate::core::entity_manifold::EntityManifold;
 use crate::core::fhrr::FHRR;
+use crate::reasoning::entanglement_graph::EntanglementGraph;
 
-/// ============================================================================
-/// ENTANGLEMENT OPTIMIZER (Hebbian Quantum Learning)
-/// 100% Branchless Math | Self-Organizing Agents | 1D SoA Matrix Optimized
-/// ============================================================================
-/// Mesin yang mengatur seberapa kuat dua entitas/agen saling mempengaruhi.
 pub struct EntanglementOptimizer;
 
 impl EntanglementOptimizer {
@@ -14,39 +10,65 @@ impl EntanglementOptimizer {
     /// "Neurons that fire together, wire together."
     pub fn optimize(
         manifold: &EntityManifold,
-        entanglement_matrix: &mut [f32],
+        graph: &mut EntanglementGraph,
         learning_rate: f32,
     ) {
         let num_entities = manifold.active_count;
 
+        let mut new_graph = EntanglementGraph {
+            values: Vec::with_capacity(num_entities * 10), // Heuristic sparsity
+            col_indices: Vec::with_capacity(num_entities * 10),
+            row_ptr: vec![0; MAX_ENTITIES + 1],
+        };
+
         for i in 0..num_entities {
-            // V8 Optimized Control Flow (Skip dead entities)
+            new_graph.row_ptr[i] = new_graph.values.len();
+
             if manifold.masses[i] == 0.0 {
                 continue;
             }
 
             let tensor_a = manifold.get_spatial_tensor(i);
-            let row_offset = i * MAX_ENTITIES;
+
+            // Batasan Spasial / Radius Lokal (Contoh Filter Heuristik)
+            // Hanya evaluasi agen yang mungkin ter-entangle untuk menghindari loop N^2
+            let cx_a = manifold.centers_x[i];
+            let cy_a = manifold.centers_y[i];
 
             for j in 0..num_entities {
-                // V8 Optimized Control Flow
                 if manifold.masses[j] == 0.0 {
                     continue;
                 }
 
-                let tensor_b = manifold.get_spatial_tensor(j);
+                // Gunakan Filter Spasial: Hanya agen dengan jarak spasial terdekat
+                let cx_b = manifold.centers_x[j];
+                let cy_b = manifold.centers_y[j];
+                let dist_sq = (cx_a - cx_b) * (cx_a - cx_b) + (cy_a - cy_b) * (cy_a - cy_b);
 
-                // 1. Ukur Resonansi (Coherence: -1.0 to 1.0) via FHRR Cosine Similarity
+                // Radius toleransi entanglement (Misal: 50.0 radius)
+                if dist_sq > 2500.0 && i != j {
+                    continue;
+                }
+
+                let tensor_b = manifold.get_spatial_tensor(j);
                 let coherence = FHRR::similarity(&tensor_a, &tensor_b);
 
-                // 2. Update Keterikatan (Hebbian Learning pada matriks 1D)
-                let index = row_offset + j;
-                let current_e = entanglement_matrix[index];
-                let new_e = current_e + (coherence * learning_rate);
+                // Get previous weight (0.0 if not found)
+                let current_e = graph.get_weight_csr(i, j);
+                let new_e = (current_e + (coherence * learning_rate)).clamp(0.0, 1.0);
 
-                // 3. Math Branchless Clamp (0.0 to 1.0)
-                entanglement_matrix[index] = new_e.clamp(0.0, 1.0);
+                if new_e > 0.001 { // Sparsity Threshold
+                    new_graph.values.push(new_e);
+                    new_graph.col_indices.push(j);
+                }
             }
         }
+
+        let total_vals = new_graph.values.len();
+        for i in num_entities..=MAX_ENTITIES {
+            new_graph.row_ptr[i] = total_vals;
+        }
+
+        *graph = new_graph;
     }
 }

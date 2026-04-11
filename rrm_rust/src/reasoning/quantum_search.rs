@@ -35,8 +35,10 @@ pub struct WaveNode {
     pub delta_y: f32,
     pub physics_tier: u8,
 
-    // Status Sandbox yang terikat pada gelombang ini (Fisika saat ini)
-    // Menggunakan Copy-on-Write (CoW) untuk menghindari clone memori 39MB yang berlebihan!
+    // Status statis (Makroskopik) -> Cukup klon pointer Arc (Shallow)
+    pub static_background: Arc<crate::core::infinite_detail::CoarseData>,
+
+    // Status dinamis (Mikroskopik) -> Disalin penuh/Copy-on-Write jika dimodifikasi
     pub state_manifolds: Arc<Vec<RwLock<EntityManifold>>>,
     pub state_modified: bool,
 
@@ -55,6 +57,7 @@ impl WaveNode {
         delta_y: f32,
         physics_tier: u8,
         initial_manifolds: Arc<Vec<RwLock<EntityManifold>>>,
+        static_background: Option<Arc<crate::core::infinite_detail::CoarseData>>,
     ) -> Self {
         Self {
             axiom_type: vec![axiom_type],
@@ -64,7 +67,8 @@ impl WaveNode {
             delta_x,
             delta_y,
             physics_tier,
-            state_manifolds: initial_manifolds,
+            static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData { regions: std::sync::Arc::new(vec![]), signatures: std::sync::Arc::new(vec![]) }),
+                            state_manifolds: initial_manifolds,
             state_modified: false,
             probability: 1.0,
             depth: 1,
@@ -77,7 +81,7 @@ impl WaveNode {
             let cloned: Vec<RwLock<EntityManifold>> = self
                 .state_manifolds
                 .iter()
-                .map(|m| RwLock::new(m.read().unwrap().clone()))
+                .map(|m: &RwLock<EntityManifold>| RwLock::new(m.read().unwrap().clone()))
                 .collect();
             self.state_manifolds = Arc::new(cloned);
             self.state_modified = true;
@@ -97,6 +101,7 @@ pub struct FractalArena {
     pub parents: Vec<Option<usize>>,
     pub children_ranges: Vec<(usize, u8)>,
     pub scales: Vec<FractalScale>,
+    pub static_backgrounds: Vec<Arc<crate::core::infinite_detail::CoarseData>>,
     pub amplitudes: Vec<f32>,
     pub phases: Vec<f32>,
     pub states: Vec<Arc<Vec<RwLock<EntityManifold>>>>,
@@ -129,6 +134,7 @@ impl FractalArena {
             parents: Vec::with_capacity(capacity),
             children_ranges: Vec::with_capacity(capacity),
             scales: Vec::with_capacity(capacity),
+            static_backgrounds: Vec::with_capacity(capacity),
             amplitudes: Vec::with_capacity(capacity),
             phases: Vec::with_capacity(capacity),
             states: Vec::with_capacity(capacity),
@@ -248,7 +254,7 @@ impl FractalArena {
         if !self.modified_flags[idx] {
             let cloned: Vec<RwLock<EntityManifold>> = self.states[idx]
                 .iter()
-                .map(|m| RwLock::new(m.read().unwrap().clone()))
+                .map(|m: &RwLock<EntityManifold>| RwLock::new(m.read().unwrap().clone()))
                 .collect();
             self.states[idx] = Arc::new(cloned);
             self.modified_flags[idx] = true;
@@ -379,6 +385,7 @@ impl AsyncWaveSearch {
                 arena.action_dx[root_idx] = wave.delta_x;
                 arena.action_dy[root_idx] = wave.delta_y;
                 arena.action_tier[root_idx] = wave.physics_tier;
+                arena.static_backgrounds[root_idx] = wave.static_background.clone();
             }
 
             // Queue iteratif untuk simulasi Tree-Search Zero-GC
@@ -487,7 +494,8 @@ impl AsyncWaveSearch {
                         delta_x: arena.action_dx[current_idx],
                         delta_y: arena.action_dy[current_idx],
                         physics_tier: arena.action_tier[current_idx],
-                        state_manifolds: arena.states[current_idx].clone(),
+                        static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData { regions: std::sync::Arc::new(vec![]), signatures: std::sync::Arc::new(vec![]) }),
+                            state_manifolds: arena.states[current_idx].clone(),
                         state_modified: arena.modified_flags[current_idx],
                         probability: amplitude,
                         depth: current_depth,

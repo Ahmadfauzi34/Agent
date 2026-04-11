@@ -248,6 +248,7 @@ pub enum ZeroCopyView {
     },
 }
 
+#[derive(Clone)]
 pub struct CoarseData {
     pub regions: Arc<Vec<MacroRegion>>,
     pub signatures: Arc<Vec<Array1<f32>>>,
