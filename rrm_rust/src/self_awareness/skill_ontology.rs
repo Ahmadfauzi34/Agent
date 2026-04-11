@@ -1,6 +1,9 @@
-use std::collections::HashMap;
-use crate::perception::structural_analyzer::{StructuralSignature, DimensionRelation, ObjectDelta, TopologyHint, SymmetryChange, StructuralDelta, TaskClass, StructuralAnalyzer};
+use crate::perception::structural_analyzer::{
+    DimensionRelation, ObjectDelta, StructuralAnalyzer, StructuralDelta, StructuralSignature,
+    TaskClass, TopologyHint,
+};
 use crate::reasoning::structures::Axiom;
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct SkillOntology {
@@ -26,9 +29,16 @@ pub struct TierCapability {
 
 impl TierCapability {
     pub fn to_axiom(&self) -> Axiom {
-        use ndarray::Array1;
         use crate::core::config::GLOBAL_DIMENSION;
-        Axiom::new(&self.name, self.tier_id, Array1::zeros(GLOBAL_DIMENSION), Array1::zeros(GLOBAL_DIMENSION), 0.0, 0.0)
+        use ndarray::Array1;
+        Axiom::new(
+            &self.name,
+            self.tier_id,
+            Array1::zeros(GLOBAL_DIMENSION),
+            Array1::zeros(GLOBAL_DIMENSION),
+            0.0,
+            0.0,
+        )
     }
 }
 
@@ -52,8 +62,7 @@ pub enum Precondition {
     ObjectsAre(TopologyHint),
 }
 
-#[derive(Clone)]
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum Postcondition {
     ObjectsPreserved,
     DimensionChanged,
@@ -105,12 +114,29 @@ pub enum CompositionAdvice {
 }
 
 pub enum SolutionStrategy {
-    DirectExecution { primary_skill: u8 },
-    TemplateDriven { structural_skill: u8, refinement_skills: Vec<u8> },
-    ObjectCentricSearch { detection_skill: u8, transformation_skills: Vec<u8>, max_depth: usize },
-    HierarchicalPlanning { subgoals: Vec<u8> },
-    ProgramSynthesis { max_program_depth: usize, primitive_set: Vec<u8> },
-    IterativeDeepening { skills_to_try: Vec<u8>, max_iterations: usize },
+    DirectExecution {
+        primary_skill: u8,
+    },
+    TemplateDriven {
+        structural_skill: u8,
+        refinement_skills: Vec<u8>,
+    },
+    ObjectCentricSearch {
+        detection_skill: u8,
+        transformation_skills: Vec<u8>,
+        max_depth: usize,
+    },
+    HierarchicalPlanning {
+        subgoals: Vec<u8>,
+    },
+    ProgramSynthesis {
+        max_program_depth: usize,
+        primitive_set: Vec<u8>,
+    },
+    IterativeDeepening {
+        skills_to_try: Vec<u8>,
+        max_iterations: usize,
+    },
 }
 
 impl SkillOntology {
@@ -126,10 +152,15 @@ impl SkillOntology {
         ontology.register_tier_7_crop();
 
         // Coba load dinamis dari Executable Wiki
-        let mut wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new("rrm_rust/knowledge/skills/");
+        let mut wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new(
+            "rrm_rust/knowledge/skills/",
+        );
         if let Ok(count) = wiki.load_all() {
             if count > 0 {
-                println!("📚 Berhasil meload {} skill dari Executable Wiki (.md)", count);
+                println!(
+                    "📚 Berhasil meload {} skill dari Executable Wiki (.md)",
+                    count
+                );
             }
             for (_, page) in wiki.knowledge_base.iter() {
                 let cap = TierCapability {
@@ -156,7 +187,8 @@ impl SkillOntology {
 
     pub fn introspect(&self, signature: &StructuralSignature) -> Vec<&TierCapability> {
         if let Some(tiers) = self.applicability_index.get(signature) {
-            return tiers.iter()
+            return tiers
+                .iter()
                 .filter_map(|id| self.capabilities.get(id))
                 .collect();
         }
@@ -171,11 +203,13 @@ impl SkillOntology {
             TaskClass::PureGeometry => {
                 let geom_skills: Vec<_> = available.iter().filter(|c| c.tier_id == 4).collect();
                 if !geom_skills.is_empty() {
-                    Some(SolutionStrategy::DirectExecution { primary_skill: geom_skills[0].tier_id })
+                    Some(SolutionStrategy::DirectExecution {
+                        primary_skill: geom_skills[0].tier_id,
+                    })
                 } else {
                     Some(SolutionStrategy::DirectExecution { primary_skill: 4 })
                 }
-            },
+            }
             TaskClass::StructuralTransform => {
                 let structural: Vec<_> = available.iter().filter(|c| c.tier_id == 7).collect();
                 if !structural.is_empty() {
@@ -184,11 +218,17 @@ impl SkillOntology {
                         refinement_skills: self.find_compatible_refinements(7, &available),
                     })
                 } else {
-                    Some(SolutionStrategy::TemplateDriven { structural_skill: 7, refinement_skills: vec![] })
+                    Some(SolutionStrategy::TemplateDriven {
+                        structural_skill: 7,
+                        refinement_skills: vec![],
+                    })
                 }
-            },
+            }
             TaskClass::ObjectManipulation => {
-                let manipulators: Vec<_> = available.iter().filter(|c| c.tier_id <= 6 && c.tier_id >= 3).collect();
+                let manipulators: Vec<_> = available
+                    .iter()
+                    .filter(|c| c.tier_id <= 6 && c.tier_id >= 3)
+                    .collect();
                 if manipulators.len() >= 2 {
                     Some(SolutionStrategy::ObjectCentricSearch {
                         detection_skill: 0,
@@ -196,24 +236,24 @@ impl SkillOntology {
                         max_depth: 3,
                     })
                 } else {
-                    Some(SolutionStrategy::ObjectCentricSearch { detection_skill: 0, transformation_skills: vec![], max_depth: 3 })
+                    Some(SolutionStrategy::ObjectCentricSearch {
+                        detection_skill: 0,
+                        transformation_skills: vec![],
+                        max_depth: 3,
+                    })
                 }
-            },
-            TaskClass::RelationalRearrangement => {
-                Some(SolutionStrategy::HierarchicalPlanning { subgoals: vec![3, 0] })
-            },
-            TaskClass::AlgorithmicPattern => {
-                Some(SolutionStrategy::ProgramSynthesis {
-                    max_program_depth: 4,
-                    primitive_set: available.iter().map(|c| c.tier_id).collect(),
-                })
-            },
-            _ => {
-                Some(SolutionStrategy::IterativeDeepening {
-                    skills_to_try: available.iter().map(|c| c.tier_id).collect(),
-                    max_iterations: 20,
-                })
-            },
+            }
+            TaskClass::RelationalRearrangement => Some(SolutionStrategy::HierarchicalPlanning {
+                subgoals: vec![3, 0],
+            }),
+            TaskClass::AlgorithmicPattern => Some(SolutionStrategy::ProgramSynthesis {
+                max_program_depth: 4,
+                primitive_set: available.iter().map(|c| c.tier_id).collect(),
+            }),
+            _ => Some(SolutionStrategy::IterativeDeepening {
+                skills_to_try: available.iter().map(|c| c.tier_id).collect(),
+                max_iterations: 20,
+            }),
         }
     }
 
@@ -247,33 +287,48 @@ impl SkillOntology {
     }
 
     fn register_tier_0_translation(&mut self) {
-        self.capabilities.insert(0, TierCapability {
-            tier_id: 0,
-            name: "ConditionalTranslation".to_string(),
-            description: "Move objects".to_string(),
-            activation_triggers: vec![ActivationTrigger::ObjectCount(ObjectDelta::SameCount)],
-            preconditions: vec![Precondition::MinObjects(1)],
-            postconditions: vec![Postcondition::ObjectsAdded(0)],
-            side_effects: vec![],
-            cost: 1.0,
-            historical_success_rate: 0.5,
-            typical_signatures: vec![],
-        });
+        self.capabilities.insert(
+            0,
+            TierCapability {
+                tier_id: 0,
+                name: "ConditionalTranslation".to_string(),
+                description: "Move objects".to_string(),
+                activation_triggers: vec![ActivationTrigger::ObjectCount(ObjectDelta::SameCount)],
+                preconditions: vec![Precondition::MinObjects(1)],
+                postconditions: vec![Postcondition::ObjectsAdded(0)],
+                side_effects: vec![],
+                cost: 1.0,
+                historical_success_rate: 0.5,
+                typical_signatures: vec![],
+            },
+        );
     }
 
     fn register_tier_7_crop(&mut self) {
-        self.capabilities.insert(7, TierCapability {
-            tier_id: 7,
-            name: "CropToContent".to_string(),
-            description: "Remove background".to_string(),
-            activation_triggers: vec![ActivationTrigger::Dimension(DimensionRelation::Smaller), ActivationTrigger::HasTemplateFrame],
-            preconditions: vec![Precondition::MinObjects(1), Precondition::TopologyIs(TopologyHint::Framed)],
-            postconditions: vec![Postcondition::DimensionChanged],
-            side_effects: vec![SideEffect::BackgroundRemoved, SideEffect::TemplateMarkerLost],
-            cost: 2.0,
-            historical_success_rate: 0.7,
-            typical_signatures: vec![],
-        });
+        self.capabilities.insert(
+            7,
+            TierCapability {
+                tier_id: 7,
+                name: "CropToContent".to_string(),
+                description: "Remove background".to_string(),
+                activation_triggers: vec![
+                    ActivationTrigger::Dimension(DimensionRelation::Smaller),
+                    ActivationTrigger::HasTemplateFrame,
+                ],
+                preconditions: vec![
+                    Precondition::MinObjects(1),
+                    Precondition::TopologyIs(TopologyHint::Framed),
+                ],
+                postconditions: vec![Postcondition::DimensionChanged],
+                side_effects: vec![
+                    SideEffect::BackgroundRemoved,
+                    SideEffect::TemplateMarkerLost,
+                ],
+                cost: 2.0,
+                historical_success_rate: 0.7,
+                typical_signatures: vec![],
+            },
+        );
     }
 
     fn build_transition_rules(&mut self) {
@@ -302,10 +357,13 @@ impl SkillOntology {
     fn index_capabilities(&mut self) {}
 
     fn fuzzy_match_capabilities(&self, signature: &StructuralSignature) -> Vec<&TierCapability> {
-        let mut scored: Vec<(f32, &TierCapability)> = self.capabilities
+        let mut scored: Vec<(f32, &TierCapability)> = self
+            .capabilities
             .values()
             .map(|cap| {
-                let score = cap.typical_signatures.iter()
+                let score = cap
+                    .typical_signatures
+                    .iter()
                     .map(|sig| signature.similarity_score(sig))
                     .fold(0.0f32, |a: f32, b: f32| a.max(b));
                 (score, cap)
@@ -317,11 +375,18 @@ impl SkillOntology {
         scored.into_iter().map(|(_, cap)| cap).collect()
     }
 
-    pub fn find_compatible_refinements(&self, _primary: u8, _available: &[&TierCapability]) -> Vec<u8> {
+    pub fn find_compatible_refinements(
+        &self,
+        _primary: u8,
+        _available: &[&TierCapability],
+    ) -> Vec<u8> {
         vec![]
     }
 
-    pub fn get_capabilities_for(&self, _subgoal: &crate::reasoning::hierarchical_planner::SubgoalType) -> Vec<&TierCapability> {
+    pub fn get_capabilities_for(
+        &self,
+        _subgoal: &crate::reasoning::hierarchical_planner::SubgoalType,
+    ) -> Vec<&TierCapability> {
         self.capabilities.values().collect()
     }
 }
@@ -331,19 +396,29 @@ impl StructuralSignature {
         let mut score = 0.0;
         let mut weights = 0.0;
 
-        if self.dim_relation == other.dim_relation { score += 3.0; }
+        if self.dim_relation == other.dim_relation {
+            score += 3.0;
+        }
         weights += 3.0;
 
-        if self.object_delta == other.object_delta { score += 2.0; }
+        if self.object_delta == other.object_delta {
+            score += 2.0;
+        }
         weights += 2.0;
 
-        if self.topology_in == other.topology_in && self.topology_out == other.topology_out { score += 2.0; }
+        if self.topology_in == other.topology_in && self.topology_out == other.topology_out {
+            score += 2.0;
+        }
         weights += 2.0;
 
-        if self.has_template_frame == other.has_template_frame { score += 1.0; }
+        if self.has_template_frame == other.has_template_frame {
+            score += 1.0;
+        }
         weights += 1.0;
 
-        let color_matches = self.color_transitions.iter()
+        let color_matches = self
+            .color_transitions
+            .iter()
             .filter(|ct| other.color_transitions.contains(ct))
             .count() as f32;
         score += color_matches.min(2.0);

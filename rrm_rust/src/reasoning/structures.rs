@@ -13,7 +13,14 @@ pub struct Axiom {
 }
 
 impl Axiom {
-    pub fn new(name: &str, tier: u8, delta_spatial: Array1<f32>, delta_semantic: Array1<f32>, delta_x: f32, delta_y: f32) -> Self {
+    pub fn new(
+        name: &str,
+        tier: u8,
+        delta_spatial: Array1<f32>,
+        delta_semantic: Array1<f32>,
+        delta_x: f32,
+        delta_y: f32,
+    ) -> Self {
         Self {
             name: name.to_string(),
             tier,
@@ -27,12 +34,26 @@ impl Axiom {
 
     pub fn crop_to_content() -> Self {
         use crate::core::config::GLOBAL_DIMENSION;
-        Self::new("CROP_TO_COLOR", 7, Array1::zeros(GLOBAL_DIMENSION), Array1::zeros(GLOBAL_DIMENSION), 0.0, 0.0)
+        Self::new(
+            "CROP_TO_COLOR",
+            7,
+            Array1::zeros(GLOBAL_DIMENSION),
+            Array1::zeros(GLOBAL_DIMENSION),
+            0.0,
+            0.0,
+        )
     }
 
     pub fn identity() -> Self {
         use crate::core::config::GLOBAL_DIMENSION;
-        Self::new("IDENTITY", 0, Array1::zeros(GLOBAL_DIMENSION), Array1::zeros(GLOBAL_DIMENSION), 0.0, 0.0)
+        Self::new(
+            "IDENTITY",
+            0,
+            Array1::zeros(GLOBAL_DIMENSION),
+            Array1::zeros(GLOBAL_DIMENSION),
+            0.0,
+            0.0,
+        )
     }
 }
 
@@ -51,7 +72,10 @@ impl OldStructuralDelta {
     }
 
     pub fn consensus(deltas: &[Self]) -> Self {
-        deltas.first().cloned().unwrap_or(Self { input_dim: (0, 0), output_dim: (0, 0) })
+        deltas.first().cloned().unwrap_or(Self {
+            input_dim: (0, 0),
+            output_dim: (0, 0),
+        })
     }
 
     pub fn classify(&self) -> TaskClass {

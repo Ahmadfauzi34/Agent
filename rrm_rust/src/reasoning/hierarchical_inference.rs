@@ -1,6 +1,6 @@
 use crate::core::entity_manifold::EntityManifold;
-use crate::reasoning::quantum_search_simd::{SimdEnergyCalculator, CognitivePhase};
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
+use crate::reasoning::quantum_search_simd::{CognitivePhase, SimdEnergyCalculator};
 use ndarray::Array1;
 
 #[derive(Clone, PartialEq)]
@@ -55,7 +55,7 @@ impl DeepActiveInferenceEngine {
         // Bobot rasa ingin tahu berdasarkan mode kesadaran
         let epistemic_weight = match self.current_mode {
             SimulationMode::StrictVSA => 1.0,
-            SimulationMode::Probabilistic => 50.0,  // Rasa penasaran meroket!
+            SimulationMode::Probabilistic => 50.0, // Rasa penasaran meroket!
             SimulationMode::Counterfactual => 100.0,
         };
 
@@ -82,7 +82,7 @@ impl DeepActiveInferenceEngine {
                 expected_grid,
                 temp_state.global_width as usize,
                 temp_state.global_height as usize,
-                &CognitivePhase::MacroStructural
+                &CognitivePhase::MacroStructural,
             );
             total_pragmatic += pragmatic;
 

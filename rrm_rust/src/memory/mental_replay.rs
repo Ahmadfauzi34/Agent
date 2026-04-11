@@ -1,13 +1,13 @@
-use crate::self_awareness::skill_ontology::{TaskMemory, SkillOntology};
-use crate::reasoning::structures::TopologyHint;
-use crate::reasoning::skill_composer::{SkillComposer, ComposedSkill};
-use crate::reasoning::structures::Axiom;
 use crate::reasoning::counterfactual_engine::CounterfactualEngine;
-use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
-use crate::reasoning::grover_diffusion_system::{GroverDiffusionSystem, GroverConfig, GroverCandidate, TrainState};
+use crate::reasoning::grover_diffusion_system::{
+    GroverCandidate, GroverConfig, GroverDiffusionSystem, TrainState,
+};
 use crate::reasoning::hierarchical_inference::SimulationMode;
-use crate::reasoning::skill_composer::PrimitiveSkill;
-use ndarray::Array1;
+use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
+use crate::reasoning::skill_composer::{ComposedSkill, SkillComposer};
+use crate::reasoning::structures::Axiom;
+use crate::reasoning::structures::TopologyHint;
+use crate::self_awareness::skill_ontology::{SkillOntology, TaskMemory};
 
 pub struct MentalReplay {
     pub solved_tasks: Vec<TaskMemory>,
@@ -22,7 +22,10 @@ pub struct CounterfactualScenario {
 }
 
 impl CounterfactualScenario {
-    pub fn apply_variation(&self, state: &crate::core::entity_manifold::EntityManifold) -> crate::core::entity_manifold::EntityManifold {
+    pub fn apply_variation(
+        &self,
+        state: &crate::core::entity_manifold::EntityManifold,
+    ) -> crate::core::entity_manifold::EntityManifold {
         state.clone()
     }
 }
@@ -48,7 +51,7 @@ impl MentalReplay {
             for i in 0..count {
                 let variation = match i % 4 {
                     0 => ScenarioVariation::SizeScaling(1.5 + (i as f32 * 0.5)),
-                    1 => ScenarioVariation::ColorPermutation((vec![(1, 2)])),
+                    1 => ScenarioVariation::ColorPermutation(vec![(1, 2)]),
                     2 => ScenarioVariation::NoiseInjection(0.1 * (i as f32)),
                     _ => ScenarioVariation::TopologyChange(TopologyHint::random()),
                 };
@@ -67,8 +70,8 @@ impl MentalReplay {
 
     pub fn practice_in_dreams(
         &mut self,
-        engine: &mut CounterfactualEngine,
-        ontology: &SkillOntology,
+        __engine: &mut CounterfactualEngine,
+        __ontology: &SkillOntology,
     ) -> Vec<ComposedSkill> {
         let mut discovered_skills = Vec::new();
 
@@ -89,7 +92,18 @@ impl MentalReplay {
             let mut grover = GroverDiffusionSystem::new(&mut sandbox, grover_config);
 
             // Fetch base axioms
-            let mut axioms = Vec::new(); let x_seed = ndarray::Array1::<f32>::ones(crate::core::config::GLOBAL_DIMENSION); let y_seed = ndarray::Array1::<f32>::ones(crate::core::config::GLOBAL_DIMENSION); for i in 0..5 { let d_x = i as f32; let t = crate::reasoning::axiom_generator::AxiomGenerator::generate_translation_axiom(d_x, 0.0, &x_seed, &y_seed); let ax = Axiom::new(&format!("DREAM_AXIOM_{}", i), 0, t.clone(), t, d_x, 0.0); axioms.push(ax); }
+            let mut axioms = Vec::new();
+            let x_seed = ndarray::Array1::<f32>::ones(crate::core::config::GLOBAL_DIMENSION);
+            let y_seed = ndarray::Array1::<f32>::ones(crate::core::config::GLOBAL_DIMENSION);
+            for i in 0..5 {
+                let d_x = i as f32;
+                let t =
+                    crate::reasoning::axiom_generator::AxiomGenerator::generate_translation_axiom(
+                        d_x, 0.0, &x_seed, &y_seed,
+                    );
+                let ax = Axiom::new(&format!("DREAM_AXIOM_{}", i), 0, t.clone(), t, d_x, 0.0);
+                axioms.push(ax);
+            }
             let mut candidates = Vec::new();
             for axiom in axioms.iter().take(5) {
                 candidates.push(GroverCandidate {
@@ -103,7 +117,14 @@ impl MentalReplay {
                 });
             }
 
-            let expected_grid = vec![vec![0; expected_dream_state.global_width as usize]; expected_dream_state.global_height as usize]; let train_states = vec![TrainState { in_state: dream_state.clone(), expected_grid }];
+            let expected_grid = vec![
+                vec![0; expected_dream_state.global_width as usize];
+                expected_dream_state.global_height as usize
+            ];
+            let train_states = vec![TrainState {
+                in_state: dream_state.clone(),
+                expected_grid,
+            }];
 
             let mode = SimulationMode::Counterfactual;
 
@@ -112,12 +133,18 @@ impl MentalReplay {
                 println!("🌙 [Grover Dreamer] Menemukan Universal Axiom baru untuk skenario mimpi! Pemenang: {}", candidates[winner_idx].axiom_type);
 
                 // Construct a ComposedSkill (dummy representation)
-                let mut composed = ComposedSkill { preconditions: vec![], postconditions: vec![], emergence_properties: vec![], sequence: vec![], usage_count: 1, success_rate: 1.0 };
+                let composed = ComposedSkill {
+                    preconditions: vec![],
+                    postconditions: vec![],
+                    emergence_properties: vec![],
+                    sequence: vec![],
+                    usage_count: 1,
+                    success_rate: 1.0,
+                };
                 discovered_skills.push(composed);
             }
         }
 
         discovered_skills
     }
-
 }

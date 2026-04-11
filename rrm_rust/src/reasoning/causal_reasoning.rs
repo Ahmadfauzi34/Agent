@@ -1,6 +1,6 @@
 use crate::core::entity_manifold::EntityManifold;
-use crate::reasoning::structures::{Axiom, StructuralSignature};
 use crate::reasoning::counterfactual_engine::CounterfactualEngine;
+use crate::reasoning::structures::{Axiom, StructuralSignature};
 
 pub struct CausalReasoner {
     engine: CounterfactualEngine,
@@ -15,7 +15,6 @@ pub struct CausalAssessment {
     pub explanation: String,
 }
 
-
 impl CausalReasoner {
     pub fn new() -> Self {
         Self {
@@ -28,7 +27,7 @@ impl CausalReasoner {
         intervention: &Axiom,
         initial: &EntityManifold,
         expected_effect: &StructuralSignature,
-        alternatives: &[Axiom]
+        alternatives: &[Axiom],
     ) -> CausalAssessment {
         // 1. Uji intervensi aktual (Aksi aktual)
         let actual = self.engine.what_if(intervention, initial, initial);
@@ -40,7 +39,8 @@ impl CausalReasoner {
         let counter_sig = self.extract_signature(initial, &counterfactual.final_state);
 
         // 3. Uji alternatif (Apakah aksi lain bisa menghasilkan efek yang sama?)
-        let alt_results: Vec<_> = alternatives.iter()
+        let alt_results: Vec<_> = alternatives
+            .iter()
             .map(|alt| self.engine.what_if(alt, initial, initial))
             .collect();
 
@@ -58,8 +58,12 @@ impl CausalReasoner {
         }
 
         let mut confidence = 0.5;
-        if necessary && sufficient { confidence += 0.3; }
-        if specific { confidence += 0.2; }
+        if necessary && sufficient {
+            confidence += 0.3;
+        }
+        if specific {
+            confidence += 0.2;
+        }
 
         let explanation = format!(
             "[{}] -> Necessary: {}, Sufficient: {}, Specific: {} | Conf: {:.2}",
@@ -76,7 +80,11 @@ impl CausalReasoner {
         }
     }
 
-    pub fn extract_signature(&self, initial: &EntityManifold, final_state: &EntityManifold) -> StructuralSignature {
+    pub fn extract_signature(
+        &self,
+        initial: &EntityManifold,
+        final_state: &EntityManifold,
+    ) -> StructuralSignature {
         use crate::reasoning::structures::{DimensionRelation, ObjectDelta, TopologyHint};
 
         let dim_relation = if final_state.global_width > initial.global_width {

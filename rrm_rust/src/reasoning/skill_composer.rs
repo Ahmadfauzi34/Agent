@@ -1,11 +1,8 @@
-use crate::self_awareness::skill_ontology::{Precondition as PropertyRequirement, Postcondition as PropertyGuarantee, SkillOntology};
-use crate::reasoning::structures::Axiom;
 use crate::reasoning::quantum_search::WaveNode;
-use crate::core::fhrr::FHRR;
-use ndarray::Array1;
-use chrono::Utc;
-use std::fs;
-use std::path::PathBuf;
+use crate::reasoning::structures::Axiom;
+use crate::self_awareness::skill_ontology::{
+    Postcondition as PropertyGuarantee, Precondition as PropertyRequirement, SkillOntology,
+};
 
 pub struct SkillComposer {
     pub primitives: Vec<PrimitiveSkill>,
@@ -24,7 +21,14 @@ impl PrimitiveSkill {
     pub fn to_axiom(&self) -> Axiom {
         use crate::core::config::GLOBAL_DIMENSION;
         use ndarray::Array1;
-        Axiom::new(&self.name, self.tier, Array1::zeros(GLOBAL_DIMENSION), Array1::zeros(GLOBAL_DIMENSION), 0.0, 0.0)
+        Axiom::new(
+            &self.name,
+            self.tier,
+            Array1::zeros(GLOBAL_DIMENSION),
+            Array1::zeros(GLOBAL_DIMENSION),
+            0.0,
+            0.0,
+        )
     }
 }
 
@@ -81,7 +85,9 @@ impl SkillComposer {
     ) -> bool {
         match (a.tier, b.tier) {
             (7, 4) => true,
-            (4, 7) => a.output_guarantees.contains(&PropertyGuarantee::ObjectsPreserved),
+            (4, 7) => a
+                .output_guarantees
+                .contains(&PropertyGuarantee::ObjectsPreserved),
             (6, 7) => true,
             (7, 6) => true,
             (4, 4) => self.are_commutative(a, b),
@@ -100,23 +106,43 @@ impl SkillComposer {
         emergent
     }
 
-    fn are_commutative(&self, _a: &PrimitiveSkill, _b: &PrimitiveSkill) -> bool { true }
+    fn are_commutative(&self, _a: &PrimitiveSkill, _b: &PrimitiveSkill) -> bool {
+        true
+    }
 
-    fn merge_preconditions(&self, _a: &PrimitiveSkill, _b: &PrimitiveSkill) -> Vec<PropertyRequirement> { vec![] }
+    fn merge_preconditions(
+        &self,
+        _a: &PrimitiveSkill,
+        _b: &PrimitiveSkill,
+    ) -> Vec<PropertyRequirement> {
+        vec![]
+    }
 
-    fn infer_postconditions(&self, _a: &PrimitiveSkill, _b: &PrimitiveSkill) -> Vec<PropertyGuarantee> { vec![] }
+    fn infer_postconditions(
+        &self,
+        _a: &PrimitiveSkill,
+        _b: &PrimitiveSkill,
+    ) -> Vec<PropertyGuarantee> {
+        vec![]
+    }
 
-    pub fn generate_novel_combinations(&self, _ontology: &SkillOntology, _base: &[Axiom]) -> Vec<ComposedSkill> {
+    pub fn generate_novel_combinations(
+        &self,
+        _ontology: &SkillOntology,
+        _base: &[Axiom],
+    ) -> Vec<ComposedSkill> {
         vec![]
     }
 }
-
 
 /// Autopoietic Synthesizer: Menghasilkan kode Rust generatif dari Quantum Crossover
 pub struct AutopoieticSynthesizer;
 
 impl AutopoieticSynthesizer {
-    pub fn on_catastrophic_failure(dead_waves: &[WaveNode], trigger_task: &str) -> Option<(String, Axiom)> {
+    pub fn on_catastrophic_failure(
+        dead_waves: &[WaveNode],
+        trigger_task: &str,
+    ) -> Option<(String, Axiom)> {
         if dead_waves.len() < 2 {
             return None; // Butuh minimal 2 kegagalan untuk crossover
         }
@@ -127,20 +153,41 @@ impl AutopoieticSynthesizer {
 
         let mut novel_spatial = &node_a.tensor_spatial * 0.6 + &node_b.tensor_spatial * 0.4;
         let mut sq_sum = 0.0;
-        for &v in novel_spatial.iter() { sq_sum += v * v; }
+        for &v in novel_spatial.iter() {
+            sq_sum += v * v;
+        }
         let inv_mag = 1.0 / (sq_sum.sqrt() + 1e-15);
-        for v in novel_spatial.iter_mut() { *v *= inv_mag; }
+        for v in novel_spatial.iter_mut() {
+            *v *= inv_mag;
+        }
 
         let mut novel_semantic = &node_a.tensor_semantic * 0.5 + &node_b.tensor_semantic * 0.5;
         let mut sq_sum2 = 0.0;
-        for &v in novel_semantic.iter() { sq_sum2 += v * v; }
+        for &v in novel_semantic.iter() {
+            sq_sum2 += v * v;
+        }
         let inv_mag2 = 1.0 / (sq_sum2.sqrt() + 1e-15);
-        for v in novel_semantic.iter_mut() { *v *= inv_mag2; }
+        for v in novel_semantic.iter_mut() {
+            *v *= inv_mag2;
+        }
 
-        let tensor_str = novel_spatial.iter().take(5).map(|v| format!("{:.4}", v)).collect::<Vec<_>>().join(", ");
+        let tensor_str = novel_spatial
+            .iter()
+            .take(5)
+            .map(|v| format!("{:.4}", v))
+            .collect::<Vec<_>>()
+            .join(", ");
 
-        let parent_a_name = node_a.axiom_type.last().unwrap_or(&"UNKNOWN".to_string()).clone();
-        let parent_b_name = node_b.axiom_type.last().unwrap_or(&"UNKNOWN".to_string()).clone();
+        let parent_a_name = node_a
+            .axiom_type
+            .last()
+            .unwrap_or(&"UNKNOWN".to_string())
+            .clone();
+        let parent_b_name = node_b
+            .axiom_type
+            .last()
+            .unwrap_or(&"UNKNOWN".to_string())
+            .clone();
 
         let mut hasher = blake3::Hasher::new();
         hasher.update(trigger_task.as_bytes());
@@ -150,7 +197,8 @@ impl AutopoieticSynthesizer {
         let short_hash = &hash_hex[0..8];
         let skill_id = format!("synthesized_crossover_{}", short_hash);
 
-        let md_content = format!(r#"---
+        let md_content = format!(
+            r#"---
 id: {}
 type: synthesized
 confidence: 0.50
@@ -178,7 +226,9 @@ pub fn execute_novel_skill(input: &mut EntityManifold) -> Result<(), String> {{
     Ok(())
 }}
 ```
-"#, skill_id, trigger_task, parent_a_name, parent_b_name, tensor_str, skill_id);
+"#,
+            skill_id, trigger_task, parent_a_name, parent_b_name, tensor_str, skill_id
+        );
 
         let out_dir = std::path::PathBuf::from("knowledge/skills/auto");
         let _ = std::fs::create_dir_all(&out_dir);
@@ -188,7 +238,10 @@ pub fn execute_novel_skill(input: &mut EntityManifold) -> Result<(), String> {{
             println!("🧬 [Autopoiesis] Kode genetik sudah ada di Wiki ({:?}). Menggunakan kembali tanpa menulis file baru.", out_path);
         } else {
             let _ = std::fs::write(&out_path, &md_content);
-            println!("🧬 [Autopoiesis] Kode genetik baru berhasil disintesis dan ditulis ke {:?}", out_path);
+            println!(
+                "🧬 [Autopoiesis] Kode genetik baru berhasil disintesis dan ditulis ke {:?}",
+                out_path
+            );
         }
 
         // Bypassing compiler: Create the executable Axiom purely in memory!

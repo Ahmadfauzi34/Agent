@@ -1,17 +1,17 @@
 pub mod core;
 pub mod memory;
-pub mod reasoning;
-pub mod shared;
 pub mod perception;
+pub mod reasoning;
 pub mod self_awareness;
-use self_awareness::immortal_loop::KVImmortalEngine;
+pub mod shared;
 use crate::core::entity_manifold::EntityManifold;
 use perception::anomalous_extractor::extract_anomalous_quadrant;
+use self_awareness::immortal_loop::KVImmortalEngine;
 
+use reasoning::rrm_agent::RrmAgent;
+use serde_json::Value;
 use std::fs;
 use std::time::Instant;
-use serde_json::Value;
-use reasoning::rrm_agent::RrmAgent;
 
 fn main() {
     println!("🌌 RRM Quantum Sandbox (Rust Edition) Initialized.");
@@ -25,7 +25,7 @@ fn main() {
     let tasks = vec![
         "05269061", // Normal task test
         "09629e4f", // Normal task test
-        "2dc579da"  // The one we know works with anomalous logic
+        "2dc579da", // The one we know works with anomalous logic
     ];
 
     let mut successes = 0;
@@ -51,9 +51,17 @@ fn main() {
         let test = json["test"].as_array().unwrap();
 
         let parse_grid = |arr: &Value| -> Vec<Vec<i32>> {
-            arr.as_array().unwrap().iter().map(|row| {
-                row.as_array().unwrap().iter().map(|v| v.as_i64().unwrap() as i32).collect()
-            }).collect()
+            arr.as_array()
+                .unwrap()
+                .iter()
+                .map(|row| {
+                    row.as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|v| v.as_i64().unwrap() as i32)
+                        .collect()
+                })
+                .collect()
         };
 
         let mut train_in = Vec::new();
@@ -70,8 +78,6 @@ fn main() {
         println!("\n\n🌿 ==================================");
         println!("Solving Task: {}.json", task_name);
         println!("🌿 ==================================");
-
-
 
         let start_time = Instant::now();
         let result = agent.solve_task(&train_in, &train_out, &test_in);
@@ -91,8 +97,15 @@ fn main() {
         }
 
         if !success {
-            println!("MCTS failed. Engaging Generative Synthesized Skill: extract_anomalous_quadrant...");
-            let mut em = EntityManifold::default(); em.global_width = test_in[0].len() as f32; em.global_height = test_in.len() as f32; let res_em = extract_anomalous_quadrant(&em); final_result = vec![vec![0; res_em.global_width as usize]; res_em.global_height as usize];
+            println!(
+                "MCTS failed. Engaging Generative Synthesized Skill: extract_anomalous_quadrant..."
+            );
+            let mut em = EntityManifold::default();
+            em.global_width = test_in[0].len() as f32;
+            em.global_height = test_in.len() as f32;
+            let res_em = extract_anomalous_quadrant(&em);
+            final_result =
+                vec![vec![0; res_em.global_width as usize]; res_em.global_height as usize];
             success = true;
             if final_result.len() != test_out.len() {
                 success = false;
@@ -115,7 +128,6 @@ fn main() {
             successes += 1;
         } else {
             println!("💀 FAILED (Mismatch)");
-
         }
     }
 
@@ -128,5 +140,6 @@ fn main() {
 
     agent.dream(); // Simulasi REM
 
-    let dummy_manifold = EntityManifold::default(); let _ = immortal.hibernate(&dummy_manifold); // Simpan state KV int8 ke bin
+    let dummy_manifold = EntityManifold::default();
+    let _ = immortal.hibernate(&dummy_manifold); // Simpan state KV int8 ke bin
 }

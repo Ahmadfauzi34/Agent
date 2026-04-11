@@ -1,5 +1,5 @@
-use ndarray::{Array1, ArrayViewMut1};
 use crate::core::config::{GLOBAL_DIMENSION, MAX_ENTITIES};
+use ndarray::{Array1, ArrayViewMut1};
 
 /// Struktur SoA (Structure of Arrays) untuk Quantum Entity Manifold.
 /// Didesain untuk Zero-GC dan cache locality di L1/L2.
@@ -10,17 +10,17 @@ pub struct EntityManifold {
     pub global_height: f32,
 
     // 1. Posisi Global (Pusat Massa Absolut di Kanvas)
-    pub spatial_tensors: Vec<f32>,     // Ukuran: MAX_ENTITIES * GLOBAL_DIMENSION
+    pub spatial_tensors: Vec<f32>, // Ukuran: MAX_ENTITIES * GLOBAL_DIMENSION
 
     // 2. Cetak Biru (Blueprint) Relatif (Bentuk lokal dari titik pusat)
-    pub shape_tensors: Vec<f32>,       // Ukuran: MAX_ENTITIES * GLOBAL_DIMENSION
+    pub shape_tensors: Vec<f32>, // Ukuran: MAX_ENTITIES * GLOBAL_DIMENSION
 
     // 3. Warna / Tipe Material
-    pub semantic_tensors: Vec<f32>,    // Ukuran: MAX_ENTITIES * GLOBAL_DIMENSION
+    pub semantic_tensors: Vec<f32>, // Ukuran: MAX_ENTITIES * GLOBAL_DIMENSION
 
-    pub ids: Vec<String>,      // Ukuran: MAX_ENTITIES
-    pub masses: Vec<f32>,      // Ukuran: MAX_ENTITIES
-    pub tokens: Vec<i32>,      // Ukuran: MAX_ENTITIES
+    pub ids: Vec<String>, // Ukuran: MAX_ENTITIES
+    pub masses: Vec<f32>, // Ukuran: MAX_ENTITIES
+    pub tokens: Vec<i32>, // Ukuran: MAX_ENTITIES
 
     // Spans / Bounding Boxes Anisotropik
     pub spans_x: Vec<f32>,

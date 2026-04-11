@@ -1,7 +1,7 @@
-use std::collections::{HashMap};
-use ndarray::Array1;
 use crate::core::entity_manifold::EntityManifold;
 use crate::perception::universal_manifold::UniversalManifold;
+use ndarray::Array1;
+use std::collections::HashMap;
 
 pub struct EntitySegmenter;
 

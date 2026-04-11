@@ -1,6 +1,6 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::collections::HashMap;
 
 /// Mewakili satu halaman (skill) di dalam Wiki
 #[derive(Debug, Clone)]
