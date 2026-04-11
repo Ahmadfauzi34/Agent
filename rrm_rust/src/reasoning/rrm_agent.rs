@@ -119,6 +119,25 @@ impl RrmAgent {
 
                 // === CAUSAL FEEDBACK LOOP ===
                 if causal_result.confidence > 0.6 && causal_result.is_sufficient {
+                    // Cek Struktural Self-Awareness: Apakah perubahan pikiran (Tensor) mengubah Tubuh (Grid Fisik)?
+                    let mut test_body = train_pairs[0].0.clone();
+                    crate::reasoning::multiverse_sandbox::MultiverseSandbox::apply_axiom(&mut test_body, &axiom.condition_tensor, &axiom.delta_spatial, &axiom.delta_semantic, axiom.delta_x, axiom.delta_y, axiom.tier, &axiom.name);
+
+                    let mut is_body_changed = false;
+                    if test_body.active_count != train_pairs[0].0.active_count || test_body.global_width != train_pairs[0].0.global_width || test_body.global_height != train_pairs[0].0.global_height {
+                        is_body_changed = true;
+                    }
+
+                    if !is_body_changed && (axiom.delta_x != 0.0 || axiom.delta_y != 0.0 || axiom.name.contains("COLOR")) {
+                        println!("    🚨 [STRUCTURAL SELF-AWARENESS WARNING]");
+                        println!("    🚨 Pikiran saya tahu '{}' adalah aksioma yang tepat secara kausalitas dan tensor...", axiom.name);
+                        println!("    🚨 ...Tapi 'Tubuh' saya (MultiverseSandbox) gagal mengeksekusinya ke grid pixel!");
+                        println!("    🚨 SAYA KEKURANGAN ALAT FISIK. Tolong upgrade `apply_axiom` di Sandbox.");
+
+                        let mut wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new("rrm_rust/knowledge/skills/");
+                        let _ = wiki.append_to_log("Execution_Log", &format!("SELF-AWARENESS: Causal reasoning found solution {}, but Sandbox physics engine lacks implementation to move pixels.", axiom.name));
+                    }
+
                     // Menyimpan kausalitas yang sukses sebagai "Memory Constraint"
                     let causal_memory_str = format!("Causal_Success_{}", axiom.name);
                     self.seed_bank.add_seed(&causal_memory_str, 9999, &ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION));
