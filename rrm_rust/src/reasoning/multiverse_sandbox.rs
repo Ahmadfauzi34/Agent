@@ -397,8 +397,7 @@ impl MultiverseSandbox {
                 }
 
                 // 1. Spasial Tensor Binding
-                // Di Swarm, kita bypass Tensor math untuk kecepatan murni karena kita tidak pakai Macro Tensor.
-                // Tapi kita tetep re-bind untuk konsistensi VSA.
+                // Mengkonversi Tensor FHRR murni menjadi "Physical Hands" / translasi absolut
                 let mut sp_tensor = u.get_spatial_tensor_mut(e);
                 let original_sp = sp_tensor.to_owned();
                 let future_sp = FHRR::bind(&original_sp, delta_spatial);
@@ -410,10 +409,14 @@ impl MultiverseSandbox {
                 let future_sem = FHRR::bind(&original_sem, delta_semantic);
                 sem_tensor.assign(&future_sem);
 
-                // 3. Scalar Momentum Update (Piksel Absolut)
+                // 3. Menghubungkan FHRR murni dengan Grid Fisik (Scalar Momentum)
                 if physics_tier != 4 {
-                    u.centers_x[e] += apply_dx;
-                    u.centers_y[e] += apply_dy;
+                    // Jika Axiom ini merupakan hasil dari Quantum Synthesis (maka akan punya delta_x/delta_y), kita gunakan nilainya:
+                    let real_dx = if delta_x != 0.0 { delta_x.round() } else { apply_dx };
+                    let real_dy = if delta_y != 0.0 { delta_y.round() } else { apply_dy };
+
+                    u.centers_x[e] += real_dx;
+                    u.centers_y[e] += real_dy;
                 }
 
                 // MURNI UNTUK SWARM: Update token untuk Decoder
