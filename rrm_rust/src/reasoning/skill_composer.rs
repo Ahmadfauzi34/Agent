@@ -253,7 +253,6 @@ pub fn execute_novel_skill(input: &mut EntityManifold) -> Result<(), String> {{
             delta_semantic: novel_semantic,
             delta_x: node_a.delta_x * 0.6 + node_b.delta_x * 0.4,
             delta_y: node_a.delta_y * 0.6 + node_b.delta_y * 0.4,
-            _state: std::marker::PhantomData,
         };
 
         Some((skill_id, dynamic_axiom))

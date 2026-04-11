@@ -1,5 +1,4 @@
 use crate::core::entity_manifold::EntityManifold;
-use crate::perception::hierarchical_gestalt::GestaltEngine;
 use crate::perception::universal_manifold::UniversalManifold;
 use ndarray::Array1;
 use std::collections::HashMap;
@@ -16,7 +15,7 @@ impl EntitySegmenter {
     pub fn segment_stream(
         stream: &HashMap<String, (Array1<f32>, Array1<f32>)>, // Tuple: (GlobalSpatial, Semantic)
         manifold: &mut EntityManifold,
-        _similarity_threshold: f32, // Tidak dipakai di Swarm
+        _similarity_threshold: f32, // Tidak dipakai di Swarm (Tidak ada Clustering)
         perceiver: &UniversalManifold,
     ) {
         let mut global_width = 1;
@@ -32,90 +31,51 @@ impl EntitySegmenter {
             }
         };
 
-        // Tahap 1: Muat raw pixels ke temporary manifold (Swarm Paradigm)
-        let mut temp_manifold = EntityManifold::new();
-        let mut raw_idx = 0;
+        let mut entity_counter = 1;
+        let mut manifold_idx = 0;
+
+        // SWARM PARADIGM (1 Piksel = 1 Entitas Murni, 100% Lossless Phase).
+        // Tidak ada lagi Clustering/Bundling Makroskopis.
+        // Kita meruntuhkan ilusi bentuk abstrak, karena ARC mensyaratkan Pixel-Perfect Precision.
 
         for (key, (spatial_tensor, semantic_tensor)) in stream.iter() {
             let parsed = parse_key(key);
             global_width = usize::max(global_width, parsed.x + 1);
             global_height = usize::max(global_height, parsed.y + 1);
 
-            if raw_idx >= crate::core::config::MAX_ENTITIES {
-                break;
-            }
-
-            temp_manifold.ids[raw_idx] = format!("RAW_{}", raw_idx);
-            temp_manifold.masses[raw_idx] = 1.0;
-            temp_manifold.tokens[raw_idx] = parsed.token;
-            temp_manifold.centers_x[raw_idx] = parsed.x as f32;
-            temp_manifold.centers_y[raw_idx] = parsed.y as f32;
-
-            let mut dest_sp = temp_manifold.get_spatial_tensor_mut(raw_idx);
-            dest_sp.assign(spatial_tensor);
-
-            let mut dest_sem = temp_manifold.get_semantic_tensor_mut(raw_idx);
-            dest_sem.assign(semantic_tensor);
-
-            raw_idx += 1;
-        }
-
-        temp_manifold.global_width = global_width as f32;
-        temp_manifold.global_height = global_height as f32;
-        temp_manifold.active_count = raw_idx;
-
-        // Tahap 2: Ekstraksi Gestalt (Objek Utuh) dari piksel mentah
-        let atoms = GestaltEngine::extract_atoms(&temp_manifold);
-
-        // Tahap 3: Map Gestalt ke EntityManifold aktual
-        let mut manifold_idx = 0;
-        let mut entity_counter = 1;
-
-        for atom in atoms {
             if manifold_idx >= crate::core::config::MAX_ENTITIES {
-                println!("[Rust EntitySegmenter] Warning: MAX_ENTITIES limit reached during Gestalt mapping.");
+                println!("[Rust EntitySegmenter] Warning: MAX_ENTITIES limit reached.");
                 break;
             }
 
-            manifold.ids[manifold_idx] = format!("OBJ_{}", entity_counter);
+            let abs_cx = parsed.x as f32;
+            let abs_cy = parsed.y as f32;
+
+            manifold.ids[manifold_idx] = format!("PX_{}", entity_counter);
             entity_counter += 1;
 
-            manifold.masses[manifold_idx] = atom.pixel_count as f32;
-            manifold.tokens[manifold_idx] = atom.color;
-            manifold.centers_x[manifold_idx] = atom.center_of_mass.0;
-            manifold.centers_y[manifold_idx] = atom.center_of_mass.1;
+            manifold.masses[manifold_idx] = 1.0; // Tiap piksel punya massa 1
+            manifold.tokens[manifold_idx] = parsed.token;
+            manifold.centers_x[manifold_idx] = abs_cx;
+            manifold.centers_y[manifold_idx] = abs_cy;
 
-            manifold.spans_x[manifold_idx] = atom.bounding_box.2 - atom.bounding_box.0 + 1.0;
-            manifold.spans_y[manifold_idx] = atom.bounding_box.3 - atom.bounding_box.1 + 1.0;
+            // Bentang benda ini adalah 1 Piksel murni
+            manifold.spans_x[manifold_idx] = 1.0;
+            manifold.spans_y[manifold_idx] = 1.0;
 
-            // Rata-rata spatial tensor (CoM)
-            let mut avg_spatial = Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);
-            for &idx in &atom.component_indices {
-                let sp = temp_manifold.get_spatial_tensor_mut(idx);
-                avg_spatial += &sp;
-            }
-            if atom.pixel_count > 0 {
-                avg_spatial /= atom.pixel_count as f32;
-            }
-
+            // Simpan Tensor Global Center
             let mut dest_sp = manifold.get_spatial_tensor_mut(manifold_idx);
-            dest_sp.assign(&avg_spatial);
+            dest_sp.assign(spatial_tensor);
 
-            // Shape tensor
-            let local_shape = perceiver.build_local_shape_tensor(
-                manifold.spans_x[manifold_idx],
-                manifold.spans_y[manifold_idx],
-            );
+            // Simpan Holographic Shape (Piksel ini berbentuk titik di (0,0) lokalnya)
+            // Relatifnya ke dirinya sendiri = (0.0, 0.0)
+            let local_shape = perceiver.build_local_shape_tensor(0.0, 0.0);
             let mut dest_shape = manifold.get_shape_tensor_mut(manifold_idx);
             dest_shape.assign(&local_shape);
 
-            // Semantic tensor (dari warna)
-            let sem_tensor = crate::core::fhrr::FHRR::fractional_bind(
-                &crate::core::core_seeds::CoreSeeds::color_seed(),
-                atom.color as f32,
-            );
+            // Simpan Warna
             let mut dest_sem = manifold.get_semantic_tensor_mut(manifold_idx);
-            dest_sem.assign(&sem_tensor);
+            dest_sem.assign(semantic_tensor);
 
             manifold_idx += 1;
         }
