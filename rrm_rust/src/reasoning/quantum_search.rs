@@ -214,6 +214,7 @@ impl FractalArena {
         self.parents.push(parent);
         self.children_ranges.push((0, 0));
         self.scales.push(scale);
+        self.static_backgrounds.push(Arc::new(crate::core::infinite_detail::CoarseData { regions: Arc::new(vec![]), signatures: Arc::new(vec![]) }));
         self.amplitudes.push(1.0);
         self.phases.push(0.0);
         self.states.push(state);
