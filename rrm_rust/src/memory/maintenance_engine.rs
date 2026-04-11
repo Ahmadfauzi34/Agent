@@ -47,7 +47,12 @@ impl MaintenanceEngine {
             for j in (i + 1)..num_seeds {
                 let v_a = tensors[i].view();
                 let v_b = tensors[j].view();
-                total_noise_before += v_a.iter().zip(v_b.iter()).map(|(&x, &y)| x * y).sum::<f32>().abs();
+                total_noise_before += v_a
+                    .iter()
+                    .zip(v_b.iter())
+                    .map(|(&x, &y)| x * y)
+                    .sum::<f32>()
+                    .abs();
                 pairs_count += 1;
             }
         }
@@ -86,7 +91,10 @@ impl MaintenanceEngine {
 
             // B. Cek Keseimbangan
             if total_collisions == 0 {
-                println!("   ✅ Sistem mencapai Keseimbangan Kuantum di Epoch {}!", epoch);
+                println!(
+                    "   ✅ Sistem mencapai Keseimbangan Kuantum di Epoch {}!",
+                    epoch
+                );
                 is_stable = true;
                 break;
             }
@@ -125,7 +133,12 @@ impl MaintenanceEngine {
             for j in (i + 1)..num_seeds {
                 let v_a = tensors[i].view();
                 let v_b = tensors[j].view();
-                total_noise_after += v_a.iter().zip(v_b.iter()).map(|(&x, &y)| x * y).sum::<f32>().abs();
+                total_noise_after += v_a
+                    .iter()
+                    .zip(v_b.iter())
+                    .map(|(&x, &y)| x * y)
+                    .sum::<f32>()
+                    .abs();
             }
         }
 

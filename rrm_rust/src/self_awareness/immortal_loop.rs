@@ -1,5 +1,5 @@
-use std::path::{Path, PathBuf};
 use crate::core::entity_manifold::EntityManifold;
+use std::path::{Path, PathBuf};
 
 pub struct KVImmortalEngine {
     root_dir: PathBuf,
@@ -30,7 +30,6 @@ impl KVImmortalEngine {
         Ok(())
     }
 }
-
 
 pub enum SoulEvent {
     TaskAttempted { task_id: String },

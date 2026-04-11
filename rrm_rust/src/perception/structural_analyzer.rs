@@ -1,5 +1,5 @@
-use std::collections::{HashMap, HashSet};
 use crate::core::entity_manifold::EntityManifold;
+use std::collections::HashSet;
 
 pub struct StructuralAnalyzer;
 
@@ -144,15 +144,19 @@ impl StructuralAnalyzer {
         use ObjectDelta::*;
 
         match (&delta.signature.dim_relation, &delta.signature.object_delta) {
-            (Equal, SameCount) if delta.per_object_changes.iter()
-                .all(|c| c.position_delta.is_some() && c.color_change.is_none()) => {
+            (Equal, SameCount)
+                if delta
+                    .per_object_changes
+                    .iter()
+                    .all(|c| c.position_delta.is_some() && c.color_change.is_none()) =>
+            {
                 TaskClass::PureGeometry
-            },
+            }
             (Smaller, _) | (Larger, _) => TaskClass::StructuralTransform,
             (_, Added(_)) | (_, Removed(_)) => TaskClass::ObjectManipulation,
             (_, SameCount) if delta.signature.topology_in != delta.signature.topology_out => {
                 TaskClass::RelationalRearrangement
-            },
+            }
             _ if delta.signature.color_transitions.len() > 2 => TaskClass::AlgorithmicPattern,
             _ => TaskClass::Hybrid,
         }
@@ -160,8 +164,12 @@ impl StructuralAnalyzer {
 
     fn detect_topology(manifold: &EntityManifold) -> TopologyHint {
         let count = manifold.active_count;
-        if count == 0 { return TopologyHint::Empty; }
-        if count == 1 { return TopologyHint::Single; }
+        if count == 0 {
+            return TopologyHint::Empty;
+        }
+        if count == 1 {
+            return TopologyHint::Single;
+        }
 
         let positions: Vec<(f32, f32)> = (0..count)
             .map(|i| (manifold.centers_x[i], manifold.centers_y[i]))
@@ -206,7 +214,9 @@ impl StructuralAnalyzer {
     }
 
     fn is_uniform_grid(positions: &[(f32, f32)]) -> bool {
-        if positions.len() < 4 { return false; }
+        if positions.len() < 4 {
+            return false;
+        }
 
         let mut xs: Vec<f32> = positions.iter().map(|p| p.0).collect();
         let mut ys: Vec<f32> = positions.iter().map(|p| p.1).collect();
@@ -221,10 +231,18 @@ impl StructuralAnalyzer {
         positions.len() >= grid_size.saturating_sub(2)
     }
 
-    fn is_linear(_positions: &[(f32, f32)]) -> bool { false }
-    fn is_nested(_positions: &[(f32, f32)]) -> bool { false }
-    fn is_framed(_positions: &[(f32, f32)], _manifold: &EntityManifold) -> bool { false }
-    fn forms_rectangular_border(_pixels: &[(f32, f32)]) -> bool { false }
+    fn is_linear(_positions: &[(f32, f32)]) -> bool {
+        false
+    }
+    fn is_nested(_positions: &[(f32, f32)]) -> bool {
+        false
+    }
+    fn is_framed(_positions: &[(f32, f32)], _manifold: &EntityManifold) -> bool {
+        false
+    }
+    fn forms_rectangular_border(_pixels: &[(f32, f32)]) -> bool {
+        false
+    }
 
     fn gather_stats(manifold: &EntityManifold) -> ObjectStatistics {
         ObjectStatistics {
@@ -236,7 +254,10 @@ impl StructuralAnalyzer {
         }
     }
 
-    fn classify_dimension(in_stats: &ObjectStatistics, out_stats: &ObjectStatistics) -> DimensionRelation {
+    fn classify_dimension(
+        in_stats: &ObjectStatistics,
+        out_stats: &ObjectStatistics,
+    ) -> DimensionRelation {
         if in_stats.bounding_box == out_stats.bounding_box {
             DimensionRelation::Equal
         } else if out_stats.bounding_box.0 > in_stats.bounding_box.0 {
@@ -246,7 +267,10 @@ impl StructuralAnalyzer {
         }
     }
 
-    fn classify_object_delta(in_stats: &ObjectStatistics, out_stats: &ObjectStatistics) -> ObjectDelta {
+    fn classify_object_delta(
+        in_stats: &ObjectStatistics,
+        out_stats: &ObjectStatistics,
+    ) -> ObjectDelta {
         if in_stats.count == out_stats.count {
             ObjectDelta::SameCount
         } else if out_stats.count > in_stats.count {
@@ -256,7 +280,10 @@ impl StructuralAnalyzer {
         }
     }
 
-    fn extract_color_transitions(_input: &EntityManifold, _output: &EntityManifold) -> Vec<(u8, u8)> {
+    fn extract_color_transitions(
+        _input: &EntityManifold,
+        _output: &EntityManifold,
+    ) -> Vec<(u8, u8)> {
         vec![]
     }
 
@@ -264,7 +291,10 @@ impl StructuralAnalyzer {
         SymmetryChange::Preserved
     }
 
-    fn track_object_changes(_input: &EntityManifold, _output: &EntityManifold) -> Vec<ObjectChange> {
+    fn track_object_changes(
+        _input: &EntityManifold,
+        _output: &EntityManifold,
+    ) -> Vec<ObjectChange> {
         vec![]
     }
 }

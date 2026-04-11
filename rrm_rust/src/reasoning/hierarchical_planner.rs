@@ -1,9 +1,9 @@
-use petgraph::graph::{DiGraph, NodeIndex};
-use crate::perception::structural_analyzer::{StructuralDelta, TaskClass};
+use crate::core::entity_manifold::EntityManifold;
+use crate::perception::structural_analyzer::TaskClass;
+use crate::reasoning::counterfactual_engine::CounterfactualEngine;
 use crate::reasoning::structures::Axiom;
 use crate::self_awareness::skill_ontology::SkillOntology;
-use crate::reasoning::counterfactual_engine::CounterfactualEngine;
-use crate::core::entity_manifold::EntityManifold;
+use petgraph::graph::{DiGraph, NodeIndex};
 
 pub struct HierarchicalPlanner {
     pub task_graph: DiGraph<PlanningNode, PlanningEdge>,
@@ -35,22 +35,30 @@ pub enum ValidationCheck {
 }
 
 impl HierarchicalPlanner {
-    pub fn from_delta(delta: &crate::perception::structural_analyzer::StructuralDelta, ontology: &SkillOntology) -> Self {
+    pub fn from_delta(
+        delta: &crate::perception::structural_analyzer::StructuralDelta,
+        ontology: &SkillOntology,
+    ) -> Self {
         let mut graph = DiGraph::new();
 
         let root = graph.add_node(PlanningNode::Goal(delta.clone()));
 
-        let subgoals = match crate::perception::structural_analyzer::StructuralAnalyzer::classify_task_class(delta) {
-            TaskClass::StructuralTransform => vec![SubgoalType::NormalizeDimension, SubgoalType::ModifyObjects],
-            TaskClass::ObjectManipulation => vec![SubgoalType::ModifyObjects],
-            TaskClass::PureGeometry => vec![SubgoalType::FinalizeGeometry],
-            _ => vec![
-                SubgoalType::NormalizeDimension,
-                SubgoalType::ArrangeObjects,
-                SubgoalType::ModifyObjects,
-                SubgoalType::FinalizeGeometry,
-            ],
-        };
+        let subgoals =
+            match crate::perception::structural_analyzer::StructuralAnalyzer::classify_task_class(
+                delta,
+            ) {
+                TaskClass::StructuralTransform => {
+                    vec![SubgoalType::NormalizeDimension, SubgoalType::ModifyObjects]
+                }
+                TaskClass::ObjectManipulation => vec![SubgoalType::ModifyObjects],
+                TaskClass::PureGeometry => vec![SubgoalType::FinalizeGeometry],
+                _ => vec![
+                    SubgoalType::NormalizeDimension,
+                    SubgoalType::ArrangeObjects,
+                    SubgoalType::ModifyObjects,
+                    SubgoalType::FinalizeGeometry,
+                ],
+            };
 
         let mut prev = root;
         for subgoal in subgoals {
@@ -68,7 +76,17 @@ impl HierarchicalPlanner {
 
             let capabilities = ontology.get_capabilities_for(subg_type);
             for cap in capabilities {
-                let op = graph.add_node(PlanningNode::Operator(crate::reasoning::structures::Axiom::new(&cap.name, cap.tier_id, ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION), ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION), 0.0, 0.0))); let _op_node = op;
+                let op = graph.add_node(PlanningNode::Operator(
+                    crate::reasoning::structures::Axiom::new(
+                        &cap.name,
+                        cap.tier_id,
+                        ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION),
+                        ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION),
+                        0.0,
+                        0.0,
+                    ),
+                ));
+                let _op_node = op;
                 graph.add_edge(node_for_cap, op, PlanningEdge::Alternative);
             }
 
@@ -165,9 +183,10 @@ impl HierarchicalPlanner {
             }
             PlanningNode::Validation(ValidationCheck::ExactMatch) => {
                 // Node validasi: Evaluasi apakah state akhir sesuai dengan ground truth
-                use crate::reasoning::quantum_search_simd::{SimdEnergyCalculator, CognitivePhase};
+                use crate::reasoning::quantum_search_simd::{CognitivePhase, SimdEnergyCalculator};
 
-                let dummy_grid = vec![vec![0; expected.global_width as usize]; expected.global_height as usize];
+                let dummy_grid =
+                    vec![vec![0; expected.global_width as usize]; expected.global_height as usize];
 
                 let pragmatic_error = SimdEnergyCalculator::calculate_pragmatic_streaming(
                     &state,
@@ -177,7 +196,11 @@ impl HierarchicalPlanner {
                     &CognitivePhase::Microscopic,
                 );
 
-                let confidence = if pragmatic_error == 0.0 { 1.0 } else { 1.0 / (1.0 + pragmatic_error) };
+                let confidence = if pragmatic_error == 0.0 {
+                    1.0
+                } else {
+                    1.0 / (1.0 + pragmatic_error)
+                };
 
                 if confidence > *best_confidence {
                     *best_confidence = confidence;

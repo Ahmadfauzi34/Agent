@@ -1,4 +1,4 @@
-use crate::perception::hierarchical_gestalt::{GestaltAtom, AtomType};
+use crate::perception::hierarchical_gestalt::{AtomType, GestaltAtom};
 
 /// Level 2: Relational structures antara atoms
 #[derive(Clone, Debug)]
@@ -12,23 +12,26 @@ pub struct RelationalStructure {
 
 #[derive(Clone, Debug)]
 pub enum StructureType {
-    ContainerWithContent,    // Hollow rect dengan sesuatu di dalam
-    NestedBoxes,             // Kotak dalam kotak
-    GridPattern,             // Array teratur (NxM)
-    LinearSequence,          // Baris/kolom berurutan
-    MirrorPair,              // Dua objek simetris
-    FrameAndFill,            // Border + interior berbeda
-    ScatteredGroup,          // Kumpulan tidak teratur
+    ContainerWithContent, // Hollow rect dengan sesuatu di dalam
+    NestedBoxes,          // Kotak dalam kotak
+    GridPattern,          // Array teratur (NxM)
+    LinearSequence,       // Baris/kolom berurutan
+    MirrorPair,           // Dua objek simetris
+    FrameAndFill,         // Border + interior berbeda
+    ScatteredGroup,       // Kumpulan tidak teratur
 }
 
 #[derive(Clone, Debug)]
 pub enum SpatialRelation {
-    Inside,                  // A di dalam B
-    Contains,                // A berisi B
-    AdjacentTo,              // A menempel B
-    Above, Below, Left, Right, // Relasi directional
-    AlignedWith,             // Sejajar
-    SymmetricTo,             // Simetris terhadap
+    Inside,     // A di dalam B
+    Contains,   // A berisi B
+    AdjacentTo, // A menempel B
+    Above,
+    Below,
+    Left,
+    Right,       // Relasi directional
+    AlignedWith, // Sejajar
+    SymmetricTo, // Simetris terhadap
 }
 
 #[derive(Clone, Debug)]
@@ -39,9 +42,9 @@ pub struct SymmetryGroup {
 
 #[derive(Clone, Debug)]
 pub enum SymmetryAxis {
-    Vertical(f32),   // x = constant
-    Horizontal(f32), // y = constant
-    Diagonal,        // y = x or y = -x
+    Vertical(f32),            // x = constant
+    Horizontal(f32),          // y = constant
+    Diagonal,                 // y = x or y = -x
     Rotational(f32, f32, u8), // (cx, cy, order)
 }
 
@@ -54,7 +57,9 @@ impl RelationalEngine {
         let mut structures = Vec::new();
         let n = atoms.len();
 
-        if n == 0 { return structures; }
+        if n == 0 {
+            return structures;
+        }
 
         // 1. Detect containers (hollow rects dengan content)
         for (i, atom) in atoms.iter().enumerate() {
@@ -62,7 +67,9 @@ impl RelationalEngine {
                 let mut contents = Vec::new();
 
                 for (j, other) in atoms.iter().enumerate() {
-                    if i == j { continue; }
+                    if i == j {
+                        continue;
+                    }
 
                     if Self::is_inside(other, atom) {
                         contents.push(j);
@@ -83,13 +90,16 @@ impl RelationalEngine {
 
         // 2. Detect nested structures
         for i in 0..n {
-            for j in (i+1)..n {
+            for j in (i + 1)..n {
                 if Self::is_nested(&atoms[i], &atoms[j]) {
                     structures.push(RelationalStructure {
                         structure_type: StructureType::NestedBoxes,
                         atoms: vec![i, j],
                         relations: vec![SpatialRelation::Contains],
-                        bounding_box: Self::union_bbox(&atoms[i].bounding_box, &atoms[j].bounding_box),
+                        bounding_box: Self::union_bbox(
+                            &atoms[i].bounding_box,
+                            &atoms[j].bounding_box,
+                        ),
                         symmetry_group: None,
                     });
                 }
@@ -113,18 +123,23 @@ impl RelationalEngine {
         let (omin_x, omin_y, omax_x, omax_y) = outer.bounding_box;
         let (imin_x, imin_y, imax_x, imax_y) = inner.bounding_box;
 
-        imin_x > omin_x && imin_y > omin_y &&
-        imax_x < omax_x && imax_y < omax_y
+        imin_x > omin_x && imin_y > omin_y && imax_x < omax_x && imax_y < omax_y
     }
 
     fn is_nested(outer: &GestaltAtom, inner: &GestaltAtom) -> bool {
-        matches!(outer.atom_type, AtomType::HollowRectangle | AtomType::SolidRectangle) &&
-        matches!(inner.atom_type, AtomType::HollowRectangle | AtomType::SolidRectangle) &&
-        Self::is_inside(inner, outer)
+        matches!(
+            outer.atom_type,
+            AtomType::HollowRectangle | AtomType::SolidRectangle
+        ) && matches!(
+            inner.atom_type,
+            AtomType::HollowRectangle | AtomType::SolidRectangle
+        ) && Self::is_inside(inner, outer)
     }
 
     fn detect_grid(atoms: &[GestaltAtom]) -> Option<RelationalStructure> {
-        if atoms.len() < 4 { return None; }
+        if atoms.len() < 4 {
+            return None;
+        }
 
         // Group by similar size dan spacing
         let mut x_positions: Vec<f32> = atoms.iter().map(|a| a.center_of_mass.0).collect();
@@ -155,7 +170,7 @@ impl RelationalEngine {
 
     fn detect_mirror_pair(atoms: &[GestaltAtom]) -> Option<RelationalStructure> {
         for (i, a) in atoms.iter().enumerate() {
-            for (j, b) in atoms.iter().enumerate().skip(i+1) {
+            for (j, b) in atoms.iter().enumerate().skip(i + 1) {
                 if Self::are_mirrors(a, b) {
                     return Some(RelationalStructure {
                         structure_type: StructureType::MirrorPair,
@@ -163,7 +178,9 @@ impl RelationalEngine {
                         relations: vec![SpatialRelation::SymmetricTo],
                         bounding_box: Self::union_bbox(&a.bounding_box, &b.bounding_box),
                         symmetry_group: Some(SymmetryGroup {
-                            axis: SymmetryAxis::Vertical((a.center_of_mass.0 + b.center_of_mass.0) / 2.0),
+                            axis: SymmetryAxis::Vertical(
+                                (a.center_of_mass.0 + b.center_of_mass.0) / 2.0,
+                            ),
                             members: vec![i, j],
                         }),
                     });
@@ -175,13 +192,15 @@ impl RelationalEngine {
 
     fn are_mirrors(a: &GestaltAtom, b: &GestaltAtom) -> bool {
         // Same type, similar size, symmetric positions
-        a.atom_type == b.atom_type &&
-        (a.pixel_count as f32 / b.pixel_count as f32 - 1.0).abs() < 0.1 &&
-        (a.aspect_ratio - b.aspect_ratio).abs() < 0.1
+        a.atom_type == b.atom_type
+            && (a.pixel_count as f32 / b.pixel_count as f32 - 1.0).abs() < 0.1
+            && (a.aspect_ratio - b.aspect_ratio).abs() < 0.1
     }
 
     fn is_uniform(spacings: &[f32]) -> bool {
-        if spacings.len() < 2 { return true; }
+        if spacings.len() < 2 {
+            return true;
+        }
         let mean = spacings.iter().sum::<f32>() / spacings.len() as f32;
         spacings.iter().all(|&s| (s - mean).abs() < 0.5)
     }

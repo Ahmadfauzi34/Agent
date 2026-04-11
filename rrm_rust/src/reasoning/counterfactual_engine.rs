@@ -1,6 +1,6 @@
 use crate::core::entity_manifold::EntityManifold;
-use crate::reasoning::structures::{Axiom, StructuralSignature};
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
+use crate::reasoning::structures::{Axiom, StructuralSignature};
 
 pub struct CounterfactualEngine {
     pub current_hypothesis: Vec<Axiom>,
@@ -12,10 +12,22 @@ pub struct CounterfactualEngine {
 
 #[derive(Clone, Debug)]
 pub enum FailureMode {
-    DimensionMismatch { expected: (u8, u8), got: (u8, u8) },
-    ObjectLost { expected_count: usize, got_count: usize },
-    ColorCorruption { expected_mapping: Vec<(u8, u8)> },
-    NonCommutativeCollision { first: u8, second: u8, consequence: String },
+    DimensionMismatch {
+        expected: (u8, u8),
+        got: (u8, u8),
+    },
+    ObjectLost {
+        expected_count: usize,
+        got_count: usize,
+    },
+    ColorCorruption {
+        expected_mapping: Vec<(u8, u8)>,
+    },
+    NonCommutativeCollision {
+        first: u8,
+        second: u8,
+        consequence: String,
+    },
 }
 
 pub struct FailurePattern {
@@ -32,9 +44,17 @@ pub struct SimulationResult {
 }
 
 pub enum SequenceResult {
-    Success { final_state: EntityManifold },
-    Invalid { at_step: usize, reason: IncompatibilityReason },
-    FailedEarly { at_step: usize, remaining_energy: f32 },
+    Success {
+        final_state: EntityManifold,
+    },
+    Invalid {
+        at_step: usize,
+        reason: IncompatibilityReason,
+    },
+    FailedEarly {
+        at_step: usize,
+        remaining_energy: f32,
+    },
 }
 
 impl SequenceResult {
@@ -66,7 +86,16 @@ impl CounterfactualEngine {
     ) -> SimulationResult {
         let mut sandbox = input.clone();
 
-        MultiverseSandbox::apply_axiom(&mut sandbox, &axiom.condition_tensor, &axiom.delta_spatial, &axiom.delta_semantic, axiom.delta_x, axiom.delta_y, axiom.tier, &axiom.name);
+        MultiverseSandbox::apply_axiom(
+            &mut sandbox,
+            &axiom.condition_tensor,
+            &axiom.delta_spatial,
+            &axiom.delta_semantic,
+            axiom.delta_x,
+            axiom.delta_y,
+            axiom.tier,
+            &axiom.name,
+        );
 
         let mut outcome = self.analyze_outcome(&sandbox, expected);
         outcome.final_state = sandbox;
@@ -97,7 +126,16 @@ impl CounterfactualEngine {
                 }
             }
 
-            MultiverseSandbox::apply_axiom(&mut state, &axiom.condition_tensor, &axiom.delta_spatial, &axiom.delta_semantic, axiom.delta_x, axiom.delta_y, axiom.tier, &axiom.name);
+            MultiverseSandbox::apply_axiom(
+                &mut state,
+                &axiom.condition_tensor,
+                &axiom.delta_spatial,
+                &axiom.delta_semantic,
+                axiom.delta_x,
+                axiom.delta_y,
+                axiom.tier,
+                &axiom.name,
+            );
             intermediate_results.push(state.clone());
 
             if self.is_clearly_wrong(&state, expected, i) {
@@ -111,8 +149,14 @@ impl CounterfactualEngine {
         SequenceResult::Success { final_state: state }
     }
 
-    fn analyze_outcome(&self, simulated: &EntityManifold, expected: &EntityManifold) -> SimulationResult {
-        if simulated.global_width != expected.global_width || simulated.global_height != expected.global_height {
+    fn analyze_outcome(
+        &self,
+        simulated: &EntityManifold,
+        expected: &EntityManifold,
+    ) -> SimulationResult {
+        if simulated.global_width != expected.global_width
+            || simulated.global_height != expected.global_height
+        {
             SimulationResult {
                 is_success: false,
                 failure: Some(FailureMode::DimensionMismatch {
@@ -122,7 +166,11 @@ impl CounterfactualEngine {
                 final_state: simulated.clone(),
             }
         } else {
-            SimulationResult { is_success: true, failure: None, final_state: simulated.clone() }
+            SimulationResult {
+                is_success: true,
+                failure: None,
+                final_state: simulated.clone(),
+            }
         }
     }
 
@@ -154,9 +202,20 @@ impl CounterfactualEngine {
         }
     }
 
-    fn are_compatible(&self, _prev: &EntityManifold, _next: &Axiom) -> bool { true }
+    fn are_compatible(&self, _prev: &EntityManifold, _next: &Axiom) -> bool {
+        true
+    }
 
-    fn is_clearly_wrong(&self, _state: &EntityManifold, _expected: &EntityManifold, _step: usize) -> bool { false }
+    fn is_clearly_wrong(
+        &self,
+        _state: &EntityManifold,
+        _expected: &EntityManifold,
+        _step: usize,
+    ) -> bool {
+        false
+    }
 
-    fn estimate_remaining_error(&self, _state: &EntityManifold, _expected: &EntityManifold) -> f32 { 100.0 }
+    fn estimate_remaining_error(&self, _state: &EntityManifold, _expected: &EntityManifold) -> f32 {
+        100.0
+    }
 }

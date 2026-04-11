@@ -1,12 +1,12 @@
-use std::sync::{Arc, RwLock};
 use ndarray::Array1;
+use std::sync::{Arc, RwLock};
 
+use crate::core::config::GLOBAL_DIMENSION;
 use crate::core::entity_manifold::EntityManifold;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
-use crate::reasoning::quantum_search_simd::{SimdEnergyCalculator, CognitivePhase};
-use crate::shared::visualizer::{Visualizer, TransparencyLevel, MctsNodeInfo};
+use crate::reasoning::quantum_search_simd::{CognitivePhase, SimdEnergyCalculator};
+use crate::shared::visualizer::{MctsNodeInfo, TransparencyLevel, Visualizer};
 use futures_lite::future;
-use crate::core::config::GLOBAL_DIMENSION;
 
 #[derive(Clone)]
 pub struct FractalId {
@@ -74,7 +74,8 @@ impl WaveNode {
     /// Lazy clone — hanya clone memory berat jika benar-benar akan dimodifikasi di Sandbox
     pub fn ensure_unique_state(&mut self) {
         if !self.state_modified {
-            let cloned: Vec<RwLock<EntityManifold>> = self.state_manifolds
+            let cloned: Vec<RwLock<EntityManifold>> = self
+                .state_manifolds
                 .iter()
                 .map(|m| RwLock::new(m.read().unwrap().clone()))
                 .collect();
@@ -153,7 +154,12 @@ impl FractalArena {
         }
     }
 
-    pub fn spawn_node(&mut self, parent: Option<usize>, scale: FractalScale, state: Arc<Vec<RwLock<EntityManifold>>>) -> Option<usize> {
+    pub fn spawn_node(
+        &mut self,
+        parent: Option<usize>,
+        scale: FractalScale,
+        state: Arc<Vec<RwLock<EntityManifold>>>,
+    ) -> Option<usize> {
         let level = parent.map(|p| self.ids[p].level + 1).unwrap_or(0);
 
         if let Some(idx) = self.free_indices.pop() {
@@ -163,7 +169,11 @@ impl FractalArena {
             self.phases[idx] = 0.0;
             self.modified_flags[idx] = false;
             self.states[idx] = state;
-            self.ids[idx] = FractalId { level, index: idx as u32, path_hash: 0 };
+            self.ids[idx] = FractalId {
+                level,
+                index: idx as u32,
+                path_hash: 0,
+            };
 
             // Clean up state memory to avoid leakage
             self.perception_sensory[idx].fill(0.0);
@@ -190,7 +200,11 @@ impl FractalArena {
         let idx = self.active_count;
         self.active_count += 1;
 
-        self.ids.push(FractalId { level, index: idx as u32, path_hash: 0 });
+        self.ids.push(FractalId {
+            level,
+            index: idx as u32,
+            path_hash: 0,
+        });
         self.parents.push(parent);
         self.children_ranges.push((0, 0));
         self.scales.push(scale);
@@ -199,10 +213,12 @@ impl FractalArena {
         self.states.push(state);
         self.modified_flags.push(false);
 
-        self.perception_sensory.push(Array1::zeros(GLOBAL_DIMENSION));
+        self.perception_sensory
+            .push(Array1::zeros(GLOBAL_DIMENSION));
         self.reasoning_pragmatic.push(0.0);
         self.reasoning_epistemic.push(0.0);
-        self.reasoning_mode.push(crate::reasoning::quantum_search::CognitiveMode::StrictVSA);
+        self.reasoning_mode
+            .push(crate::reasoning::quantum_search::CognitiveMode::StrictVSA);
 
         self.action_spatial.push(Array1::zeros(GLOBAL_DIMENSION));
         self.action_semantic.push(Array1::zeros(GLOBAL_DIMENSION));
@@ -240,7 +256,12 @@ impl FractalArena {
     }
 
     /// Reason: Active Inference (Minimize Free Energy) mapped to Fractal Nodes
-    pub fn reason(&mut self, idx: usize, expected_grids: &[Vec<Vec<i32>>], initial_manifolds: &Arc<Vec<RwLock<EntityManifold>>>) {
+    pub fn reason(
+        &mut self,
+        idx: usize,
+        expected_grids: &[Vec<Vec<i32>>],
+        initial_manifolds: &Arc<Vec<RwLock<EntityManifold>>>,
+    ) {
         let mut total_pragmatic_error = 0.0;
         let mut total_epistemic_value = 0.0;
 
@@ -248,7 +269,7 @@ impl FractalArena {
         let current_phase = if current_depth <= 1 {
             CognitivePhase::MacroStructural // Langkah pertama HARUS menyelesaikan dimensi!
         } else {
-            CognitivePhase::Microscopic     // Langkah kedua merapikan isi (piksel)
+            CognitivePhase::Microscopic // Langkah kedua merapikan isi (piksel)
         };
 
         for (i, expected_grid) in expected_grids.iter().enumerate() {
@@ -258,11 +279,26 @@ impl FractalArena {
             let manifold_read = self.states[idx][i].read().unwrap();
             let initial_read = initial_manifolds[i].read().unwrap();
 
-            let m_width = if manifold_read.global_width > 0.0 { manifold_read.global_width as usize } else { width };
-            let m_height = if manifold_read.global_height > 0.0 { manifold_read.global_height as usize } else { height };
+            let m_width = if manifold_read.global_width > 0.0 {
+                manifold_read.global_width as usize
+            } else {
+                width
+            };
+            let m_height = if manifold_read.global_height > 0.0 {
+                manifold_read.global_height as usize
+            } else {
+                height
+            };
 
-            total_pragmatic_error += SimdEnergyCalculator::calculate_pragmatic_streaming(&*manifold_read, expected_grid, m_width, m_height, &current_phase);
-            total_epistemic_value += SimdEnergyCalculator::calculate_epistemic(&*manifold_read, &*initial_read);
+            total_pragmatic_error += SimdEnergyCalculator::calculate_pragmatic_streaming(
+                &*manifold_read,
+                expected_grid,
+                m_width,
+                m_height,
+                &current_phase,
+            );
+            total_epistemic_value +=
+                SimdEnergyCalculator::calculate_epistemic(&*manifold_read, &*initial_read);
         }
 
         self.reasoning_pragmatic[idx] = total_pragmatic_error;
@@ -273,7 +309,11 @@ impl FractalArena {
         let g_bounded = expected_free_energy.max(0.0);
 
         // Update amplitude based on dynamic free energy
-        self.amplitudes[idx] = if total_pragmatic_error <= 0.0 { 1.0 } else { 0.99 - (expected_free_energy / 50000.0).clamp(0.0, 0.95) };
+        self.amplitudes[idx] = if total_pragmatic_error <= 0.0 {
+            1.0
+        } else {
+            0.99 - (expected_free_energy / 50000.0).clamp(0.0, 0.95)
+        };
 
         // Switch cognitive mode berdasarkan posisi (Mandelbrot Boundary logic)
         self.reasoning_mode[idx] = if g_bounded < 0.1 {
@@ -312,10 +352,9 @@ impl AsyncWaveSearch {
         self: Arc<Self>,
         wave: WaveNode,
         initial_manifolds: Arc<Vec<RwLock<EntityManifold>>>,
-        all_possible_axioms: Vec<WaveNode>
+        all_possible_axioms: Vec<WaveNode>,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> {
         Box::pin(async move {
-
             // 1. Inisiasi Root Fractal Node
             let root_idx;
             {
@@ -328,7 +367,9 @@ impl AsyncWaveSearch {
                     max_branching_factor: 20,
                 };
 
-                root_idx = arena.spawn_node(None, root_scale, wave.state_manifolds.clone()).unwrap();
+                root_idx = arena
+                    .spawn_node(None, root_scale, wave.state_manifolds.clone())
+                    .unwrap();
 
                 // Sync initial state dari Legacy WaveNode
                 arena.axiom_path[root_idx] = wave.axiom_type.clone();
@@ -358,7 +399,10 @@ impl AsyncWaveSearch {
                 arena.ensure_unique_state(current_idx);
 
                 // Apply Axiom
-                let current_axiom_str = arena.axiom_path[current_idx].last().map(|s: &String| s.clone()).unwrap_or_else(|| "IDENTITY_STATIC".to_string());
+                let current_axiom_str = arena.axiom_path[current_idx]
+                    .last()
+                    .map(|s: &String| s.clone())
+                    .unwrap_or_else(|| "IDENTITY_STATIC".to_string());
 
                 for manifold_lock in arena.states[current_idx].iter() {
                     let mut manifold = manifold_lock.write().unwrap();
@@ -410,15 +454,24 @@ impl AsyncWaveSearch {
                         threshold: 0.05,
                         is_pruned,
                         is_ground_state,
-                        is_expanding: !is_pruned && !is_ground_state && current_depth < self.max_depth,
+                        is_expanding: !is_pruned
+                            && !is_ground_state
+                            && current_depth < self.max_depth,
                         path: arena.axiom_path[current_idx].clone(),
                         axiom_type: current_axiom_str.clone(),
                     };
 
                     let mut mock_siblings = vec![mcts_node.clone()];
-                    mock_siblings.push(MctsNodeInfo { probability: 0.8, ..mcts_node.clone() });
+                    mock_siblings.push(MctsNodeInfo {
+                        probability: 0.8,
+                        ..mcts_node.clone()
+                    });
 
-                    Visualizer::print_mcts_transparent(&mcts_node, &mock_siblings, TransparencyLevel::Standard);
+                    Visualizer::print_mcts_transparent(
+                        &mcts_node,
+                        &mock_siblings,
+                        TransparencyLevel::Standard,
+                    );
 
                     let debug_manifold = arena.states[current_idx][0].read().unwrap();
                     Visualizer::print_particle_memory_map(&*debug_manifold);
@@ -443,8 +496,18 @@ impl AsyncWaveSearch {
 
                     println!("\n🌟 === GROUND STATE DITEMUKAN (Zero Error) === 🌟");
                     let debug_manifold = arena.states[current_idx][0].read().unwrap();
-                    Visualizer::print_tensor_quantum("Semantic T[0]", &debug_manifold.get_semantic_tensor(0), TransparencyLevel::Standard, None);
-                    Visualizer::print_tensor_quantum("Spatial T[0]", &debug_manifold.get_spatial_tensor(0), TransparencyLevel::Standard, None);
+                    Visualizer::print_tensor_quantum(
+                        "Semantic T[0]",
+                        &debug_manifold.get_semantic_tensor(0),
+                        TransparencyLevel::Standard,
+                        None,
+                    );
+                    Visualizer::print_tensor_quantum(
+                        "Spatial T[0]",
+                        &debug_manifold.get_spatial_tensor(0),
+                        TransparencyLevel::Standard,
+                        None,
+                    );
                     println!("🌟 ===========================================\n");
                     break;
                 }
@@ -455,7 +518,8 @@ impl AsyncWaveSearch {
                     continue;
                 }
 
-                let predicted_min_energy = pragmatic_error * 0.9f32.powi((self.max_depth as i32) - (current_depth as i32));
+                let predicted_min_energy =
+                    pragmatic_error * 0.9f32.powi((self.max_depth as i32) - (current_depth as i32));
                 if predicted_min_energy > 5.0 && current_depth >= 2 {
                     arena.kill_node(current_idx);
                     continue;
@@ -467,24 +531,35 @@ impl AsyncWaveSearch {
                     let mut branch_count = 0;
 
                     for next_axiom in all_possible_axioms.iter() {
-                        if arena.axiom_path[current_idx].last() == next_axiom.axiom_type.last() { continue; }
+                        if arena.axiom_path[current_idx].last() == next_axiom.axiom_type.last() {
+                            continue;
+                        }
 
                         branch_count += 1;
-                        if branch_count > max_branches { break; }
+                        if branch_count > max_branches {
+                            break;
+                        }
 
-                        if next_axiom.physics_tier >= 3 && arena.action_tier[current_idx] >= 3 { continue; }
+                        if next_axiom.physics_tier >= 3 && arena.action_tier[current_idx] >= 3 {
+                            continue;
+                        }
 
                         // Spawn child iteratif di Arena, membagikan referensi state CoW
                         let child_scale = FractalScale {
                             spatial_resolution: arena.scales[current_idx].spatial_resolution * 0.5,
                             temporal_horizon: arena.scales[current_idx].temporal_horizon * 0.5,
-                            abstraction_level: arena.scales[current_idx].abstraction_level.saturating_sub(2),
-                            confidence_threshold: arena.scales[current_idx].confidence_threshold * 0.9,
+                            abstraction_level: arena.scales[current_idx]
+                                .abstraction_level
+                                .saturating_sub(2),
+                            confidence_threshold: arena.scales[current_idx].confidence_threshold
+                                * 0.9,
                             max_branching_factor: max_branches as u8,
                         };
 
                         let parent_state = arena.states[current_idx].clone();
-                        if let Some(child_idx) = arena.spawn_node(Some(current_idx), child_scale, parent_state) {
+                        if let Some(child_idx) =
+                            arena.spawn_node(Some(current_idx), child_scale, parent_state)
+                        {
                             // Populate child aksioma
                             arena.axiom_path[child_idx] = arena.axiom_path[current_idx].clone();
                             arena.axiom_path[child_idx].push(next_axiom.axiom_type[0].clone());

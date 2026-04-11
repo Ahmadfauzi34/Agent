@@ -1,10 +1,8 @@
-use std::sync::{Arc, RwLock};
-use std::collections::HashMap;
-use ndarray::Array1;
 use lru::LruCache;
+use ndarray::Array1;
+use std::collections::HashMap;
 use std::num::NonZeroUsize;
-
-use crate::core::config::{GLOBAL_DIMENSION, MAX_ENTITIES};
+use std::sync::{Arc, RwLock};
 
 /// =============================================================================
 /// INFINITE DETAIL FIELD - Hierarkis Fraktal dengan Lazy Evaluation
@@ -110,7 +108,12 @@ impl DetailCache {
         }
     }
 
-    pub fn get_meso(&mut self, macro_id: u32, generator: &dyn DetailGenerator, coarse: &MacroLevel) -> Option<Arc<MesoLevel>> {
+    pub fn get_meso(
+        &mut self,
+        macro_id: u32,
+        generator: &dyn DetailGenerator,
+        coarse: &MacroLevel,
+    ) -> Option<Arc<MesoLevel>> {
         let key = self.hash_key(macro_id, 1, macro_id);
 
         if let Some(cached) = self.meso_cache.get(&key) {
@@ -139,9 +142,9 @@ impl DetailCache {
     }
 
     fn estimate_meso_size(&self, meso: &MesoLevel) -> usize {
-        meso.sub_regions.len() * std::mem::size_of::<MesoRegion>() +
-        meso.amplitudes.len() * 4 +
-        1024
+        meso.sub_regions.len() * std::mem::size_of::<MesoRegion>()
+            + meso.amplitudes.len() * 4
+            + 1024
     }
 }
 
@@ -170,7 +173,10 @@ impl DetailGenerator for FractalDetailGenerator {
             (mid_x, max_x, min_y, mid_y),
             (min_x, mid_x, mid_y, max_y),
             (mid_x, max_x, mid_y, max_y),
-        ].iter().enumerate() {
+        ]
+        .iter()
+        .enumerate()
+        {
             sub_regions.push(MesoRegion {
                 local_idx: i as u32,
                 parent_idx: region_id,
@@ -217,9 +223,8 @@ impl DetailGenerator for FractalDetailGenerator {
 
     fn estimate_complexity(&self, coarse_data: &Array1<f32>) -> f32 {
         let mean = coarse_data.iter().sum::<f32>() / coarse_data.len() as f32;
-        let variance = coarse_data.iter()
-            .map(|&x| (x - mean).powi(2))
-            .sum::<f32>() / coarse_data.len() as f32;
+        let variance =
+            coarse_data.iter().map(|&x| (x - mean).powi(2)).sum::<f32>() / coarse_data.len() as f32;
         variance.min(1.0).sqrt()
     }
 }
@@ -240,7 +245,7 @@ pub enum ZeroCopyView {
         region_id: u32,
         local_idx: usize,
         data: Arc<MicroLevel>,
-    }
+    },
 }
 
 pub struct CoarseData {
@@ -249,7 +254,11 @@ pub struct CoarseData {
 }
 
 impl InfiniteDetailField {
-    pub fn new(coarse_data: MacroLevel, budget_mb: usize, generator: Arc<dyn DetailGenerator>) -> Self {
+    pub fn new(
+        coarse_data: MacroLevel,
+        budget_mb: usize,
+        generator: Arc<dyn DetailGenerator>,
+    ) -> Self {
         let shared = Arc::new(CoarseData {
             regions: Arc::new(coarse_data.regions.clone()),
             signatures: Arc::new(coarse_data.dominant_signatures.clone()),
@@ -266,12 +275,10 @@ impl InfiniteDetailField {
 
     pub fn get_entity(&self, macro_id: u32, zoom_level: u8) -> Option<ZeroCopyView> {
         match zoom_level {
-            0 => {
-                Some(ZeroCopyView::Macro {
-                    region_id: macro_id,
-                    data: Arc::clone(&self.shared_base),
-                })
-            },
+            0 => Some(ZeroCopyView::Macro {
+                region_id: macro_id,
+                data: Arc::clone(&self.shared_base),
+            }),
             1 => {
                 let mut cache = self.detail_cache.write().ok()?;
                 let meso = cache.get_meso(macro_id, &*self.detail_generator, &self.coarse)?;
@@ -282,7 +289,7 @@ impl InfiniteDetailField {
                     local_idx: sub.local_idx as usize,
                     data: meso,
                 })
-            },
+            }
             2 => {
                 let mut cache = self.detail_cache.write().ok()?;
 
@@ -298,25 +305,28 @@ impl InfiniteDetailField {
                     m_arc
                 };
 
-                let idx = micro.pixel_mass.iter()
-                    .position(|&m| m > 0.0)
-                    .unwrap_or(0);
+                let idx = micro.pixel_mass.iter().position(|&m| m > 0.0).unwrap_or(0);
 
                 Some(ZeroCopyView::Micro {
                     region_id: macro_id,
                     local_idx: idx,
                     data: micro,
                 })
-            },
+            }
             _ => None,
         }
     }
 
     pub fn modify_entity<F>(&self, view: &ZeroCopyView, mutator: F)
     where
-        F: FnOnce(&mut Array1<f32>)
+        F: FnOnce(&mut Array1<f32>),
     {
-        if let ZeroCopyView::Micro { region_id, local_idx, data: _ } = view {
+        if let ZeroCopyView::Micro {
+            region_id,
+            local_idx,
+            data: _,
+        } = view
+        {
             if let Ok(mut cache) = self.detail_cache.write() {
                 let key = cache.hash_key(*region_id, 2, *local_idx as u32);
 

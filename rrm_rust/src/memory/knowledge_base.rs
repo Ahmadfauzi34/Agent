@@ -1,9 +1,9 @@
 use crate::core::config::GLOBAL_DIMENSION;
+use crate::memory::maintenance_engine::MaintenanceEngine;
 use ndarray::Array1;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use crate::memory::maintenance_engine::MaintenanceEngine;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SymbolicComponent {
@@ -75,10 +75,7 @@ impl KnowledgeBase {
         // Simpan kembali
         for (i, base_name) in base_names.iter().enumerate() {
             let bin_path = Path::new(&self.memory_dir).join(format!("{}.bin", base_name));
-            let bytes: Vec<u8> = tensors[i]
-                .iter()
-                .flat_map(|&f| f.to_ne_bytes())
-                .collect();
+            let bytes: Vec<u8> = tensors[i].iter().flat_map(|&f| f.to_ne_bytes()).collect();
             fs::write(bin_path, bytes).unwrap_or(());
         }
 
@@ -115,10 +112,7 @@ impl KnowledgeBase {
         fs::write(trace_path, json_str).unwrap();
 
         // Save Bin (Float32Array bytes equivalent)
-        let bytes: Vec<u8> = tensor
-            .iter()
-            .flat_map(|&f| f.to_ne_bytes())
-            .collect();
+        let bytes: Vec<u8> = tensor.iter().flat_map(|&f| f.to_ne_bytes()).collect();
         fs::write(bin_path, bytes).unwrap();
 
         println!(

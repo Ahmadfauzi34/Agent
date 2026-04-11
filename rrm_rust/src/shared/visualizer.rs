@@ -1,5 +1,5 @@
-use crate::core::entity_manifold::EntityManifold;
 use crate::core::config::{GLOBAL_DIMENSION, MAX_ENTITIES};
+use crate::core::entity_manifold::EntityManifold;
 use ndarray::Array1;
 use std::time::Instant;
 
@@ -105,7 +105,10 @@ impl Visualizer {
             mem_map.push_str("... (truncated)");
         }
 
-        println!("  [Memory]  Map ({}/{}): [{}]", manifold.active_count, MAX_ENTITIES, mem_map);
+        println!(
+            "  [Memory]  Map ({}/{}): [{}]",
+            manifold.active_count, MAX_ENTITIES, mem_map
+        );
     }
 
     /// Visualisasi rentang probabilitas dengan gradient color
@@ -119,7 +122,8 @@ impl Visualizer {
         let width = 40;
         let denom = (max_prob - min_prob).max(0.001);
         let pos = (((current - min_prob) / denom) * width as f32).clamp(0.0, width as f32) as usize;
-        let threshold_pos = (((threshold - min_prob) / denom) * width as f32).clamp(0.0, width as f32) as usize;
+        let threshold_pos =
+            (((threshold - min_prob) / denom) * width as f32).clamp(0.0, width as f32) as usize;
 
         let mut bar = String::with_capacity(width);
         for i in 0..width {
@@ -147,16 +151,19 @@ impl Visualizer {
     }
 
     /// Visualisasi interference pattern (constructive/destructive)
-    pub fn print_interference(
-        before_prob: f32,
-        after_prob: f32,
-        energy: f32,
-        depth: usize,
-    ) {
-        let interference = if before_prob > 0.0 { after_prob / before_prob } else { 0.0 };
-        let phase = if interference > 1.0 { "CONSTRUCTIVE" }
-                   else if interference > 0.5 { "NEUTRAL" }
-                   else { "DESTRUCTIVE" };
+    pub fn print_interference(before_prob: f32, after_prob: f32, energy: f32, depth: usize) {
+        let interference = if before_prob > 0.0 {
+            after_prob / before_prob
+        } else {
+            0.0
+        };
+        let phase = if interference > 1.0 {
+            "CONSTRUCTIVE"
+        } else if interference > 0.5 {
+            "NEUTRAL"
+        } else {
+            "DESTRUCTIVE"
+        };
 
         let wave_chars: &[char] = &['▁', '▃', '▅', '▇', '█', '▇', '▅', '▃'];
         let wave_idx = ((interference * 4.0).min(7.0) as usize).max(0);
@@ -179,33 +186,44 @@ impl Visualizer {
         history: &[(usize, f32, f32)], // (depth, prob, energy)
         level: TransparencyLevel,
     ) {
-        if history.is_empty() { return; }
+        if history.is_empty() {
+            return;
+        }
 
         println!("  ╔══════════════════════════════════════════════════════════════╗");
         println!("  ║  QUANTUM TRAJECTORY                                          ║");
         println!("  ╠══════════════════════════════════════════════════════════════╣");
 
-        let max_prob = history.iter().map(|(_, p, _)| *p).fold(0.0f32, f32::max).max(0.001);
+        let max_prob = history
+            .iter()
+            .map(|(_, p, _)| *p)
+            .fold(0.0f32, f32::max)
+            .max(0.001);
 
         for (depth, prob, energy) in history {
             let normalized = ((prob / max_prob) * 30.0).clamp(0.0, 30.0) as usize;
             let bar = "█".repeat(normalized) + &"░".repeat(30 - normalized);
 
-            let symbol = if *prob > 0.9 { "★" }
-                        else if *prob > 0.5 { "◆" }
-                        else if *prob > 0.1 { "◇" }
-                        else { "✕" };
+            let symbol = if *prob > 0.9 {
+                "★"
+            } else if *prob > 0.5 {
+                "◆"
+            } else if *prob > 0.1 {
+                "◇"
+            } else {
+                "✕"
+            };
 
             let detail = match level {
-                TransparencyLevel::QuantumDebug =>
-                    format!("E={:.2e} S={:.3}", energy, -prob.ln()),
-                TransparencyLevel::Diagnostic =>
-                    format!("E={:.1}", energy),
+                TransparencyLevel::QuantumDebug => format!("E={:.2e} S={:.3}", energy, -prob.ln()),
+                TransparencyLevel::Diagnostic => format!("E={:.1}", energy),
                 _ => String::new(),
             };
 
-            println!("  ║  d{:>2} {} │{}│ {:>6.4} {:<20} ║",
-                     depth, symbol, bar, prob, detail);
+            println!(
+                "  ║  d{:>2} {} │{}│ {:>6.4} {:<20} ║",
+                depth, symbol, bar, prob, detail
+            );
         }
 
         println!("  ╚══════════════════════════════════════════════════════════════╝");
@@ -221,7 +239,8 @@ impl Visualizer {
         level: TransparencyLevel,
     ) {
         let total_capacity = manifolds.len() * MAX_ENTITIES * GLOBAL_DIMENSION * 3 * 4;
-        let total_active: usize = manifolds.iter()
+        let total_active: usize = manifolds
+            .iter()
             .map(|m| m.active_count * GLOBAL_DIMENSION * 3 * 4)
             .sum();
 
@@ -230,15 +249,17 @@ impl Visualizer {
         println!("  ┌──────────────────────────────────────────────────────────────┐");
         println!("  │  MEMORY TRANSPARENCY                                         │");
         println!("  ├──────────────────────────────────────────────────────────────┤");
-        println!("  │  Manifolds: {:>3} │ Active: {:>6}KB │ Allocated: {:>6}KB     │",
-                 manifolds.len(),
-                 total_active / 1024,
-                 total_capacity / 1024
+        println!(
+            "  │  Manifolds: {:>3} │ Active: {:>6}KB │ Allocated: {:>6}KB     │",
+            manifolds.len(),
+            total_active / 1024,
+            total_capacity / 1024
         );
-        println!("  │  Efficiency: {:>5.1}% │ Tensor Ops: {:>6} │ Fragmentation: {:.1}% │",
-                 efficiency * 100.0,
-                 tensor_ops_count,
-                 (1.0 - efficiency) * 100.0
+        println!(
+            "  │  Efficiency: {:>5.1}% │ Tensor Ops: {:>6} │ Fragmentation: {:.1}% │",
+            efficiency * 100.0,
+            tensor_ops_count,
+            (1.0 - efficiency) * 100.0
         );
 
         if level >= TransparencyLevel::Diagnostic {
@@ -249,8 +270,14 @@ impl Visualizer {
                 let mem_wasted = (MAX_ENTITIES - m.active_count) * GLOBAL_DIMENSION * 3 * 4;
 
                 let density_bar = Self::density_gradient_bar(density, 20);
-                println!("  │  [{}] {} entities {} │ +{:>5}KB -{:>5}KB waste          │",
-                         i, m.active_count, density_bar, mem_actual/1024, mem_wasted/1024);
+                println!(
+                    "  │  [{}] {} entities {} │ +{:>5}KB -{:>5}KB waste          │",
+                    i,
+                    m.active_count,
+                    density_bar,
+                    mem_actual / 1024,
+                    mem_wasted / 1024
+                );
             }
         }
 
@@ -275,11 +302,16 @@ impl Visualizer {
         let duration = start.elapsed();
         let allocated = post_mem.saturating_sub(pre_mem);
 
-        println!("  [ALLOC] {:<20} │ +{:>6}KB │ {:>6}µs │ {}",
-                 name,
-                 allocated / 1024,
-                 duration.as_micros(),
-                 if allocated > 1024 * 1024 { "⚠️ LARGE" } else { "✓" }
+        println!(
+            "  [ALLOC] {:<20} │ +{:>6}KB │ {:>6}µs │ {}",
+            name,
+            allocated / 1024,
+            duration.as_micros(),
+            if allocated > 1024 * 1024 {
+                "⚠️ LARGE"
+            } else {
+                "✓"
+            }
         );
 
         result
@@ -296,11 +328,11 @@ impl Visualizer {
         context: Option<&str>,
     ) {
         match level {
-            TransparencyLevel::Silent => {},
+            TransparencyLevel::Silent => {}
             TransparencyLevel::Minimal => {
                 let energy = tensor.iter().map(|x| x * x).sum::<f32>().sqrt();
                 println!("  [T] {} E={:.2e}", name, energy);
-            },
+            }
             TransparencyLevel::Standard => Self::print_tensor_standard(name, tensor),
             TransparencyLevel::Verbose => Self::print_tensor_verbose(name, tensor, context),
             TransparencyLevel::Diagnostic => Self::print_tensor_diagnostic(name, tensor),
@@ -318,13 +350,22 @@ impl Visualizer {
         }
 
         // Energy indicator dengan threshold
-        let energy_status = if stats.energy > 100.0 { "🔥" }
-                          else if stats.energy > 10.0 { "⚡" }
-                          else { "○" };
+        let energy_status = if stats.energy > 100.0 {
+            "🔥"
+        } else if stats.energy > 10.0 {
+            "⚡"
+        } else {
+            "○"
+        };
 
         println!(
             "  [T] {:<18} │{}│ {} μ={:+.2} σ={:.2} S={:.0}%",
-            name, barcode, energy_status, stats.mean, stats.std_dev, stats.sparsity * 100.0
+            name,
+            barcode,
+            energy_status,
+            stats.mean,
+            stats.std_dev,
+            stats.sparsity * 100.0
         );
     }
 
@@ -339,12 +380,20 @@ impl Visualizer {
             println!("  │  Context: {:<48} │", ctx);
         }
         println!("  │  Visual: {}", Self::tensor_to_heatmap(tensor, 60));
-        println!("  │  Stats:  μ={:+.3} σ={:.3} [{:.2}, {:.2}]          │",
-                 stats.mean, stats.std_dev, stats.min, stats.max);
-        println!("  │  Energy: {:.2e} | Sparsity: {:.1}% | Entropy: {:.2} bits │",
-                 stats.energy, stats.sparsity * 100.0, stats.entropy);
-        println!("  │  Spectral: DC={:.2} LF={:.2} HF={:.2} (dominant: {})     │",
-                 spectral.dc, spectral.low_freq, spectral.high_freq, spectral.dominant_band);
+        println!(
+            "  │  Stats:  μ={:+.3} σ={:.3} [{:.2}, {:.2}]          │",
+            stats.mean, stats.std_dev, stats.min, stats.max
+        );
+        println!(
+            "  │  Energy: {:.2e} | Sparsity: {:.1}% | Entropy: {:.2} bits │",
+            stats.energy,
+            stats.sparsity * 100.0,
+            stats.entropy
+        );
+        println!(
+            "  │  Spectral: DC={:.2} LF={:.2} HF={:.2} (dominant: {})     │",
+            spectral.dc, spectral.low_freq, spectral.high_freq, spectral.dominant_band
+        );
         println!("  └──────────────────────────────────────────────────────────────┘");
     }
 
@@ -355,31 +404,55 @@ impl Visualizer {
         println!("╔════════════════════════════════════════════════════════════════╗");
         println!("║  TENSOR DIAGNOSTIC: {:<42} ║", name);
         println!("╠════════════════════════════════════════════════════════════════╣");
-        println!("║  Dimensions: {} | Layout: Standard | Alignment: 4-byte         ║", tensor.len());
+        println!(
+            "║  Dimensions: {} | Layout: Standard | Alignment: 4-byte         ║",
+            tensor.len()
+        );
         println!("║  ───────────────────────────────────────────────────────────── ║");
-        println!("║  First Moment:  {:>+10.4}  │  Second Moment: {:>10.4}         ║", stats.mean, stats.variance);
-        println!("║  Skewness:      {:>10.2}  │  Kurtosis:      {:>10.2}         ║", stats.skewness, stats.kurtosis);
-        println!("║  L1 Norm:       {:>10.4}  │  L2 Norm:        {:>10.4}         ║", stats.l1_norm, stats.energy);
+        println!(
+            "║  First Moment:  {:>+10.4}  │  Second Moment: {:>10.4}         ║",
+            stats.mean, stats.variance
+        );
+        println!(
+            "║  Skewness:      {:>10.2}  │  Kurtosis:      {:>10.2}         ║",
+            stats.skewness, stats.kurtosis
+        );
+        println!(
+            "║  L1 Norm:       {:>10.4}  │  L2 Norm:        {:>10.4}         ║",
+            stats.l1_norm, stats.energy
+        );
         println!("║  ───────────────────────────────────────────────────────────── ║");
-        println!("║  Sparsity: {:.1}% │ Non-zeros: {:>6} │ Zero-crossings: {:>6}    ║",
-                 stats.sparsity * 100.0, stats.non_zeros, stats.zero_crossings);
+        println!(
+            "║  Sparsity: {:.1}% │ Non-zeros: {:>6} │ Zero-crossings: {:>6}    ║",
+            stats.sparsity * 100.0,
+            stats.non_zeros,
+            stats.zero_crossings
+        );
 
         if !anomalies.is_empty() {
-            println!("║  ⚠️  ANOMALIES ({})                                             ║", anomalies.len());
+            println!(
+                "║  ⚠️  ANOMALIES ({})                                             ║",
+                anomalies.len()
+            );
             for (idx, val, reason, severity) in anomalies.iter().take(3) {
                 let sev_char = match severity {
                     AnomalySeverity::Critical => '🔴',
                     AnomalySeverity::Warning => '🟡',
                     AnomalySeverity::Info => '🔵',
                 };
-                println!("║    {} [{}] = {:+.4} ({})                           ║",
-                         sev_char, idx, val, reason);
+                println!(
+                    "║    {} [{}] = {:+.4} ({})                           ║",
+                    sev_char, idx, val, reason
+                );
             }
         }
 
         // Pattern classification
         let pattern = Self::classify_pattern(tensor);
-        println!("║  Pattern: {}                                                    ║", pattern);
+        println!(
+            "║  Pattern: {}                                                    ║",
+            pattern
+        );
         println!("╚════════════════════════════════════════════════════════════════╝");
     }
 
@@ -388,8 +461,9 @@ impl Visualizer {
         Self::print_tensor_diagnostic(name, tensor);
 
         println!("  ─── FULL STATE DUMP (first 100 elements) ───");
-        for (i, chunk) in tensor.iter().take(100).enumerate().step_by(10) {
-            let values: Vec<String> = tensor.iter()
+        for (i, _chunk) in tensor.iter().take(100).enumerate().step_by(10) {
+            let values: Vec<String> = tensor
+                .iter()
                 .skip(i)
                 .take(10)
                 .map(|v| format!("{:+.2e}", v))
@@ -400,8 +474,14 @@ impl Visualizer {
         // FFT plan (simulated)
         println!("  ─── FREQUENCY DOMAIN (simulated FFT) ───");
         let fft_sim = Self::simulate_fft_magnitude(tensor);
-        println!("    Bin 0-10:  {}", Self::magnitude_bar(&fft_sim[0..10], 40));
-        println!("    Bin 10-20: {}", Self::magnitude_bar(&fft_sim[10..20], 40));
+        println!(
+            "    Bin 0-10:  {}",
+            Self::magnitude_bar(&fft_sim[0..10], 40)
+        );
+        println!(
+            "    Bin 10-20: {}",
+            Self::magnitude_bar(&fft_sim[10..20], 40)
+        );
     }
 
     /// ═════════════════════════════════════════════════════════════════════════
@@ -413,17 +493,23 @@ impl Visualizer {
         siblings: &[MctsNodeInfo],
         level: TransparencyLevel,
     ) {
-        if level < TransparencyLevel::Standard { return; }
+        if level < TransparencyLevel::Standard {
+            return;
+        }
 
         // Context: posisi relatif terhadap siblings
-        let rank = siblings.iter()
+        let rank = siblings
+            .iter()
             .filter(|s| s.probability > node.probability)
-            .count() + 1;
+            .count()
+            + 1;
         let total = siblings.len().max(1);
 
         println!("  ╭──────────────────────────────────────────────────────────────╮");
-        println!("  │  MCTS NODE [{}] — Rank {}/{} │ Depth {}                       │",
-                 node.id, rank, total, node.depth);
+        println!(
+            "  │  MCTS NODE [{}] — Rank {}/{} │ Depth {}                       │",
+            node.id, rank, total, node.depth
+        );
         println!("  ├──────────────────────────────────────────────────────────────┤");
 
         // Probability dengan konteks kompetisi
@@ -431,19 +517,28 @@ impl Visualizer {
 
         // Energy breakdown
         println!("  │  Energy Components:                                          │");
-        println!("  │    Pragmatic (E):  {:>8.3}  │  Goal-seeking error             │", node.pragmatic_error);
-        println!("  │    Epistemic (I):  {:>8.3}  │  Information gain               │", node.epistemic_value);
-        println!("  │    Complexity (C):  {:>7.3}  │  Model complexity               │", node.complexity);
+        println!(
+            "  │    Pragmatic (E):  {:>8.3}  │  Goal-seeking error             │",
+            node.pragmatic_error
+        );
+        println!(
+            "  │    Epistemic (I):  {:>8.3}  │  Information gain               │",
+            node.epistemic_value
+        );
+        println!(
+            "  │    Complexity (C):  {:>7.3}  │  Model complexity               │",
+            node.complexity
+        );
         println!("  │    ───────────────────────────────────────────────────────── │");
-        println!("  │    Total Free Energy: {:>7.3}  │  G = E - I + C                  │",
-                 node.pragmatic_error - node.epistemic_value + node.complexity);
+        println!(
+            "  │    Total Free Energy: {:>7.3}  │  G = E - I + C                  │",
+            node.pragmatic_error - node.epistemic_value + node.complexity
+        );
 
         if level >= TransparencyLevel::Verbose {
             println!("  │                                                              │");
-            println!("  │  Policy Path: {:<46} │",
-                     node.path.join(" → "));
-            println!("  │  Axiom: {:<52} │",
-                     node.axiom_type);
+            println!("  │  Policy Path: {:<46} │", node.path.join(" → "));
+            println!("  │  Axiom: {:<52} │", node.axiom_type);
         }
 
         // Decision visualization
@@ -462,13 +557,12 @@ impl Visualizer {
         println!("  ╰──────────────────────────────────────────────────────────────╯");
     }
 
-    fn print_probability_competition(
-        prob: f32,
-        siblings: &[MctsNodeInfo],
-        threshold: f32,
-    ) {
+    fn print_probability_competition(prob: f32, siblings: &[MctsNodeInfo], threshold: f32) {
         if siblings.is_empty() {
-            println!("  │  Probability: {:.4} (no competition)                         │", prob);
+            println!(
+                "  │  Probability: {:.4} (no competition)                         │",
+                prob
+            );
             return;
         }
 
@@ -483,16 +577,28 @@ impl Visualizer {
 
         let mut bar = String::with_capacity(width);
         for i in 0..width {
-            if i == pos { bar.push('●'); }
-            else if i < pos { bar.push('━'); }
-            else { bar.push('┅'); }
+            if i == pos {
+                bar.push('●');
+            } else if i < pos {
+                bar.push('━');
+            } else {
+                bar.push('┅');
+            }
         }
 
-        println!("  │  P(dist): {} ●={:.3} μ={:.3} range[{:.3}, {:.3}]   │",
-                 bar, prob, mean, min, max);
-        println!("  │  Threshold: {:.3} {:<41} │",
-                 threshold,
-                 if prob > threshold { "✓ SURVIVES" } else { "✗ PRUNED" });
+        println!(
+            "  │  P(dist): {} ●={:.3} μ={:.3} range[{:.3}, {:.3}]   │",
+            bar, prob, mean, min, max
+        );
+        println!(
+            "  │  Threshold: {:.3} {:<41} │",
+            threshold,
+            if prob > threshold {
+                "✓ SURVIVES"
+            } else {
+                "✗ PRUNED"
+            }
+        );
     }
 
     /// ═════════════════════════════════════════════════════════════════════════
@@ -516,30 +622,61 @@ impl Visualizer {
         let non_zeros = tensor.iter().filter(|&&x| x.abs() > 1e-6).count();
         let sparsity = 1.0 - (non_zeros as f32 / n);
 
-        let zero_crossings = tensor.iter().zip(tensor.iter().skip(1))
+        let zero_crossings = tensor
+            .iter()
+            .zip(tensor.iter().skip(1))
             .filter(|(a, b)| a.signum() != b.signum())
             .count();
 
         // Higher moments
-        let skewness = if std_dev > 0.0 { tensor.iter().map(|x| ((x - mean) / std_dev).powi(3)).sum::<f32>() / n } else { 0.0 };
-        let kurtosis = if std_dev > 0.0 { tensor.iter().map(|x| ((x - mean) / std_dev).powi(4)).sum::<f32>() / n - 3.0 } else { 0.0 };
+        let skewness = if std_dev > 0.0 {
+            tensor
+                .iter()
+                .map(|x| ((x - mean) / std_dev).powi(3))
+                .sum::<f32>()
+                / n
+        } else {
+            0.0
+        };
+        let kurtosis = if std_dev > 0.0 {
+            tensor
+                .iter()
+                .map(|x| ((x - mean) / std_dev).powi(4))
+                .sum::<f32>()
+                / n
+                - 3.0
+        } else {
+            0.0
+        };
 
         // Entropy (Shannon)
         let entropy = if std_dev > 0.0 {
             0.5 * (2.0 * std::f32::consts::PI * std::f32::consts::E * variance).ln()
-        } else { 0.0 };
+        } else {
+            0.0
+        };
 
         TensorStatsDetailed {
-            mean, std_dev, variance, min, max, energy, l1_norm,
-            sparsity, entropy, non_zeros, zero_crossings, skewness, kurtosis,
+            mean,
+            std_dev,
+            variance,
+            min,
+            max,
+            energy,
+            l1_norm,
+            sparsity,
+            entropy,
+            non_zeros,
+            zero_crossings,
+            skewness,
+            kurtosis,
         }
     }
 
     fn amplitude_to_unicode(val: f32) -> &'static str {
         // Extended unicode blocks untuk lebih granular
         const BLOCKS: &[&str] = &[
-            " ", "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█",
-            "▉", "▊", "▋", "▌", "▍", "▎", "▏"
+            " ", "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▉", "▊", "▋", "▌", "▍", "▎", "▏",
         ];
         let idx = ((val.abs() * 8.0 + 8.0) as usize).min(15).max(0);
         BLOCKS[idx]
@@ -560,16 +697,23 @@ impl Visualizer {
     }
 
     fn tensor_to_heatmap(tensor: &Array1<f32>, width: usize) -> String {
-        tensor.iter()
+        tensor
+            .iter()
             .take(width)
             .map(|&v| {
                 let intensity = ((v.tanh() + 1.0) / 2.0 * 255.0) as u8;
                 // Simplified: gunakan ANSI colors
-                if intensity > 200 { "█" }
-                else if intensity > 150 { "▓" }
-                else if intensity > 100 { "▒" }
-                else if intensity > 50 { "░" }
-                else { " " }
+                if intensity > 200 {
+                    "█"
+                } else if intensity > 150 {
+                    "▓"
+                } else if intensity > 100 {
+                    "▒"
+                } else if intensity > 50 {
+                    "░"
+                } else {
+                    " "
+                }
             })
             .collect()
     }
@@ -597,10 +741,10 @@ impl Visualizer {
 
     fn classify_pattern(tensor: &Array1<f32>) -> String {
         let len = tensor.len().max(4);
-        let first_half: f32 = tensor.iter().take(len/2).sum();
-        let second_half: f32 = tensor.iter().skip(len/2).sum();
-        let first_quarter: f32 = tensor.iter().take(len/4).sum();
-        let last_quarter: f32 = tensor.iter().skip(len*3/4).sum();
+        let first_half: f32 = tensor.iter().take(len / 2).sum();
+        let second_half: f32 = tensor.iter().skip(len / 2).sum();
+        let first_quarter: f32 = tensor.iter().take(len / 4).sum();
+        let last_quarter: f32 = tensor.iter().skip(len * 3 / 4).sum();
 
         let patterns = [
             ((first_half - second_half).abs() < 0.1, "Symmetric"),
@@ -610,7 +754,8 @@ impl Visualizer {
             (last_quarter > first_quarter * 3.0, "Growth"),
         ];
 
-        patterns.iter()
+        patterns
+            .iter()
             .filter(|(cond, _)| *cond)
             .map(|(_, name)| *name)
             .next()
@@ -620,7 +765,7 @@ impl Visualizer {
 
     fn detect_anomalies(
         tensor: &Array1<f32>,
-        stats: &TensorStatsDetailed
+        stats: &TensorStatsDetailed,
     ) -> Vec<(usize, f32, &'static str, AnomalySeverity)> {
         let mut anomalies = Vec::new();
 
@@ -648,12 +793,15 @@ impl Visualizer {
         // Approximasi: low-freq = slow variation, high-freq = rapid variation
         let dc = tensor.iter().sum::<f32>().abs() / tensor.len() as f32;
 
-        let diffs: Vec<f32> = tensor.iter().zip(tensor.iter().skip(1))
+        let diffs: Vec<f32> = tensor
+            .iter()
+            .zip(tensor.iter().skip(1))
             .map(|(a, b)| (b - a).abs())
             .collect();
 
         let avg_diff = diffs.iter().sum::<f32>() / diffs.len().max(1) as f32;
-        let high_freq_content = diffs.iter().filter(|&&d| d > avg_diff * 2.0).count() as f32 / diffs.len().max(1) as f32;
+        let high_freq_content = diffs.iter().filter(|&&d| d > avg_diff * 2.0).count() as f32
+            / diffs.len().max(1) as f32;
 
         SpectralInfo {
             dc,

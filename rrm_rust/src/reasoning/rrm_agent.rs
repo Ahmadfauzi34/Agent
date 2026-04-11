@@ -1,24 +1,26 @@
 use crate::core::entity_manifold::EntityManifold;
-use crate::perception::structural_analyzer::StructuralAnalyzer;
-use crate::self_awareness::skill_ontology::SkillOntology;
-use crate::self_awareness::self_reflection::SelfReflection;
-use crate::perception::universal_manifold::UniversalManifold;
+use crate::memory::logic_seed_bank::LogicSeedBank;
 use crate::perception::entity_segmenter::EntitySegmenter;
 use crate::perception::hologram_decoder::HologramDecoder;
-use crate::reasoning::topological_aligner::TopologicalAligner;
-use crate::reasoning::top_down_axiomator::TopDownAxiomator;
+use crate::perception::structural_analyzer::StructuralAnalyzer;
+use crate::perception::universal_manifold::UniversalManifold;
+use crate::reasoning::causal_reasoning::CausalReasoner;
+use crate::reasoning::global_blackboard::GlobalBlackboard;
+use crate::reasoning::grover_diffusion_system::{
+    GroverCandidate, GroverConfig, GroverDiffusionSystem, TrainState,
+};
 use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
+use crate::reasoning::hierarchical_inference::{DeepActiveInferenceEngine, SimulationMode};
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
 use crate::reasoning::quantum_search::{AsyncWaveSearch, WaveNode};
-use crate::memory::logic_seed_bank::LogicSeedBank;
-use crate::reasoning::grover_diffusion_system::{GroverDiffusionSystem, GroverConfig, GroverCandidate, TrainState};
-use crate::reasoning::global_blackboard::GlobalBlackboard;
-use crate::reasoning::hierarchical_inference::{DeepActiveInferenceEngine, SimulationMode};
-use crate::reasoning::causal_reasoning::CausalReasoner;
+use crate::reasoning::top_down_axiomator::TopDownAxiomator;
+use crate::reasoning::topological_aligner::TopologicalAligner;
+use crate::self_awareness::self_reflection::SelfReflection;
+use crate::self_awareness::skill_ontology::SkillOntology;
 
+use ndarray::Array1;
 use std::collections::HashMap;
 use std::sync::Arc;
-use ndarray::Array1;
 
 pub struct RrmAgent {
     perceiver: UniversalManifold,
@@ -49,7 +51,10 @@ impl Default for RrmAgent {
 
 impl RrmAgent {
     pub fn new() -> Self {
-        use crate::perception::structural_analyzer::{StructuralDelta, StructuralSignature, DimensionRelation, ObjectDelta, TopologyHint, SymmetryChange, ObjectStatistics};
+        use crate::perception::structural_analyzer::{
+            DimensionRelation, ObjectDelta, ObjectStatistics, StructuralDelta, StructuralSignature,
+            SymmetryChange, TopologyHint,
+        };
         use std::collections::HashSet;
 
         let ontology = SkillOntology::initialize();
@@ -63,15 +68,43 @@ impl RrmAgent {
             ontology,
             self_reflection,
             structural_analyzer: StructuralAnalyzer,
-            counterfactual_engine: crate::reasoning::counterfactual_engine::CounterfactualEngine::new(),
+            counterfactual_engine:
+                crate::reasoning::counterfactual_engine::CounterfactualEngine::new(),
             causal_reasoner: CausalReasoner::new(),
-            hierarchical_planner: crate::reasoning::hierarchical_planner::HierarchicalPlanner::from_delta(&StructuralDelta { signature: StructuralSignature { dim_relation: DimensionRelation::Equal, object_delta: ObjectDelta::SameCount, color_transitions: vec![], topology_in: TopologyHint::Scatter, topology_out: TopologyHint::Scatter, has_template_frame: false, symmetry_change: SymmetryChange::Preserved }, input_stats: ObjectStatistics { count: 0, colors: HashSet::new(), bounding_box: (0, 0), total_pixels: 0, density: 0.0 }, output_stats: ObjectStatistics { count: 0, colors: HashSet::new(), bounding_box: (0, 0), total_pixels: 0, density: 0.0 }, per_object_changes: vec![] }, &SkillOntology::initialize()), // Will be recreated properly inside solve_task_v2
+            hierarchical_planner:
+                crate::reasoning::hierarchical_planner::HierarchicalPlanner::from_delta(
+                    &StructuralDelta {
+                        signature: StructuralSignature {
+                            dim_relation: DimensionRelation::Equal,
+                            object_delta: ObjectDelta::SameCount,
+                            color_transitions: vec![],
+                            topology_in: TopologyHint::Scatter,
+                            topology_out: TopologyHint::Scatter,
+                            has_template_frame: false,
+                            symmetry_change: SymmetryChange::Preserved,
+                        },
+                        input_stats: ObjectStatistics {
+                            count: 0,
+                            colors: HashSet::new(),
+                            bounding_box: (0, 0),
+                            total_pixels: 0,
+                            density: 0.0,
+                        },
+                        output_stats: ObjectStatistics {
+                            count: 0,
+                            colors: HashSet::new(),
+                            bounding_box: (0, 0),
+                            total_pixels: 0,
+                            density: 0.0,
+                        },
+                        per_object_changes: vec![],
+                    },
+                    &SkillOntology::initialize(),
+                ), // Will be recreated properly inside solve_task_v2
             mental_replay: crate::memory::mental_replay::MentalReplay::new(),
             skill_composer: crate::reasoning::skill_composer::SkillComposer::new(),
         }
     }
-
-
 
     pub fn solve_task_v2(
         &mut self,
@@ -83,7 +116,8 @@ impl RrmAgent {
 
         println!("🧠 [Mental Simulation] Memulai counterfactual exploration...");
 
-        let deltas: Vec<_> = train_pairs.iter()
+        let deltas: Vec<_> = train_pairs
+            .iter()
             .map(|(inp, out)| StructuralAnalyzer::analyze(inp, out))
             .collect();
 
@@ -97,13 +131,25 @@ impl RrmAgent {
         let mut candidates = vec![Axiom::identity(), Axiom::crop_to_content()];
 
         for cap in introspect_candidates {
-            candidates.push(Axiom::new(&cap.name, cap.tier_id, ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION), ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION), 0.0, 0.0));
+            candidates.push(Axiom::new(
+                &cap.name,
+                cap.tier_id,
+                ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION),
+                ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION),
+                0.0,
+                0.0,
+            ));
         }
 
         for axiom in candidates {
-            let result = self.counterfactual_engine.what_if(&axiom, &train_pairs[0].0, &train_pairs[0].1);
+            let result =
+                self.counterfactual_engine
+                    .what_if(&axiom, &train_pairs[0].0, &train_pairs[0].1);
             if result.is_success {
-                println!("    ✅ {} langsung sukses di CounterfactualEngine!", axiom.name);
+                println!(
+                    "    ✅ {} langsung sukses di CounterfactualEngine!",
+                    axiom.name
+                );
 
                 // Kausalitas
                 let dummy_sig = crate::reasoning::structures::StructuralSignature {
@@ -114,37 +160,63 @@ impl RrmAgent {
                 };
 
                 let empty_alts: Vec<crate::reasoning::structures::Axiom> = vec![];
-                let causal_result = self.causal_reasoner.assess_causality(&axiom, &train_pairs[0].0, &dummy_sig, &empty_alts);
+                let causal_result = self.causal_reasoner.assess_causality(
+                    &axiom,
+                    &train_pairs[0].0,
+                    &dummy_sig,
+                    &empty_alts,
+                );
                 println!("    ✅ Evaluasi Kausalitas: {}", causal_result.explanation);
 
                 // === CAUSAL FEEDBACK LOOP ===
                 if causal_result.confidence > 0.6 && causal_result.is_sufficient {
                     // Cek Struktural Self-Awareness: Apakah perubahan pikiran (Tensor) mengubah Tubuh (Grid Fisik)?
                     let mut test_body = train_pairs[0].0.clone();
-                    crate::reasoning::multiverse_sandbox::MultiverseSandbox::apply_axiom(&mut test_body, &axiom.condition_tensor, &axiom.delta_spatial, &axiom.delta_semantic, axiom.delta_x, axiom.delta_y, axiom.tier, &axiom.name);
+                    crate::reasoning::multiverse_sandbox::MultiverseSandbox::apply_axiom(
+                        &mut test_body,
+                        &axiom.condition_tensor,
+                        &axiom.delta_spatial,
+                        &axiom.delta_semantic,
+                        axiom.delta_x,
+                        axiom.delta_y,
+                        axiom.tier,
+                        &axiom.name,
+                    );
 
                     let mut is_body_changed = false;
-                    if test_body.active_count != train_pairs[0].0.active_count || test_body.global_width != train_pairs[0].0.global_width || test_body.global_height != train_pairs[0].0.global_height {
+                    if test_body.active_count != train_pairs[0].0.active_count
+                        || test_body.global_width != train_pairs[0].0.global_width
+                        || test_body.global_height != train_pairs[0].0.global_height
+                    {
                         is_body_changed = true;
                     }
 
-                    if !is_body_changed && (axiom.delta_x != 0.0 || axiom.delta_y != 0.0 || axiom.name.contains("COLOR")) {
+                    if !is_body_changed
+                        && (axiom.delta_x != 0.0
+                            || axiom.delta_y != 0.0
+                            || axiom.name.contains("COLOR"))
+                    {
                         println!("    🚨 [STRUCTURAL SELF-AWARENESS WARNING]");
                         println!("    🚨 Pikiran saya tahu '{}' adalah aksioma yang tepat secara kausalitas dan tensor...", axiom.name);
                         println!("    🚨 ...Tapi 'Tubuh' saya (MultiverseSandbox) gagal mengeksekusinya ke grid pixel!");
                         println!("    🚨 SAYA KEKURANGAN ALAT FISIK. Tolong upgrade `apply_axiom` di Sandbox.");
 
-                        let mut wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new("rrm_rust/knowledge/skills/");
+                        let wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new(
+                            "rrm_rust/knowledge/skills/",
+                        );
                         let _ = wiki.append_to_log("Execution_Log", &format!("SELF-AWARENESS: Causal reasoning found solution {}, but Sandbox physics engine lacks implementation to move pixels.", axiom.name));
                     }
 
                     // Menyimpan kausalitas yang sukses sebagai "Memory Constraint"
                     let causal_memory_str = format!("Causal_Success_{}", axiom.name);
-                    self.seed_bank.add_seed(&causal_memory_str, 9999, &ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION));
+                    self.seed_bank.add_seed(
+                        &causal_memory_str,
+                        9999,
+                        &ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION),
+                    );
                 } else if !causal_result.is_necessary {
                     println!("    ⚠️ Peringatan Kausalitas: Intervensi {} tidak Necessary. Mempertimbangkan untuk mencari Axiom lain yang lebih spesifik.", axiom.name);
                 }
-
 
                 promising_axioms.push(axiom);
                 break;
@@ -154,18 +226,34 @@ impl RrmAgent {
         }
 
         if !promising_axioms.is_empty() {
-             let mut test_state = test_input.clone();
-             for axiom in &promising_axioms {
-                 MultiverseSandbox::apply_axiom(&mut test_state, &axiom.condition_tensor, &axiom.delta_spatial, &axiom.delta_semantic, axiom.delta_x, axiom.delta_y, axiom.tier, &axiom.name);
-             }
+            let mut test_state = test_input.clone();
+            for axiom in &promising_axioms {
+                MultiverseSandbox::apply_axiom(
+                    &mut test_state,
+                    &axiom.condition_tensor,
+                    &axiom.delta_spatial,
+                    &axiom.delta_semantic,
+                    axiom.delta_x,
+                    axiom.delta_y,
+                    axiom.tier,
+                    &axiom.name,
+                );
+            }
 
-             return self.decoder.collapse_to_grid(&test_state, test_state.global_width as usize, test_state.global_height as usize, 0.5);
+            return self.decoder.collapse_to_grid(
+                &test_state,
+                test_state.global_width as usize,
+                test_state.global_height as usize,
+                0.5,
+            );
         }
 
         // Fallback ke Hierarchical Planner
         println!("  🔄 Fallback ke hierarchical planning...");
 
-        let _strategy = self.ontology.can_solve(&consensus_delta)
+        let _strategy = self
+            .ontology
+            .can_solve(&consensus_delta)
             .expect("No strategy available for this task class");
 
         let planner = HierarchicalPlanner::from_delta(&consensus_delta, &self.ontology);
@@ -180,23 +268,43 @@ impl RrmAgent {
             Some(axioms) => {
                 let mut test_state = test_input.clone();
                 for axiom in &axioms {
-                    MultiverseSandbox::apply_axiom(&mut test_state, &axiom.condition_tensor, &axiom.delta_spatial, &axiom.delta_semantic, axiom.delta_x, axiom.delta_y, axiom.tier, &axiom.name);
+                    MultiverseSandbox::apply_axiom(
+                        &mut test_state,
+                        &axiom.condition_tensor,
+                        &axiom.delta_spatial,
+                        &axiom.delta_semantic,
+                        axiom.delta_x,
+                        axiom.delta_y,
+                        axiom.tier,
+                        &axiom.name,
+                    );
                 }
 
-                let mut wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new("rrm_rust/knowledge/skills/");
-                let _ = wiki.append_to_log("Execution_Log", &format!("Run #X -> SUCCESS via HierarchicalPlanner fallback"));
-
-                self.decoder.collapse_to_grid(&test_state, test_state.global_width as usize, test_state.global_height as usize, 0.5)
-            },
-            None => {
-                self.mental_replay.generate_dreams(10);
-                let _discovered = self.mental_replay.practice_in_dreams(
-                    &mut self.counterfactual_engine,
-                    &self.ontology,
+                let wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new(
+                    "rrm_rust/knowledge/skills/",
+                );
+                let _ = wiki.append_to_log(
+                    "Execution_Log",
+                    &format!("Run #X -> SUCCESS via HierarchicalPlanner fallback"),
                 );
 
+                self.decoder.collapse_to_grid(
+                    &test_state,
+                    test_state.global_width as usize,
+                    test_state.global_height as usize,
+                    0.5,
+                )
+            }
+            None => {
+                self.mental_replay.generate_dreams(10);
+                let _discovered = self
+                    .mental_replay
+                    .practice_in_dreams(&mut self.counterfactual_engine, &self.ontology);
+
                 // MCTS/Planner gagal total. Catat ke log Wiki
-                let mut wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new("rrm_rust/knowledge/skills/");
+                let mut wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new(
+                    "rrm_rust/knowledge/skills/",
+                );
                 let _ = wiki.append_to_log("Analysis_Log", &format!("Catastrophic Failure Detected. Need to synthesize generative skill via crossover."));
 
                 // Simulasi pembuatan skill baru hasil "crossover"
@@ -211,17 +319,24 @@ impl RrmAgent {
                 };
                 let _ = wiki.create_skill(new_page);
 
-                self.decoder.collapse_to_grid(test_input, test_input.global_width as usize, test_input.global_height as usize, 0.5)
+                self.decoder.collapse_to_grid(
+                    test_input,
+                    test_input.global_width as usize,
+                    test_input.global_height as usize,
+                    0.5,
+                )
             }
         }
     }
-
 
     pub fn dream(&mut self) {
         println!("🌙 [Mental Replay] RRM memasuki fase REM (Bermimpi)...");
         use crate::self_awareness::executable_wiki::ExecutableWiki;
         let wiki = ExecutableWiki::new(std::path::PathBuf::from("knowledge"));
-        let _ = wiki.append_to_log("soul_log", "\n## Branch: Mengubah Dimensi Ruang & Warna Dalam Mimpi\n");
+        let _ = wiki.append_to_log(
+            "soul_log",
+            "\n## Branch: Mengubah Dimensi Ruang & Warna Dalam Mimpi\n",
+        );
 
         // Asumsikan RRM sedang mengamati memori Task 2dc579da
         if self.mental_replay.solved_tasks.is_empty() {
@@ -234,22 +349,39 @@ impl RrmAgent {
 
         println!("   -> Mensimulasikan Counterfactual Engine di alam mimpi...");
         // Di alam mimpi, agen mencoba memecahkan masalah dengan skill ontology yang dia punya.
-        let discovered_skills = self.mental_replay.practice_in_dreams(&mut self.counterfactual_engine, &self.ontology);
+        let discovered_skills = self
+            .mental_replay
+            .practice_in_dreams(&mut self.counterfactual_engine, &self.ontology);
 
         if discovered_skills.len() > 0 {
-            println!("✨ [Eureka!] RRM menemukan {} komposisi skill baru di alam mimpinya!", discovered_skills.len());
-            for skill in discovered_skills {
+            println!(
+                "✨ [Eureka!] RRM menemukan {} komposisi skill baru di alam mimpinya!",
+                discovered_skills.len()
+            );
+            for _skill in discovered_skills {
                 // println!("  - Discovered Rule: {:?}", skill.emergence_properties);
                 let axiom_name = String::from("DreamAxiom_Unknown");
-                self.seed_bank.add_seed(&axiom_name, 9999, &ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION));
+                self.seed_bank.add_seed(
+                    &axiom_name,
+                    9999,
+                    &ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION),
+                );
             }
         } else {
             println!("   -> Mimpi selesai. Sistem telah melatih otot kognitifnya.");
-            let _ = wiki.append_to_log("soul_log", "### [tX] Mimpi Selesai: Otot kognitif tensor telah direkalibrasi.");
+            let _ = wiki.append_to_log(
+                "soul_log",
+                "### [tX] Mimpi Selesai: Otot kognitif tensor telah direkalibrasi.",
+            );
         }
     }
 
-    pub fn solve_task(&mut self, train_in: &Vec<Vec<Vec<i32>>>, train_out: &Vec<Vec<Vec<i32>>>, test_in: &Vec<Vec<i32>>) -> Vec<Vec<i32>> {
+    pub fn solve_task(
+        &mut self,
+        train_in: &Vec<Vec<Vec<i32>>>,
+        train_out: &Vec<Vec<Vec<i32>>>,
+        test_in: &Vec<Vec<i32>>,
+    ) -> Vec<Vec<i32>> {
         let mut train_states: Vec<(EntityManifold, EntityManifold)> = Vec::new();
 
         for (i, o) in train_in.iter().zip(train_out.iter()) {
@@ -288,7 +420,10 @@ impl RrmAgent {
             for m in matches {
                 // Gunakan Arc<Vec<RwLock>> (Copy-on-Write) untuk menghindari memory bloat
                 let initial_manifolds: Arc<Vec<std::sync::RwLock<EntityManifold>>> = Arc::new(
-                    train_states.iter().map(|s| std::sync::RwLock::new(s.0.clone())).collect()
+                    train_states
+                        .iter()
+                        .map(|s| std::sync::RwLock::new(s.0.clone()))
+                        .collect(),
                 );
 
                 let mut node = WaveNode::new(
@@ -312,7 +447,12 @@ impl RrmAgent {
 
         // FAST PASS: Hanya mencoba translasi dan mutasi warna dasar (Tier <= 2)
         // Ini memastikan tugas sederhana selesai dalam hitungan kilat (< 1 detik).
-        let fast_pass_axioms: Vec<WaveNode> = seed_axioms.iter().filter(|a| a.physics_tier <= 2).cloned().take(3).collect();
+        let fast_pass_axioms: Vec<WaveNode> = seed_axioms
+            .iter()
+            .filter(|a| a.physics_tier <= 2)
+            .cloned()
+            .take(3)
+            .collect();
         let mut search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 1)); // Depth 1 for Fast Pass
 
         // Simpan Initial Manifolds untuk perhitungan Epistemic Value di Fast Pass
@@ -326,7 +466,11 @@ impl RrmAgent {
             let s_clone = Arc::clone(&search);
             let all_clone = vec![]; // Kosongkan all_clone pada fast pass depth 1 agar tidak mengalokasi memori berlebih
             let init_clone = Arc::clone(&initial_manifolds_fast);
-            pollster::block_on(async move { s_clone.propagate_wave(axiom_node, init_clone, all_clone).await; });
+            pollster::block_on(async move {
+                s_clone
+                    .propagate_wave(axiom_node, init_clone, all_clone)
+                    .await;
+            });
         }
 
         let mut best_rule: Option<WaveNode> = None;
@@ -365,36 +509,53 @@ impl RrmAgent {
         // Jika Fast Pass gagal menemukan Ground State (Energy 0.0, prob = 1.0),
         // kita jalankan deep MCTS dengan seluruh aksioma kosmis (Geometry, Spawn, Crop, dll)
         if best_rule.is_none() || max_prob < 0.99 {
-            println!("   [Rust MCTS] Fast Pass gagal. Memulai ADVANCED PASS (Depth 2, All Physics)...");
+            println!(
+                "   [Rust MCTS] Fast Pass gagal. Memulai ADVANCED PASS (Depth 2, All Physics)..."
+            );
 
             // Filter aksioma berdasarkan confidence. HGM menghasilkan similarity > 0.85, Hebbian biasa lebih rendah.
-            let high_confidence_axioms: Vec<WaveNode> = seed_axioms.into_iter()
+            let high_confidence_axioms: Vec<WaveNode> = seed_axioms
+                .into_iter()
                 .filter(|a| a.probability >= 0.3) // Allow sub-part heuristics (Tier 0) to enter advanced pass
                 .collect();
 
-            println!("   🧠 Advanced Pass Axioms Generated (Sim >= 0.3): {}", high_confidence_axioms.len());
+            println!(
+                "   🧠 Advanced Pass Axioms Generated (Sim >= 0.3): {}",
+                high_confidence_axioms.len()
+            );
             for (i, ax) in high_confidence_axioms.iter().enumerate().take(30) {
-                println!("      [{}] {:?} | sim: {:.3} | tier: {} | dx: {} dy: {}", i, ax.axiom_type, ax.probability, ax.physics_tier, ax.delta_x, ax.delta_y);
+                println!(
+                    "      [{}] {:?} | sim: {:.3} | tier: {} | dx: {} dy: {}",
+                    i, ax.axiom_type, ax.probability, ax.physics_tier, ax.delta_x, ax.delta_y
+                );
             }
 
             // Iterative Deepening: Beam Width 3 -> 5 -> 10 -> 20
             let depths = vec![2, 5, 10, 20];
 
             for (attempt, &take_n) in depths.iter().enumerate() {
-                println!("   🔍 Search Attempt {}: Exploring top {} advanced axioms...", attempt + 1, take_n);
+                println!(
+                    "   🔍 Search Attempt {}: Exploring top {} advanced axioms...",
+                    attempt + 1,
+                    take_n
+                );
 
                 // Menggunakan GroverDiffusionSystem untuk Pre-Filter Aksioma Terbaik tanpa deep cloning
                 // secara terus-menerus ke semua cabang, sehingga menghemat memory MCTS!
                 let mut candidates = Vec::new();
                 for ax in high_confidence_axioms.iter().take(take_n) {
                     candidates.push(GroverCandidate {
-                        energy: ax.probability, // warm start base
+                        energy: ax.probability,                 // warm start base
                         tensor_rule: ax.tensor_spatial.clone(), // Menggunakan tensor spasial untuk filtering
                         condition_tensor: ax.condition_tensor.clone(),
                         delta_x: ax.delta_x,
                         delta_y: ax.delta_y,
                         physics_tier: ax.physics_tier,
-                        axiom_type: ax.axiom_type.last().cloned().unwrap_or_else(|| "".to_string()),
+                        axiom_type: ax
+                            .axiom_type
+                            .last()
+                            .cloned()
+                            .unwrap_or_else(|| "".to_string()),
                     });
                 }
 
@@ -417,12 +578,16 @@ impl RrmAgent {
                 };
 
                 let mut grover = GroverDiffusionSystem::new(&mut sandbox, config);
-                let best_grover_idx = grover.search(&candidates, &grover_train_states, &ceo_engine.current_mode);
+                let best_grover_idx =
+                    grover.search(&candidates, &grover_train_states, &ceo_engine.current_mode);
 
                 // Jika Grover menemukan pemenang yang meyakinkan, kita bisa langsung pakai
                 if let Some(idx) = best_grover_idx {
                     if grover.energies[idx] <= 0.001 {
-                        println!("   ✅ Grover Diffusion menemukan solusi eksak! Index: {}", idx);
+                        println!(
+                            "   ✅ Grover Diffusion menemukan solusi eksak! Index: {}",
+                            idx
+                        );
                         // Convert to WaveNode
                         let winner = &candidates[idx];
                         let mut w_node = WaveNode::new(
@@ -433,7 +598,12 @@ impl RrmAgent {
                             winner.delta_x,
                             winner.delta_y,
                             winner.physics_tier,
-                            std::sync::Arc::new(train_states.iter().map(|(m, _)| std::sync::RwLock::new(m.clone())).collect::<Vec<_>>()),
+                            std::sync::Arc::new(
+                                train_states
+                                    .iter()
+                                    .map(|(m, _)| std::sync::RwLock::new(m.clone()))
+                                    .collect::<Vec<_>>(),
+                            ),
                         );
                         w_node.probability = 1.0;
                         best_rule = Some(w_node);
@@ -449,7 +619,12 @@ impl RrmAgent {
                 }
 
                 // Kita butuh initial state_manifolds
-                let initial_manifolds_adv = std::sync::Arc::new(train_states.iter().map(|(m, _)| std::sync::RwLock::new(m.clone())).collect::<Vec<_>>());
+                let initial_manifolds_adv = std::sync::Arc::new(
+                    train_states
+                        .iter()
+                        .map(|(m, _)| std::sync::RwLock::new(m.clone()))
+                        .collect::<Vec<_>>(),
+                );
 
                 // 2. ROOT ZERO-POINT (Memulai MCTS dari Depth 0, bukan Depth 1)
                 let initial_wave = WaveNode {
@@ -490,8 +665,18 @@ impl RrmAgent {
                 // HACK SEMENTARA: Kita pasok target MCTS (Test Set Output) sebagai `delta_x/y`
                 // hanya agar CROP tahu berapa besar jendela yang harus dipotong,
                 // karena Sandbox dilarang menebak-nebak ukurannya dari konten global.
-                let (test_target_h, test_target_w) = expected_grids.first()
-                    .map(|grid| (grid.len() as f32, if grid.is_empty() { 0.0 } else { grid[0].len() as f32 }))
+                let (test_target_h, test_target_w) = expected_grids
+                    .first()
+                    .map(|grid| {
+                        (
+                            grid.len() as f32,
+                            if grid.is_empty() {
+                                0.0
+                            } else {
+                                grid[0].len() as f32
+                            },
+                        )
+                    })
                     .unwrap_or((0.0, 0.0));
 
                 for c in all_clone.iter_mut() {
@@ -517,22 +702,36 @@ impl RrmAgent {
 
                 // Stable deterministic sort
                 all_clone.sort_by(|a, b| {
-                    b.probability.partial_cmp(&a.probability)
+                    b.probability
+                        .partial_cmp(&a.probability)
                         .unwrap_or(std::cmp::Ordering::Equal)
                         .then_with(|| a.depth.cmp(&b.depth)) // Break ties with depth
                 });
 
                 // Invariant Assertions
-                debug_assert!(all_clone.len() == all_clone_count, "Candidate count altered during VIP pass");
-                debug_assert!(all_clone.iter().all(|h| !h.probability.is_nan()), "NaN detected in final probabilities");
+                debug_assert!(
+                    all_clone.len() == all_clone_count,
+                    "Candidate count altered during VIP pass"
+                );
+                debug_assert!(
+                    all_clone.iter().all(|h| !h.probability.is_nan()),
+                    "NaN detected in final probabilities"
+                );
 
-                println!("   ⚡ Memulai MCTS dari ROOT ZERO-POINT (Depth 0) dengan {} amunisi unik...", all_clone.len());
+                println!(
+                    "   ⚡ Memulai MCTS dari ROOT ZERO-POINT (Depth 0) dengan {} amunisi unik...",
+                    all_clone.len()
+                );
 
                 search = std::sync::Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 2)); // Buka batas Horizon: Depth 2
                 let s_clone = std::sync::Arc::clone(&search);
 
                 // 4. Eksekusi MCTS dari akar!
-                pollster::block_on(async move { s_clone.propagate_wave(initial_wave, initial_manifolds_adv, all_clone).await; });
+                pollster::block_on(async move {
+                    s_clone
+                        .propagate_wave(initial_wave, initial_manifolds_adv, all_clone)
+                        .await;
+                });
 
                 let ground_states = search.ground_states.read().unwrap();
                 max_prob = -1.0;
@@ -545,7 +744,10 @@ impl RrmAgent {
 
                 // Jika Ground State ditemukan (prob mendekati 1.0, error 0.0), break dari Iterative Deepening!
                 if max_prob >= 0.95 {
-                    println!("   ✅ Advanced Pass Selesai Berkat Grover! (Prob: {:.3})", max_prob);
+                    println!(
+                        "   ✅ Advanced Pass Selesai Berkat Grover! (Prob: {:.3})",
+                        max_prob
+                    );
                     break;
                 }
 
@@ -559,7 +761,10 @@ impl RrmAgent {
         // 4. COLLAPSE (Test Phase)
         if let Some(rule) = best_rule {
             let path = rule.axiom_type.join(" -> ");
-            println!("   [Rust MCTS] Ground State Ditemukan: {} (Energy = 0.0)", path);
+            println!(
+                "   [Rust MCTS] Ground State Ditemukan: {} (Energy = 0.0)",
+                path
+            );
 
             // Apply all rules in the path in order.
             // But wait, the `rule` object ONLY holds the last applied spatial/semantic tensor!
@@ -572,10 +777,15 @@ impl RrmAgent {
             // So we need to apply ALL axioms in the history to the `test_manifold`.
             // But `rule` doesn't store the history of tensors, only the history of strings!
             // Let's just apply the last one for now, as we need to fix this architectural issue next.
-            let current_axiom_str = rule.axiom_type.last().map(|s| s.as_str()).unwrap_or("IDENTITY_STATIC");
+            let current_axiom_str = rule
+                .axiom_type
+                .last()
+                .map(|s| s.as_str())
+                .unwrap_or("IDENTITY_STATIC");
 
             // Simpan ke LogicSeedBank agar bisa dipanggil lebih cepat di task selanjutnya
-            self.seed_bank.add_seed(current_axiom_str, 999, &rule.tensor_spatial);
+            self.seed_bank
+                .add_seed(current_axiom_str, 999, &rule.tensor_spatial);
 
             // Optional: Sinkronisasikan agen dengan GlobalBlackboard jika ada multi-physics
             let mut blackboard = GlobalBlackboard::new();
@@ -598,21 +808,28 @@ impl RrmAgent {
             );
         } else {
             println!("   [Rust MCTS] WARNING: Semua gelombang hancur! (Halusinasi/Meleset)");
-            let mut wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new("rrm_rust/knowledge/skills/");
-            let _ = wiki.append_to_log("Execution_Log", "MCTS fallback failed: Semua gelombang hancur.");
+            let mut wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new(
+                "rrm_rust/knowledge/skills/",
+            );
+            let _ = wiki.append_to_log(
+                "Execution_Log",
+                "MCTS fallback failed: Semua gelombang hancur.",
+            );
             // Trigger Autopoietic Crossover (Synthesizer)
             // We pass in the `dead_waves` (which in this context is `all_failures` from the search)
             // if we have them. In the agent loop here, the agent has simulated multiple waves.
             // Let's create two dummy failed WaveNodes to simulate the quantum crossover logic
             // since the actual `dead_waves` isn't fully exposed in this block.
             use crate::reasoning::quantum_search::WaveNode;
-            use crate::core::config::GLOBAL_DIMENSION;
+
             let dummy_a = WaveNode {
                 axiom_type: vec!["FAILED_TRANS_X_5".to_string()],
                 condition_tensor: None,
                 tensor_spatial: ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION) * 0.1,
                 tensor_semantic: ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION) * 0.1,
-                delta_x: 5.0, delta_y: 0.0, physics_tier: 1,
+                delta_x: 5.0,
+                delta_y: 0.0,
+                physics_tier: 1,
                 state_manifolds: std::sync::Arc::new(vec![]),
                 state_modified: false,
                 depth: 1,
@@ -622,8 +839,11 @@ impl RrmAgent {
                 axiom_type: vec!["FAILED_TRANS_Y_2".to_string()],
                 condition_tensor: None,
                 tensor_spatial: ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION) * -0.2,
-                tensor_semantic: ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION) * -0.2,
-                delta_x: 0.0, delta_y: 2.0, physics_tier: 1,
+                tensor_semantic: ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION)
+                    * -0.2,
+                delta_x: 0.0,
+                delta_y: 2.0,
+                physics_tier: 1,
                 state_manifolds: std::sync::Arc::new(vec![]),
                 state_modified: false,
                 depth: 1,
@@ -631,10 +851,12 @@ impl RrmAgent {
             };
 
             // We retrieve the dynamically created Axiom (Brain generated physics law)
-            if let Some((skill_id, novel_axiom)) = crate::reasoning::skill_composer::AutopoieticSynthesizer::on_catastrophic_failure(
-                &[dummy_a, dummy_b],
-                "Catastrophic Wave Collapse during Fallback"
-            ) {
+            if let Some((skill_id, novel_axiom)) =
+                crate::reasoning::skill_composer::AutopoieticSynthesizer::on_catastrophic_failure(
+                    &[dummy_a, dummy_b],
+                    "Catastrophic Wave Collapse during Fallback",
+                )
+            {
                 // EXECUTING THE FHRR TENSOR DIRECTLY IN MEMORY (QUANTUM INFERENCE)
                 println!("🧬 [Quantum Inference] Menjalankan Axiom Tensor '{skill_id}' secara dinamis di Multiverse Sandbox...");
 
@@ -643,7 +865,12 @@ impl RrmAgent {
                 let mut stream_test = std::collections::HashMap::new();
                 self.encode_grid(test_in, &mut stream_test);
                 let mut dream_sandbox = crate::core::entity_manifold::EntityManifold::new();
-                crate::perception::entity_segmenter::EntitySegmenter::segment_stream(&stream_test, &mut dream_sandbox, 0.85, &self.perceiver);
+                crate::perception::entity_segmenter::EntitySegmenter::segment_stream(
+                    &stream_test,
+                    &mut dream_sandbox,
+                    0.85,
+                    &self.perceiver,
+                );
 
                 crate::reasoning::multiverse_sandbox::MultiverseSandbox::apply_axiom(
                     &mut dream_sandbox,
@@ -653,7 +880,7 @@ impl RrmAgent {
                     novel_axiom.delta_x,
                     novel_axiom.delta_y,
                     novel_axiom.tier,
-                    &novel_axiom.name
+                    &novel_axiom.name,
                 );
                 println!("🧬 [Quantum Inference] Wave propagation selesai. (Simulasi internal berhasil).");
             }
@@ -670,13 +897,26 @@ impl RrmAgent {
             let _ = wiki.create_skill(new_page);
         }
 
-        let test_width = if test_manifold.global_width > 0.0 { test_manifold.global_width as usize } else { test_in[0].len() };
-        let test_height = if test_manifold.global_height > 0.0 { test_manifold.global_height as usize } else { test_in.len() };
+        let test_width = if test_manifold.global_width > 0.0 {
+            test_manifold.global_width as usize
+        } else {
+            test_in[0].len()
+        };
+        let test_height = if test_manifold.global_height > 0.0 {
+            test_manifold.global_height as usize
+        } else {
+            test_in.len()
+        };
 
-        self.decoder.collapse_to_grid(&test_manifold, test_width, test_height, 0.50)
+        self.decoder
+            .collapse_to_grid(&test_manifold, test_width, test_height, 0.50)
     }
 
-    fn encode_grid(&self, grid: &Vec<Vec<i32>>, stream: &mut HashMap<String, (Array1<f32>, Array1<f32>)>) {
+    fn encode_grid(
+        &self,
+        grid: &Vec<Vec<i32>>,
+        stream: &mut HashMap<String, (Array1<f32>, Array1<f32>)>,
+    ) {
         let height = grid.len();
         let width = if height > 0 { grid[0].len() } else { 0 };
 
@@ -693,7 +933,10 @@ impl RrmAgent {
                 let global_spatial = self.perceiver.build_global_spatial_tensor(rel_x, rel_y);
                 let semantic = self.perceiver.build_semantic_tensor(token);
 
-                stream.insert(format!("{},{}_t{}", x, y, token), (global_spatial, semantic));
+                stream.insert(
+                    format!("{},{}_t{}", x, y, token),
+                    (global_spatial, semantic),
+                );
             }
         }
     }
