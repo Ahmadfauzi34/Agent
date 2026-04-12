@@ -1,4 +1,4 @@
-use crate::core::config::{GLOBAL_DIMENSION, MAX_ENTITIES};
+use crate::core::config::GLOBAL_DIMENSION;
 use crate::core::entity_manifold::EntityManifold;
 use ndarray::Array1;
 use std::time::Instant;
@@ -91,7 +91,8 @@ impl Visualizer {
     /// Mencetak Memory Map Partikel: █ = Hidup, _ = Dark Matter (Massa 0) (Legacy Port)
     pub fn print_particle_memory_map(manifold: &EntityManifold) {
         let mut mem_map = String::new();
-        let limit = std::cmp::min(manifold.active_count + 10, MAX_ENTITIES);
+        let cap = manifold.masses.len();
+        let limit = std::cmp::min(manifold.active_count + 10, cap);
 
         for i in 0..limit {
             if manifold.masses[i] > 0.0 {
@@ -101,13 +102,13 @@ impl Visualizer {
             }
         }
 
-        if limit < MAX_ENTITIES {
+        if limit < cap {
             mem_map.push_str("... (truncated)");
         }
 
         println!(
             "  [Memory]  Map ({}/{}): [{}]",
-            manifold.active_count, MAX_ENTITIES, mem_map
+            manifold.active_count, cap, mem_map
         );
     }
 
@@ -238,7 +239,7 @@ impl Visualizer {
         tensor_ops_count: usize,
         level: TransparencyLevel,
     ) {
-        let total_capacity = manifolds.len() * MAX_ENTITIES * GLOBAL_DIMENSION * 3 * 4;
+        let total_capacity: usize = manifolds.iter().map(|m| m.masses.len() * GLOBAL_DIMENSION * 3 * 4).sum();
         let total_active: usize = manifolds
             .iter()
             .map(|m| m.active_count * GLOBAL_DIMENSION * 3 * 4)
@@ -265,9 +266,10 @@ impl Visualizer {
         if level >= TransparencyLevel::Diagnostic {
             // Per-manifold breakdown
             for (i, m) in manifolds.iter().enumerate() {
-                let density = m.active_count as f32 / MAX_ENTITIES as f32;
+                let cap = m.masses.len().max(1);
+                let density = m.active_count as f32 / cap as f32;
                 let mem_actual = m.active_count * GLOBAL_DIMENSION * 3 * 4;
-                let mem_wasted = (MAX_ENTITIES - m.active_count) * GLOBAL_DIMENSION * 3 * 4;
+                let mem_wasted = (m.masses.len() - m.active_count) * GLOBAL_DIMENSION * 3 * 4;
 
                 let density_bar = Self::density_gradient_bar(density, 20);
                 println!(

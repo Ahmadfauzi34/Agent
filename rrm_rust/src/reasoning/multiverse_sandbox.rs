@@ -146,34 +146,30 @@ impl MultiverseSandbox {
                             }
 
                             if !occupied {
-                                // Temukan slot Dark Matter pertama
+                                // Temukan slot Dark Matter pertama atau spawn baru secara dinamis
                                 let mut dm_idx = u.active_count;
-                                // Exception Rule: Loop until we find mass == 0.0 or hit capacity
-                                for m_idx in 0..crate::core::config::MAX_ENTITIES {
+                                // Loop until we find mass == 0.0 (if any)
+                                for m_idx in 0..u.active_count {
                                     if u.masses[m_idx] == 0.0 {
                                         dm_idx = m_idx;
                                         break;
                                     }
                                 }
 
-                                if dm_idx < crate::core::config::MAX_ENTITIES {
-                                    // Bangkitkan!
-                                    u.masses[dm_idx] = 1.0;
-                                    u.centers_x[dm_idx] = spawn_x as f32;
-                                    u.centers_y[dm_idx] = spawn_y as f32;
-                                    u.tokens[dm_idx] = target_color;
+                                u.ensure_scalar_capacity(dm_idx + 1);
 
-                                    // Update Tensors
-                                    let mut sem_tensor = u.get_semantic_tensor_mut(dm_idx);
-                                    sem_tensor.assign(&new_sem_tensor);
+                                // Bangkitkan!
+                                u.masses[dm_idx] = 1.0;
+                                u.centers_x[dm_idx] = spawn_x as f32;
+                                u.centers_y[dm_idx] = spawn_y as f32;
+                                u.tokens[dm_idx] = target_color;
 
-                                    // Spatial Tensor di-assign Identity sementara (Karena True Swarm hanya baca center)
-                                    // Atau idealnya bisa di-generate via UniversalManifold, tapi MCTS di Rust tidak
-                                    // perlu tensor spasial persis jika decoder collapse via `centers_x/y`.
+                                // Update Tensors
+                                let mut sem_tensor = u.get_semantic_tensor_mut(dm_idx);
+                                sem_tensor.assign(&new_sem_tensor);
 
-                                    if dm_idx >= u.active_count {
-                                        u.active_count = dm_idx + 1;
-                                    }
+                                if dm_idx >= u.active_count {
+                                    u.active_count = dm_idx + 1;
                                 }
                             }
                         }
