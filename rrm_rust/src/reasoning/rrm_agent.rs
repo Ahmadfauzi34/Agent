@@ -435,6 +435,7 @@ impl RrmAgent {
                     m.delta_y,
                     m.physics_tier,
                     initial_manifolds,
+                    None,
                 );
                 node.probability = m.similarity; // Meminjam property probability untuk menyimpan skor prioritas/similarity saat inisiasi
                 seed_axioms.push(node);
@@ -604,6 +605,7 @@ impl RrmAgent {
                                     .map(|(m, _)| std::sync::RwLock::new(m.clone()))
                                     .collect::<Vec<_>>(),
                             ),
+                            None,
                         );
                         w_node.probability = 1.0;
                         best_rule = Some(w_node);
@@ -629,7 +631,8 @@ impl RrmAgent {
                 // 2. ROOT ZERO-POINT (Memulai MCTS dari Depth 0, bukan Depth 1)
                 let initial_wave = WaveNode {
                     axiom_type: vec!["ROOT_START".to_string()],
-                    state_manifolds: std::sync::Arc::clone(&initial_manifolds_adv),
+                    static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData { regions: std::sync::Arc::new(vec![]), signatures: std::sync::Arc::new(vec![]) }),
+                            state_manifolds: std::sync::Arc::clone(&initial_manifolds_adv),
                     condition_tensor: Some(id_tensor.clone()),
                     tensor_spatial: id_tensor.clone(),
                     tensor_semantic: id_tensor.clone(),
@@ -780,7 +783,7 @@ impl RrmAgent {
             let current_axiom_str = rule
                 .axiom_type
                 .last()
-                .map(|s| s.as_str())
+                .map(|s: &String| s.as_str())
                 .unwrap_or("IDENTITY_STATIC");
 
             // Simpan ke LogicSeedBank agar bisa dipanggil lebih cepat di task selanjutnya
@@ -830,7 +833,8 @@ impl RrmAgent {
                 delta_x: 5.0,
                 delta_y: 0.0,
                 physics_tier: 1,
-                state_manifolds: std::sync::Arc::new(vec![]),
+                static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData { regions: std::sync::Arc::new(vec![]), signatures: std::sync::Arc::new(vec![]) }),
+                            state_manifolds: std::sync::Arc::new(vec![]),
                 state_modified: false,
                 depth: 1,
                 probability: 0.5,
@@ -844,7 +848,8 @@ impl RrmAgent {
                 delta_x: 0.0,
                 delta_y: 2.0,
                 physics_tier: 1,
-                state_manifolds: std::sync::Arc::new(vec![]),
+                static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData { regions: std::sync::Arc::new(vec![]), signatures: std::sync::Arc::new(vec![]) }),
+                            state_manifolds: std::sync::Arc::new(vec![]),
                 state_modified: false,
                 depth: 1,
                 probability: 0.5,

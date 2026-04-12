@@ -10,17 +10,13 @@ use futures_lite::future;
 
 #[derive(Clone)]
 pub struct FractalId {
-    pub level: u8,
     pub index: u32,
     pub path_hash: u64,
 }
 
 #[derive(Clone)]
-pub struct FractalScale {
-    pub spatial_resolution: f32,
-    pub temporal_horizon: f32,
-    pub abstraction_level: u8,
-    pub confidence_threshold: f32,
+pub struct EnergyTolerance {
+    pub precision_width: f64, // E.g., 1e-6 (Fuzzy/Semantic) down to 1e-15 (Femto/Exact)
     pub max_branching_factor: u8,
 }
 
@@ -35,8 +31,10 @@ pub struct WaveNode {
     pub delta_y: f32,
     pub physics_tier: u8,
 
-    // Status Sandbox yang terikat pada gelombang ini (Fisika saat ini)
-    // Menggunakan Copy-on-Write (CoW) untuk menghindari clone memori 39MB yang berlebihan!
+    // Status statis (Makroskopik) -> Cukup klon pointer Arc (Shallow)
+    pub static_background: Arc<crate::core::infinite_detail::CoarseData>,
+
+    // Status dinamis (Mikroskopik) -> Disalin penuh/Copy-on-Write jika dimodifikasi
     pub state_manifolds: Arc<Vec<RwLock<EntityManifold>>>,
     pub state_modified: bool,
 
@@ -55,6 +53,7 @@ impl WaveNode {
         delta_y: f32,
         physics_tier: u8,
         initial_manifolds: Arc<Vec<RwLock<EntityManifold>>>,
+        static_background: Option<Arc<crate::core::infinite_detail::CoarseData>>,
     ) -> Self {
         Self {
             axiom_type: vec![axiom_type],
@@ -64,7 +63,8 @@ impl WaveNode {
             delta_x,
             delta_y,
             physics_tier,
-            state_manifolds: initial_manifolds,
+            static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData { regions: std::sync::Arc::new(vec![]), signatures: std::sync::Arc::new(vec![]) }),
+                            state_manifolds: initial_manifolds,
             state_modified: false,
             probability: 1.0,
             depth: 1,
@@ -77,7 +77,16 @@ impl WaveNode {
             let cloned: Vec<RwLock<EntityManifold>> = self
                 .state_manifolds
                 .iter()
-                .map(|m| RwLock::new(m.read().unwrap().clone()))
+                .map(|m: &RwLock<EntityManifold>| {
+                    let guard = m.read().unwrap();
+                    if guard.masses.len() > 0 && guard.masses[0] > 100.0 {
+                        let mut shallow = EntityManifold::new();
+                        shallow.active_count = 0;
+                        RwLock::new(shallow)
+                    } else {
+                        RwLock::new(guard.clone())
+                    }
+                })
                 .collect();
             self.state_manifolds = Arc::new(cloned);
             self.state_modified = true;
@@ -96,7 +105,8 @@ pub struct FractalArena {
     pub ids: Vec<FractalId>,
     pub parents: Vec<Option<usize>>,
     pub children_ranges: Vec<(usize, u8)>,
-    pub scales: Vec<FractalScale>,
+    pub tolerances: Vec<EnergyTolerance>,
+    pub static_backgrounds: Vec<Arc<crate::core::infinite_detail::CoarseData>>,
     pub amplitudes: Vec<f32>,
     pub phases: Vec<f32>,
     pub states: Vec<Arc<Vec<RwLock<EntityManifold>>>>,
@@ -128,7 +138,8 @@ impl FractalArena {
             ids: Vec::with_capacity(capacity),
             parents: Vec::with_capacity(capacity),
             children_ranges: Vec::with_capacity(capacity),
-            scales: Vec::with_capacity(capacity),
+            tolerances: Vec::with_capacity(capacity),
+            static_backgrounds: Vec::with_capacity(capacity),
             amplitudes: Vec::with_capacity(capacity),
             phases: Vec::with_capacity(capacity),
             states: Vec::with_capacity(capacity),
@@ -157,20 +168,18 @@ impl FractalArena {
     pub fn spawn_node(
         &mut self,
         parent: Option<usize>,
-        scale: FractalScale,
+        tolerance: EnergyTolerance,
         state: Arc<Vec<RwLock<EntityManifold>>>,
     ) -> Option<usize> {
-        let level = parent.map(|p| self.ids[p].level + 1).unwrap_or(0);
 
         if let Some(idx) = self.free_indices.pop() {
             self.parents[idx] = parent;
-            self.scales[idx] = scale;
+            self.tolerances[idx] = tolerance;
             self.amplitudes[idx] = 1.0;
             self.phases[idx] = 0.0;
             self.modified_flags[idx] = false;
             self.states[idx] = state;
             self.ids[idx] = FractalId {
-                level,
                 index: idx as u32,
                 path_hash: 0,
             };
@@ -197,17 +206,18 @@ impl FractalArena {
             return None;
         }
 
+        let depth = parent.map(|p| self.children_ranges[p].1 + 1).unwrap_or(0);
         let idx = self.active_count;
         self.active_count += 1;
 
         self.ids.push(FractalId {
-            level,
             index: idx as u32,
             path_hash: 0,
         });
         self.parents.push(parent);
-        self.children_ranges.push((0, 0));
-        self.scales.push(scale);
+        self.children_ranges.push((0, depth));
+        self.tolerances.push(tolerance);
+        self.static_backgrounds.push(Arc::new(crate::core::infinite_detail::CoarseData { regions: Arc::new(vec![]), signatures: Arc::new(vec![]) }));
         self.amplitudes.push(1.0);
         self.phases.push(0.0);
         self.states.push(state);
@@ -248,7 +258,17 @@ impl FractalArena {
         if !self.modified_flags[idx] {
             let cloned: Vec<RwLock<EntityManifold>> = self.states[idx]
                 .iter()
-                .map(|m| RwLock::new(m.read().unwrap().clone()))
+                .map(|m: &RwLock<EntityManifold>| {
+                    let guard = m.read().unwrap();
+                    // Implementasi Shallow clone memory
+                    if guard.masses.len() > 0 && guard.masses[0] > 100.0 { // Heuristic check macro vs micro
+                        let mut shallow = EntityManifold::new();
+                        shallow.active_count = 0;
+                        RwLock::new(shallow)
+                    } else {
+                        RwLock::new(guard.clone())
+                    }
+                })
                 .collect();
             self.states[idx] = Arc::new(cloned);
             self.modified_flags[idx] = true;
@@ -265,7 +285,7 @@ impl FractalArena {
         let mut total_pragmatic_error = 0.0;
         let mut total_epistemic_value = 0.0;
 
-        let current_depth = self.ids[idx].level as usize;
+        let current_depth = self.children_ranges[idx].1 as usize;
         let current_phase = if current_depth <= 1 {
             CognitivePhase::MacroStructural // Langkah pertama HARUS menyelesaikan dimensi!
         } else {
@@ -291,12 +311,13 @@ impl FractalArena {
             };
 
             total_pragmatic_error += SimdEnergyCalculator::calculate_pragmatic_streaming(
-                &*manifold_read,
-                expected_grid,
-                m_width,
-                m_height,
-                &current_phase,
-            );
+            &*manifold_read,
+            expected_grid,
+            m_width,
+            m_height,
+            &current_phase,
+            1e-6,
+        );
             total_epistemic_value +=
                 SimdEnergyCalculator::calculate_epistemic(&*manifold_read, &*initial_read);
         }
@@ -359,16 +380,13 @@ impl AsyncWaveSearch {
             let root_idx;
             {
                 let mut arena = self.arena.write().unwrap();
-                let root_scale = FractalScale {
-                    spatial_resolution: 1.0,
-                    temporal_horizon: 1000.0,
-                    abstraction_level: 10,
-                    confidence_threshold: 0.9,
+                let root_tolerance = EnergyTolerance {
+                    precision_width: 1e-6, // Mulai dari Micro / Fuzzy (Semantic level)
                     max_branching_factor: 20,
                 };
 
                 root_idx = arena
-                    .spawn_node(None, root_scale, wave.state_manifolds.clone())
+                    .spawn_node(None, root_tolerance, wave.state_manifolds.clone())
                     .unwrap();
 
                 // Sync initial state dari Legacy WaveNode
@@ -379,6 +397,7 @@ impl AsyncWaveSearch {
                 arena.action_dx[root_idx] = wave.delta_x;
                 arena.action_dy[root_idx] = wave.delta_y;
                 arena.action_tier[root_idx] = wave.physics_tier;
+                arena.static_backgrounds[root_idx] = wave.static_background.clone();
             }
 
             // Queue iteratif untuk simulasi Tree-Search Zero-GC
@@ -424,7 +443,7 @@ impl AsyncWaveSearch {
                 let pragmatic_error = arena.reasoning_pragmatic[current_idx];
                 let epistemic_value = arena.reasoning_epistemic[current_idx];
                 let amplitude = arena.amplitudes[current_idx];
-                let current_depth = arena.ids[current_idx].level as usize;
+                let current_depth = arena.children_ranges[current_idx].1 as usize;
 
                 // Visualizer & Logging
                 let m_width = arena.states[current_idx][0].read().unwrap().global_width;
@@ -487,7 +506,8 @@ impl AsyncWaveSearch {
                         delta_x: arena.action_dx[current_idx],
                         delta_y: arena.action_dy[current_idx],
                         physics_tier: arena.action_tier[current_idx],
-                        state_manifolds: arena.states[current_idx].clone(),
+                        static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData { regions: std::sync::Arc::new(vec![]), signatures: std::sync::Arc::new(vec![]) }),
+                            state_manifolds: arena.states[current_idx].clone(),
                         state_modified: arena.modified_flags[current_idx],
                         probability: amplitude,
                         depth: current_depth,
@@ -545,20 +565,16 @@ impl AsyncWaveSearch {
                         }
 
                         // Spawn child iteratif di Arena, membagikan referensi state CoW
-                        let child_scale = FractalScale {
-                            spatial_resolution: arena.scales[current_idx].spatial_resolution * 0.5,
-                            temporal_horizon: arena.scales[current_idx].temporal_horizon * 0.5,
-                            abstraction_level: arena.scales[current_idx]
-                                .abstraction_level
-                                .saturating_sub(2),
-                            confidence_threshold: arena.scales[current_idx].confidence_threshold
-                                * 0.9,
+                        // Modulasi Corong Toleransi (Femto Annealing)
+                        let new_width = arena.tolerances[current_idx].precision_width * 0.1; // Menajam secara logaritmik
+                        let child_tolerance = EnergyTolerance {
+                            precision_width: new_width.max(1e-15), // Berhenti di Femto scale
                             max_branching_factor: max_branches as u8,
                         };
 
                         let parent_state = arena.states[current_idx].clone();
                         if let Some(child_idx) =
-                            arena.spawn_node(Some(current_idx), child_scale, parent_state)
+                            arena.spawn_node(Some(current_idx), child_tolerance, parent_state)
                         {
                             // Populate child aksioma
                             arena.axiom_path[child_idx] = arena.axiom_path[current_idx].clone();

@@ -152,7 +152,7 @@ impl AutopoieticSynthesizer {
         let node_b = &dead_waves[1];
 
         let mut novel_spatial = &node_a.tensor_spatial * 0.6 + &node_b.tensor_spatial * 0.4;
-        let mut sq_sum = 0.0;
+        let mut sq_sum: f32 = 0.0;
         for &v in novel_spatial.iter() {
             sq_sum += v * v;
         }
@@ -162,7 +162,7 @@ impl AutopoieticSynthesizer {
         }
 
         let mut novel_semantic = &node_a.tensor_semantic * 0.5 + &node_b.tensor_semantic * 0.5;
-        let mut sq_sum2 = 0.0;
+        let mut sq_sum2: f32 = 0.0;
         for &v in novel_semantic.iter() {
             sq_sum2 += v * v;
         }

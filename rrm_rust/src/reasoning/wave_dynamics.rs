@@ -1,4 +1,5 @@
 use crate::core::config::{GLOBAL_DIMENSION, MAX_ENTITIES};
+use crate::reasoning::entanglement_graph::EntanglementGraph;
 use crate::core::entity_manifold::EntityManifold;
 use crate::reasoning::entanglement_optimizer::EntanglementOptimizer;
 use ndarray::Array1;
@@ -7,38 +8,25 @@ use ndarray::Array1;
 /// OOP-Free Hebbian Learning Matrix & Huygens-Fresnel Navigation.
 pub struct WaveDynamics {
     // 🏛️ HUKUM 8: Gunakan satu blok memori (N * N) agar L1 Cache tidak meleset
-    entanglement_matrix: Vec<f32>,
+    pub entanglement_graph: EntanglementGraph,
 }
 
 impl WaveDynamics {
     pub fn new() -> Self {
-        let mut matrix = vec![0.0; MAX_ENTITIES * MAX_ENTITIES];
-        // Self-entanglement
-        for i in 0..MAX_ENTITIES {
-            matrix[i * MAX_ENTITIES + i] = 1.0;
-        }
         Self {
-            entanglement_matrix: matrix,
+            entanglement_graph: EntanglementGraph::new(),
         }
     }
 
     /// Mendaftarkan active boundaries. Unlike TS which holds a ref, we pass manifold explicitly.
     pub fn initialize_entities(&mut self, manifold: &EntityManifold) {
         let count = manifold.active_count;
-
-        // Reset matrix only for active boundaries
-        for i in 0..count {
-            let row_offset = i * MAX_ENTITIES;
-            for j in 0..count {
-                self.entanglement_matrix[row_offset + j] = 0.0;
-            }
-            self.entanglement_matrix[row_offset + i] = 1.0;
-        }
+        self.entanglement_graph.reset_active(count);
     }
 
     /// Menjalankan Hebbian Learning di atas Structure of Arrays.
     pub fn evolve_entanglement(&mut self, manifold: &EntityManifold, learning_rate: f32) {
-        EntanglementOptimizer::optimize(manifold, &mut self.entanglement_matrix, learning_rate);
+        EntanglementOptimizer::optimize(manifold, &mut self.entanglement_graph, learning_rate);
     }
 
     /// Memperbarui tensor inPlace berdasarkan daya pikat/tolak (Contrastive Update).
@@ -110,14 +98,12 @@ impl WaveDynamics {
         let num_entities = manifold.active_count;
 
         let source_tensor = manifold.get_spatial_tensor(source_index).to_owned();
-        let source_row_offset = source_index * MAX_ENTITIES;
 
-        for target_index in 0..num_entities {
-            if target_index == source_index || manifold.masses[target_index] == 0.0 {
+        // Menggunakan Custom Iterator Zero-Cost dari CSR Graph
+        for (target_index, entanglement_weight) in self.entanglement_graph.iter_row(source_index) {
+            if target_index >= num_entities || target_index == source_index || manifold.masses[target_index] == 0.0 {
                 continue;
             }
-
-            let entanglement_weight = self.entanglement_matrix[source_row_offset + target_index];
 
             {
                 let mut target_tensor = manifold.get_spatial_tensor_mut(target_index);

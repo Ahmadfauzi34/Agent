@@ -190,10 +190,11 @@ impl HierarchicalPlanner {
 
                 let pragmatic_error = SimdEnergyCalculator::calculate_pragmatic_streaming(
                     &state,
-                    &dummy_grid, // HACK: for energy evaluator compatibility
+                    &dummy_grid,
                     state.global_width as usize,
                     state.global_height as usize,
                     &CognitivePhase::Microscopic,
+                    1e-15,
                 );
 
                 let confidence = if pragmatic_error == 0.0 {

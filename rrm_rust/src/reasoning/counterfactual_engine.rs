@@ -12,21 +12,14 @@ pub struct CounterfactualEngine {
 
 #[derive(Clone, Debug)]
 pub enum FailureMode {
-    DimensionMismatch {
-        expected: (u8, u8),
-        got: (u8, u8),
-    },
-    ObjectLost {
-        expected_count: usize,
-        got_count: usize,
-    },
-    ColorCorruption {
-        expected_mapping: Vec<(u8, u8)>,
-    },
-    NonCommutativeCollision {
-        first: u8,
-        second: u8,
-        consequence: String,
+    /// Failure as an Energy Landscape Gradient
+    /// Instead of boolean binary error, this returns the distance and vector
+    /// to the nearest Femto-Well (exact precision target).
+    HighEnergyState {
+        distance: f32,
+        gradient_x: f32, // The direction the tensor should have moved
+        gradient_y: f32,
+        energy_level: f32, // How bad the mismatch is
     },
 }
 
@@ -154,43 +147,82 @@ impl CounterfactualEngine {
         simulated: &EntityManifold,
         expected: &EntityManifold,
     ) -> SimulationResult {
-        // Dimension Check
-        if simulated.global_width != expected.global_width
-            || simulated.global_height != expected.global_height
-        {
-            return SimulationResult {
-                is_success: false,
-                failure: Some(FailureMode::DimensionMismatch {
-                    expected: (expected.global_width as u8, expected.global_height as u8),
-                    got: (simulated.global_width as u8, simulated.global_height as u8),
-                }),
-                final_state: simulated.clone(),
-            };
+        // Gradient Vector Evaluation
+        let mut total_dx = 0.0;
+        let mut total_dy = 0.0;
+        let mut energy = 0.0;
+
+        let sim_w = simulated.global_width;
+        let sim_h = simulated.global_height;
+        let exp_w = expected.global_width;
+        let exp_h = expected.global_height;
+
+        let mut dim_mismatch = false;
+        if sim_w != exp_w || sim_h != exp_h {
+            energy += ((sim_w - exp_w).powi(2) + (sim_h - exp_h).powi(2)).sqrt() * 1000.0;
+            dim_mismatch = true;
         }
 
-        // Deep Entity Check (Object count and basic layout must match)
-        if simulated.active_count != expected.active_count {
-            return SimulationResult {
-                is_success: false,
-                failure: Some(FailureMode::ObjectLost {
-                    expected_count: expected.active_count,
-                    got_count: simulated.active_count,
-                }),
-                final_state: simulated.clone(),
-            };
-        }
+        // Jarak centroid aktual vs target (Mencari vektor arah yang paling tepat untuk perbaikan)
+        // Kita menggunakan centroid dari warna yang sama jika memungkinkan
+        let count = simulated.active_count;
+        let exp_count = expected.active_count;
 
-        // Basic token check
-        for i in 0..simulated.active_count {
-            if simulated.tokens[i] != expected.tokens[i] {
-                return SimulationResult {
-                    is_success: false,
-                    failure: Some(FailureMode::ColorCorruption {
-                        expected_mapping: vec![],
-                    }),
-                    final_state: simulated.clone(),
-                };
+        let mut matched_entities = 0;
+
+        for i in 0..count {
+            let sim_t = simulated.tokens[i];
+            let sim_x = simulated.centers_x[i];
+            let sim_y = simulated.centers_y[i];
+
+            let mut min_dist = 99999.0;
+            let mut closest_dx = 0.0;
+            let mut closest_dy = 0.0;
+
+            for j in 0..exp_count {
+                if expected.tokens[j] == sim_t {
+                    let exp_x = expected.centers_x[j];
+                    let exp_y = expected.centers_y[j];
+
+                    // Gradient is Target - Current = Direction to move
+                    let dx = exp_x - sim_x;
+                    let dy = exp_y - sim_y;
+                    let dist = (dx*dx + dy*dy).sqrt();
+
+                    if dist < min_dist {
+                        min_dist = dist;
+                        closest_dx = dx;
+                        closest_dy = dy;
+                    }
+                }
             }
+
+            if min_dist < 9999.0 {
+                total_dx += closest_dx;
+                total_dy += closest_dy;
+                energy += min_dist;
+                matched_entities += 1;
+            } else {
+                energy += 50.0; // Penalty untuk objek yang tak punya pasangan
+            }
+        }
+
+        if dim_mismatch || energy > 0.1 || matched_entities != exp_count {
+            // Rata-rata vektor geseran untuk mental replay
+            let avg_dx = if matched_entities > 0 { total_dx / matched_entities as f32 } else { 0.0 };
+            let avg_dy = if matched_entities > 0 { total_dy / matched_entities as f32 } else { 0.0 };
+            let dist = (avg_dx * avg_dx + avg_dy * avg_dy).sqrt();
+
+            return SimulationResult {
+                is_success: false,
+                failure: Some(FailureMode::HighEnergyState {
+                    distance: dist,
+                    gradient_x: avg_dx,
+                    gradient_y: avg_dy,
+                    energy_level: energy,
+                }),
+                final_state: simulated.clone(),
+            };
         }
 
         SimulationResult {
@@ -222,9 +254,20 @@ impl CounterfactualEngine {
 
     fn suggest_correction(&self, failure: &FailureMode) -> Option<Vec<Axiom>> {
         match failure {
-            FailureMode::DimensionMismatch { .. } => Some(vec![Axiom::crop_to_content()]),
-            FailureMode::ObjectLost { .. } => Some(vec![Axiom::identity()]),
-            _ => None,
+            FailureMode::HighEnergyState { gradient_x, gradient_y, .. } => {
+                // Konversi vektor kegagalan menjadi tebakan solusi!
+                // Misalnya: Kalau tebakan kurang ke kanan 5 langkah, axiom koreksinya adalah shift_x(5)
+                // Ini meniadakan blind noise guess.
+                if gradient_x.abs() > 0.0 || gradient_y.abs() > 0.0 {
+                     let mut correction = Axiom::identity();
+                     correction.delta_x = gradient_x.round();
+                     correction.delta_y = gradient_y.round();
+                     correction.tier = 3; // Translation Tier
+                     Some(vec![correction])
+                } else {
+                     Some(vec![Axiom::crop_to_content()])
+                }
+            }
         }
     }
 
