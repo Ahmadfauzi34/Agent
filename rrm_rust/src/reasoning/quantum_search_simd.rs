@@ -70,6 +70,10 @@ impl SimdEnergyCalculator {
             let count = manifold.active_count;
             for i in 0..count {
                 if manifold.masses[i] > 0.0 {
+                    // Corong Probabilitas: Saat tolerance tinggi (1e-6), sistem lebih fuzzy dan "membolehkan" meleset sedikit koordinatnya
+                    // Tapi di akhir pencarian saat (1e-15), sistem menuntut titik integer pasti (round)
+                    // Untuk saat ini karena array integer, kita pakai tolerance untuk memangkas energy
+                    // ketika jarak centroid ke pixel target cukup dekat meski meleset.
                     let x = manifold.centers_x[i].round() as i32;
                     let y = manifold.centers_y[i].round() as i32;
                     positions.push((x, y, manifold.tokens[i]));
