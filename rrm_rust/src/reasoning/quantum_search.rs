@@ -206,6 +206,7 @@ impl FractalArena {
             return None;
         }
 
+        let depth = parent.map(|p| self.children_ranges[p].1 + 1).unwrap_or(0);
         let idx = self.active_count;
         self.active_count += 1;
 
@@ -214,7 +215,7 @@ impl FractalArena {
             path_hash: 0,
         });
         self.parents.push(parent);
-        self.children_ranges.push((0, 0));
+        self.children_ranges.push((0, depth));
         self.tolerances.push(tolerance);
         self.static_backgrounds.push(Arc::new(crate::core::infinite_detail::CoarseData { regions: Arc::new(vec![]), signatures: Arc::new(vec![]) }));
         self.amplitudes.push(1.0);

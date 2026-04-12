@@ -95,13 +95,36 @@ impl MentalReplay {
             let mut axioms = Vec::new();
             let x_seed = ndarray::Array1::<f32>::ones(crate::core::config::GLOBAL_DIMENSION);
             let y_seed = ndarray::Array1::<f32>::ones(crate::core::config::GLOBAL_DIMENSION);
+
+            // Gradient Descent Mental Replay
+            // Kita coba Axiom pertama dengan (dx=0, dy=0) lalu simulasi Counterfactual Engine
+            let initial_axiom = Axiom::new("DREAM_AXIOM_INIT", 0, x_seed.clone(), y_seed.clone(), 0.0, 0.0);
+
+            let outcome = __engine.what_if(&initial_axiom, &dream_state, &expected_dream_state);
+
+            let mut optimal_dx = 0.0;
+            let mut optimal_dy = 0.0;
+
+            if let Some(failure) = outcome.failure {
+                let crate::reasoning::counterfactual_engine::FailureMode::HighEnergyState { gradient_x, gradient_y, .. } = failure;
+                if true {
+                    // Kompas Ditemukan!
+                    // Mental Replay tidak lagi melempar tebakan Noise Acak (DREAM_AXIOM_0 .. DREAM_AXIOM_5)
+                    // Mental replay menggunakan Vektor Gradien untuk membuat tebakan yang pasti benar.
+                    optimal_dx = gradient_x.round();
+                    optimal_dy = gradient_y.round();
+                }
+            }
+
             for i in 0..5 {
-                let d_x = i as f32;
+                // Modifikasi gradient sedikit demi mengejar deterministik (Gradient Descent simulation)
+                let d_x = optimal_dx + (i as f32 * 0.1);
+                let d_y = optimal_dy;
                 let t =
                     crate::reasoning::axiom_generator::AxiomGenerator::generate_translation_axiom(
-                        d_x, 0.0, &x_seed, &y_seed,
+                        d_x, d_y, &x_seed, &y_seed,
                     );
-                let ax = Axiom::new(&format!("DREAM_AXIOM_{}", i), 0, t.clone(), t, d_x, 0.0);
+                let ax = Axiom::new(&format!("DREAM_AXIOM_{}_{}_{}", i, d_x, d_y), 0, t.clone(), t, d_x, d_y);
                 axioms.push(ax);
             }
             let mut candidates = Vec::new();
