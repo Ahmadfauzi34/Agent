@@ -100,12 +100,35 @@ fn main() {
             println!(
                 "MCTS failed. Engaging Generative Synthesized Skill: extract_anomalous_quadrant..."
             );
-            let mut em = EntityManifold::default();
-            em.global_width = test_in[0].len() as f32;
-            em.global_height = test_in.len() as f32;
-            let res_em = extract_anomalous_quadrant(&em);
-            final_result =
-                vec![vec![0; res_em.global_width as usize]; res_em.global_height as usize];
+            // Bangun manifold dari test_in mentah dengan presisi penuh
+            use std::collections::HashMap;
+            use crate::perception::entity_segmenter::EntitySegmenter;
+            let mut stream_test = HashMap::new();
+            agent.encode_grid(&test_in, &mut stream_test);
+
+            let mut test_manifold = EntityManifold::new();
+            test_manifold.global_width = test_in[0].len() as f32;
+            test_manifold.global_height = test_in.len() as f32;
+
+            // Dummy perceiver karena di sini kita hanya butuh semantic pixel mentah
+            let dummy_perceiver = crate::perception::universal_manifold::UniversalManifold::new();
+            EntitySegmenter::segment_stream(&stream_test, &mut test_manifold, 0.85, &dummy_perceiver);
+
+            // Eksekusi fungsi anomali (Micro -> Nano -> Femto snapshot)
+            let res_em = extract_anomalous_quadrant(&test_manifold);
+
+            // Render hasil ekstraksi menjadi grid kembali
+            final_result = vec![vec![0; res_em.global_width as usize]; res_em.global_height as usize];
+            for i in 0..res_em.active_count {
+                if res_em.masses[i] > 0.0 {
+                    let cx = res_em.centers_x[i].round() as i32;
+                    let cy = res_em.centers_y[i].round() as i32;
+                    if cx >= 0 && cx < res_em.global_width as i32 && cy >= 0 && cy < res_em.global_height as i32 {
+                        final_result[cy as usize][cx as usize] = res_em.tokens[i];
+                    }
+                }
+            }
+
             success = true;
             if final_result.len() != test_out.len() {
                 success = false;
