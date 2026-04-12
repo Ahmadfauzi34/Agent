@@ -1,0 +1,47 @@
+[
+  {
+    "task_id": "045e512c",
+    "logic_type": "TRANSLATIONAL_DYNAMICS",
+    "mechanics": "VECTOR_DISPLACEMENT",
+    "rules": [
+      {
+        "color": 8,
+        "op": "IDENTITY",
+        "desc": "Static Anchor"
+      },
+      {
+        "color": 2,
+        "op": "PHASE_SHIFT_HORIZONTAL",
+        "params": {
+          "period": 3,
+          "fill": "block"
+        }
+      },
+      {
+        "color": 3,
+        "op": "PHASE_SHIFT_VERTICAL",
+        "params": {
+          "period": 2,
+          "fill": "block"
+        }
+      }
+    ],
+    "target_seed": 68487
+  },
+  {
+    "task_id": "b1948b0a",
+    "logic_type": "TRANSLATIONAL_DYNAMICS",
+    "mechanics": "VECTOR_DISPLACEMENT",
+    "rules": [
+      {
+        "color": 4,
+        "op": "PHASE_SHIFT_HORIZONTAL",
+        "params": {
+          "period": 2,
+          "fill": "block"
+        }
+      }
+    ],
+    "target_seed": 78258
+  }
+]
