@@ -160,8 +160,32 @@ impl HierarchicalPlanner {
                 let sim_result = engine.what_if(axiom, &state, expected);
 
                 // Evaluasi hasil simulasi
-                if let Some(_failure) = sim_result.failure {
-                    // Pruning jika terjadi kegagalan katastropik (misal dimensi hancur)
+                if let Some(failure) = sim_result.failure {
+                    // Jika kegagalan memberikan gradient perbaikan,
+                    // kita bisa mengevaluasinya sebagai alternatif branch (Gradient Descent)
+                    if let Some(mut corrections) = engine.suggest_correction(&failure) {
+                        for correction in corrections {
+                            let corr_result = engine.what_if(&correction, &state, expected);
+
+                            if corr_result.failure.is_none() {
+                                let mut new_path = path.clone();
+                                new_path.push(correction.clone());
+
+                                for edge in self.task_graph.edges(node) {
+                                    self.dfs_with_pruning(
+                                        petgraph::visit::EdgeRef::target(&edge),
+                                        new_path.clone(),
+                                        corr_result.final_state.clone(),
+                                        best_path,
+                                        best_confidence,
+                                        engine,
+                                        expected,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    // Pruning karena path saat ini gagal (baik sudah dicoba dikoreksi atau tidak)
                     return;
                 }
 
