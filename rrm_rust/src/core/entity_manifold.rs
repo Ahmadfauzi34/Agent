@@ -10,17 +10,17 @@ pub struct EntityManifold {
     pub global_height: f32,
 
     // 1. Posisi Global (Pusat Massa Absolut di Kanvas)
-    pub spatial_tensors: Vec<f32>, // Ukuran: MAX_ENTITIES * GLOBAL_DIMENSION
+    pub spatial_tensors: Vec<f32>, // Ukuran: Dinamis (Sesuai Kapasitas Entitas)
 
     // 2. Cetak Biru (Blueprint) Relatif (Bentuk lokal dari titik pusat)
-    pub shape_tensors: Vec<f32>, // Ukuran: MAX_ENTITIES * GLOBAL_DIMENSION
+    pub shape_tensors: Vec<f32>, // Ukuran: Dinamis (Sesuai Kapasitas Entitas)
 
     // 3. Warna / Tipe Material
-    pub semantic_tensors: Vec<f32>, // Ukuran: MAX_ENTITIES * GLOBAL_DIMENSION
+    pub semantic_tensors: Vec<f32>, // Ukuran: Dinamis (Sesuai Kapasitas Entitas)
 
-    pub ids: Vec<String>, // Ukuran: MAX_ENTITIES
-    pub masses: Vec<f32>, // Ukuran: MAX_ENTITIES
-    pub tokens: Vec<i32>, // Ukuran: MAX_ENTITIES
+    pub ids: Vec<String>, // Ukuran: Dinamis
+    pub masses: Vec<f32>, // Ukuran: Dinamis
+    pub tokens: Vec<i32>, // Ukuran: Dinamis
 
     // Spans / Bounding Boxes Anisotropik
     pub spans_x: Vec<f32>,
@@ -45,7 +45,7 @@ impl Clone for EntityManifold {
         // Alih-alih melakukan clone 1000 entitas (3 * 1000 * 8192 f32 = ~98MB),
         // Kita HANYA mengalokasi memori yang terpakai oleh active_count.
         // Bagian vec yang tidak terpakai dibiarkan kosong, dan akan bertambah
-        // kembali ke MAX_ENTITIES jika dibutuhkan (sangat jarang terjadi di simulasi internal MCTS)
+        // kembali ke kapasitas dinamis jika dibutuhkan
 
         // Shrink-to-fit allocation: We only allocate exact memory needed for `active_count`.
         // If the simulation needs to spawn more entities later, Rust's Vec will automatically reallocate/grow.
