@@ -120,6 +120,50 @@ impl FHRR {
         Array1::from_iter(cx_a.into_iter().map(|c| c.re * scale))
     }
 
+    /// 3.5 FUSI SIMD: Fractional Bind & Convolve (Zero-Cost Abstraction)
+    /// Menghitung rotasi fasa untuk sumbu X dan Y sekaligus di domain frekuensi,
+    /// lalu langsung mengalikannya (binding) sebelum IFFT. Ini menghemat 2x proses FFT/IFFT
+    /// dan memicu register SIMD karena intervensi zip iterator.
+    pub fn fractional_bind_2d(
+        x_seed: &Array1<f32>,
+        power_x: f32,
+        y_seed: &Array1<f32>,
+        power_y: f32,
+    ) -> Array1<f32> {
+        let dim = GLOBAL_DIMENSION;
+        let mut cx_x: Vec<Complex<f32>> = x_seed.iter().map(|&x| Complex::new(x, 0.0)).collect();
+        let mut cx_y: Vec<Complex<f32>> = y_seed.iter().map(|&y| Complex::new(y, 0.0)).collect();
+
+        PLANNER.with(|p| {
+            let mut planner = p.borrow_mut();
+            let fft_fwd = planner.plan_fft_forward(dim);
+            fft_fwd.process(&mut cx_x);
+            fft_fwd.process(&mut cx_y);
+        });
+
+        // FUSI MATEMATIKA: Iterasi paralel di vektor SIMD (O(N) pass tunggal)
+        for (kx, ky) in cx_x.iter_mut().zip(cx_y.iter_mut()) {
+            let phase_x = kx.arg() * power_x;
+            let rot_x = Complex::new(kx.norm() * phase_x.cos(), kx.norm() * phase_x.sin());
+
+            let phase_y = ky.arg() * power_y;
+            let rot_y = Complex::new(ky.norm() * phase_y.cos(), ky.norm() * phase_y.sin());
+
+            // Bind (Konvolusi di Time Domain = Perkalian di Freq Domain)
+            *kx = rot_x * rot_y;
+        }
+
+        PLANNER.with(|p| {
+            let mut planner = p.borrow_mut();
+            let fft_inv = planner.plan_fft_inverse(dim);
+            // cx_x sekarang berisi hasil binding X ⊗ Y di domain frekuensi
+            fft_inv.process(&mut cx_x);
+        });
+
+        let scale = 1.0 / (dim as f32);
+        Array1::from_iter(cx_x.into_iter().map(|c| c.re * scale))
+    }
+
     /// 4. INVERSE: Kebalikan (Involution)
     pub fn inverse(a: &Array1<f32>) -> Array1<f32> {
         let mut out = Array1::zeros(GLOBAL_DIMENSION);

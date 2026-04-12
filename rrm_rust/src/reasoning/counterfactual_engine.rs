@@ -208,9 +208,17 @@ impl CounterfactualEngine {
         }
 
         if dim_mismatch || energy > 0.1 || matched_entities != exp_count {
-            // Rata-rata vektor geseran untuk mental replay
-            let avg_dx = if matched_entities > 0 { total_dx / matched_entities as f32 } else { 0.0 };
-            let avg_dy = if matched_entities > 0 { total_dy / matched_entities as f32 } else { 0.0 };
+            // Evaluasi vektor gradien optimal untuk mental replay:
+            // Rata-rata vektor geseran hanya efektif jika obyeknya satu.
+            // Pada task multiobyek yang bergerak identik, rata-rata adalah representasi pergerakan global.
+            let mut avg_dx = 0.0;
+            let mut avg_dy = 0.0;
+
+            if matched_entities > 0 {
+                avg_dx = total_dx / matched_entities as f32;
+                avg_dy = total_dy / matched_entities as f32;
+            }
+
             let dist = (avg_dx * avg_dx + avg_dy * avg_dy).sqrt();
 
             return SimulationResult {
@@ -252,19 +260,31 @@ impl CounterfactualEngine {
         }
     }
 
-    fn suggest_correction(&self, failure: &FailureMode) -> Option<Vec<Axiom>> {
+    pub fn suggest_correction(&self, failure: &FailureMode) -> Option<Vec<Axiom>> {
         match failure {
             FailureMode::HighEnergyState { gradient_x, gradient_y, .. } => {
-                // Konversi vektor kegagalan menjadi tebakan solusi!
-                // Misalnya: Kalau tebakan kurang ke kanan 5 langkah, axiom koreksinya adalah shift_x(5)
-                // Ini meniadakan blind noise guess.
+                // Konversi vektor kegagalan menjadi tebakan solusi dengan geometri Tensor FHRR
+                // Kita mentranslasikan "distance-to-well" ke dalam bentuk Fractional Bind
                 if gradient_x.abs() > 0.0 || gradient_y.abs() > 0.0 {
-                     let mut correction = Axiom::identity();
-                     correction.delta_x = gradient_x.round();
-                     correction.delta_y = gradient_y.round();
-                     correction.tier = 3; // Translation Tier
-                     Some(vec![correction])
+                    let rx = gradient_x.round();
+                    let ry = gradient_y.round();
+
+                    let x_seed = crate::core::core_seeds::CoreSeeds::x_axis_seed();
+                    let y_seed = crate::core::core_seeds::CoreSeeds::y_axis_seed();
+                    let tensor_spatial = crate::core::fhrr::FHRR::fractional_bind_2d(
+                        &x_seed, rx, &y_seed, ry
+                    );
+
+                    let mut correction = Axiom::identity();
+                    correction.name = format!("SUGGESTED_TRANS_{}_{}", rx, ry);
+                    correction.delta_x = rx;
+                    correction.delta_y = ry;
+                    correction.delta_spatial = tensor_spatial;
+                    correction.tier = 3; // Relational / Spatial Move Tier
+                    Some(vec![correction])
                 } else {
+                     // Jika dimensinya hancur atau gradient 0.0 tapi energi tinggi,
+                     // kita coba CROP_TO_COLOR atau SPAWN
                      Some(vec![Axiom::crop_to_content()])
                 }
             }

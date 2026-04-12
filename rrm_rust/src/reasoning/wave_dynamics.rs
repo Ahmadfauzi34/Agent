@@ -1,4 +1,4 @@
-use crate::core::config::{GLOBAL_DIMENSION, MAX_ENTITIES};
+use crate::core::config::GLOBAL_DIMENSION;
 use crate::reasoning::entanglement_graph::EntanglementGraph;
 use crate::core::entity_manifold::EntityManifold;
 use crate::reasoning::entanglement_optimizer::EntanglementOptimizer;

@@ -917,7 +917,7 @@ impl RrmAgent {
             .collapse_to_grid(&test_manifold, test_width, test_height, 0.50)
     }
 
-    fn encode_grid(
+    pub fn encode_grid(
         &self,
         grid: &Vec<Vec<i32>>,
         stream: &mut HashMap<String, (Array1<f32>, Array1<f32>)>,

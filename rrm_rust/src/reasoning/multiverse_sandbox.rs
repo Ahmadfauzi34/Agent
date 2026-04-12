@@ -146,34 +146,30 @@ impl MultiverseSandbox {
                             }
 
                             if !occupied {
-                                // Temukan slot Dark Matter pertama
+                                // Temukan slot Dark Matter pertama atau spawn baru secara dinamis
                                 let mut dm_idx = u.active_count;
-                                // Exception Rule: Loop until we find mass == 0.0 or hit capacity
-                                for m_idx in 0..crate::core::config::MAX_ENTITIES {
+                                // Loop until we find mass == 0.0 (if any)
+                                for m_idx in 0..u.active_count {
                                     if u.masses[m_idx] == 0.0 {
                                         dm_idx = m_idx;
                                         break;
                                     }
                                 }
 
-                                if dm_idx < crate::core::config::MAX_ENTITIES {
-                                    // Bangkitkan!
-                                    u.masses[dm_idx] = 1.0;
-                                    u.centers_x[dm_idx] = spawn_x as f32;
-                                    u.centers_y[dm_idx] = spawn_y as f32;
-                                    u.tokens[dm_idx] = target_color;
+                                u.ensure_scalar_capacity(dm_idx + 1);
 
-                                    // Update Tensors
-                                    let mut sem_tensor = u.get_semantic_tensor_mut(dm_idx);
-                                    sem_tensor.assign(&new_sem_tensor);
+                                // Bangkitkan!
+                                u.masses[dm_idx] = 1.0;
+                                u.centers_x[dm_idx] = spawn_x as f32;
+                                u.centers_y[dm_idx] = spawn_y as f32;
+                                u.tokens[dm_idx] = target_color;
 
-                                    // Spatial Tensor di-assign Identity sementara (Karena True Swarm hanya baca center)
-                                    // Atau idealnya bisa di-generate via UniversalManifold, tapi MCTS di Rust tidak
-                                    // perlu tensor spasial persis jika decoder collapse via `centers_x/y`.
+                                // Update Tensors
+                                let mut sem_tensor = u.get_semantic_tensor_mut(dm_idx);
+                                sem_tensor.assign(&new_sem_tensor);
 
-                                    if dm_idx >= u.active_count {
-                                        u.active_count = dm_idx + 1;
-                                    }
+                                if dm_idx >= u.active_count {
+                                    u.active_count = dm_idx + 1;
                                 }
                             }
                         }
@@ -320,9 +316,7 @@ impl MultiverseSandbox {
                                     u.centers_x[e] = nx;
                                     u.centers_y[e] = ny;
 
-                                    let new_x_phase = FHRR::fractional_bind(&x_seed, nx);
-                                    let new_y_phase = FHRR::fractional_bind(&y_seed, ny);
-                                    let new_spatial_tensor = FHRR::bind(&new_x_phase, &new_y_phase);
+                                    let new_spatial_tensor = FHRR::fractional_bind_2d(&x_seed, nx, &y_seed, ny);
 
                                     let mut sp_tensor_mut = u.get_spatial_tensor_mut(e);
                                     sp_tensor_mut.assign(&new_spatial_tensor);
@@ -666,11 +660,9 @@ impl MultiverseSandbox {
                 u.centers_x[e] = nx;
                 u.centers_y[e] = ny;
 
-                let new_x_phase = crate::core::fhrr::FHRR::fractional_bind(&x_seed, nx);
-                let new_y_phase = crate::core::fhrr::FHRR::fractional_bind(&y_seed, ny);
-                let new_spatial = crate::core::fhrr::FHRR::bind(&new_x_phase, &new_y_phase);
+                let new_spatial_tensor = crate::core::fhrr::FHRR::fractional_bind_2d(&x_seed, nx, &y_seed, ny);
                 let mut sp_tensor = u.get_spatial_tensor_mut(e);
-                sp_tensor.assign(&new_spatial);
+                sp_tensor.assign(&new_spatial_tensor);
             }
         }
     }

@@ -36,14 +36,12 @@ impl EntitySegmenter {
         let mut temp_manifold = EntityManifold::new();
         let mut raw_idx = 0;
 
+        temp_manifold.ensure_scalar_capacity(stream.len());
+
         for (key, (spatial_tensor, semantic_tensor)) in stream.iter() {
             let parsed = parse_key(key);
             global_width = usize::max(global_width, parsed.x + 1);
             global_height = usize::max(global_height, parsed.y + 1);
-
-            if raw_idx >= crate::core::config::MAX_ENTITIES {
-                break;
-            }
 
             temp_manifold.ids[raw_idx] = format!("RAW_{}", raw_idx);
             temp_manifold.masses[raw_idx] = 1.0;
@@ -71,12 +69,9 @@ impl EntitySegmenter {
         let mut manifold_idx = 0;
         let mut entity_counter = 1;
 
-        for atom in atoms {
-            if manifold_idx >= crate::core::config::MAX_ENTITIES {
-                println!("[Rust EntitySegmenter] Warning: MAX_ENTITIES limit reached during Gestalt mapping.");
-                break;
-            }
+        manifold.ensure_scalar_capacity(atoms.len());
 
+        for atom in atoms {
             manifold.ids[manifold_idx] = format!("OBJ_{}", entity_counter);
             entity_counter += 1;
 
