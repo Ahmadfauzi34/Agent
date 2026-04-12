@@ -310,13 +310,15 @@ impl FractalArena {
                 height
             };
 
+            let current_tolerance = self.tolerances[idx].precision_width;
+
             total_pragmatic_error += SimdEnergyCalculator::calculate_pragmatic_streaming(
             &*manifold_read,
             expected_grid,
             m_width,
             m_height,
             &current_phase,
-            1e-6,
+            current_tolerance,
         );
             total_epistemic_value +=
                 SimdEnergyCalculator::calculate_epistemic(&*manifold_read, &*initial_read);
@@ -566,7 +568,7 @@ impl AsyncWaveSearch {
 
                         // Spawn child iteratif di Arena, membagikan referensi state CoW
                         // Modulasi Corong Toleransi (Femto Annealing)
-                        let new_width = arena.tolerances[current_idx].precision_width * 0.1; // Menajam secara logaritmik
+                        let new_width = arena.tolerances[current_idx].precision_width * 1e-4; // Menajam secara eksponensial lebih cepat
                         let child_tolerance = EnergyTolerance {
                             precision_width: new_width.max(1e-15), // Berhenti di Femto scale
                             max_branching_factor: max_branches as u8,
