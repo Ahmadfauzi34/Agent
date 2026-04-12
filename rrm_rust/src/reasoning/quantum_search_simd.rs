@@ -33,7 +33,7 @@ impl SimdEnergyCalculator {
         m_width: usize,
         m_height: usize,
         phase: &CognitivePhase,
-        _tolerance: f64, // Tambahan Toleransi Corong Probabilitas
+        tolerance: f64, // Tambahan Toleransi Corong Probabilitas
     ) -> f32 {
         let expected_height = expected.len();
         let expected_width = if expected_height > 0 {

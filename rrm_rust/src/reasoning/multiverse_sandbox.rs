@@ -149,14 +149,14 @@ impl MultiverseSandbox {
                                 // Temukan slot Dark Matter pertama
                                 let mut dm_idx = u.active_count;
                                 // Exception Rule: Loop until we find mass == 0.0 or hit capacity
-                                for m_idx in 0..crate::core::config::MAX_ENTITIES {
+                                for m_idx in 0..u.masses.len() {
                                     if u.masses[m_idx] == 0.0 {
                                         dm_idx = m_idx;
                                         break;
                                     }
                                 }
 
-                                if dm_idx < crate::core::config::MAX_ENTITIES {
+                                if dm_idx < u.masses.len() {
                                     // Bangkitkan!
                                     u.masses[dm_idx] = 1.0;
                                     u.centers_x[dm_idx] = spawn_x as f32;

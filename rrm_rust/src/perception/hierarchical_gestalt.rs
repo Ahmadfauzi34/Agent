@@ -1,4 +1,3 @@
-use crate::core::config::MAX_ENTITIES;
 use crate::core::entity_manifold::EntityManifold;
 use std::cell::RefCell;
 
@@ -39,7 +38,7 @@ pub struct GestaltEngine;
 
 impl GestaltEngine {
     pub fn extract_atoms(manifold: &EntityManifold) -> Vec<GestaltAtom> {
-        let active = manifold.active_count.min(MAX_ENTITIES);
+        let active = manifold.active_count;
         if active == 0 {
             return Vec::new();
         }

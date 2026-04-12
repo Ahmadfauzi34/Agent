@@ -1,37 +1,27 @@
-use crate::core::config::MAX_ENTITIES;
 
 pub struct EntanglementGraph {
     pub values: Vec<f32>,
     pub col_indices: Vec<usize>,
     pub row_ptr: Vec<usize>,
+    pub capacity: usize,
 }
 
 impl EntanglementGraph {
     pub fn new() -> Self {
-        let mut row_ptr = vec![0; MAX_ENTITIES + 1];
-        let mut values = Vec::with_capacity(MAX_ENTITIES);
-        let mut col_indices = Vec::with_capacity(MAX_ENTITIES);
-
-        // Self-entanglement awal: 1.0 pada diagonal utama.
-        for i in 0..MAX_ENTITIES {
-            row_ptr[i] = i;
-            values.push(1.0);
-            col_indices.push(i);
-        }
-        row_ptr[MAX_ENTITIES] = MAX_ENTITIES;
-
         Self {
-            values,
-            col_indices,
-            row_ptr,
+            values: Vec::new(),
+            col_indices: Vec::new(),
+            row_ptr: vec![0],
+            capacity: 0,
         }
     }
 
     pub fn reset_active(&mut self, active_count: usize) {
+        self.capacity = active_count;
         self.values.clear();
         self.col_indices.clear();
         self.row_ptr.clear();
-        self.row_ptr.resize(MAX_ENTITIES + 1, 0);
+        self.row_ptr.resize(active_count + 1, 0);
 
         for i in 0..active_count {
             self.row_ptr[i] = i;
@@ -39,9 +29,7 @@ impl EntanglementGraph {
             self.col_indices.push(i);
         }
 
-        for i in active_count..=MAX_ENTITIES {
-            self.row_ptr[i] = active_count;
-        }
+        self.row_ptr[active_count] = active_count;
     }
 
     #[inline(always)]

@@ -1,4 +1,4 @@
-use crate::core::config::{GLOBAL_DIMENSION, MAX_ENTITIES};
+use crate::core::config::GLOBAL_DIMENSION;
 use ndarray::{Array1, ArrayViewMut1};
 
 /// Struktur SoA (Structure of Arrays) untuk Quantum Entity Manifold.
@@ -60,37 +60,37 @@ impl Clone for EntityManifold {
         let mut new_semantic = vec![0.0; tensor_end];
         new_semantic.copy_from_slice(&self.semantic_tensors[..tensor_end]);
 
-        let mut new_ids = vec![String::new(); MAX_ENTITIES];
+        let mut new_ids = vec![String::new(); active];
         for i in 0..active {
             new_ids[i] = self.ids[i].clone();
         }
 
-        let mut new_masses = vec![0.0; MAX_ENTITIES];
-        new_masses[..active].copy_from_slice(&self.masses[..active]);
+        let mut new_masses = vec![0.0; active];
+        new_masses.copy_from_slice(&self.masses[..active]);
 
-        let mut new_tokens = vec![0; MAX_ENTITIES];
-        new_tokens[..active].copy_from_slice(&self.tokens[..active]);
+        let mut new_tokens = vec![0; active];
+        new_tokens.copy_from_slice(&self.tokens[..active]);
 
-        let mut new_spans_x = vec![0.0; MAX_ENTITIES];
-        new_spans_x[..active].copy_from_slice(&self.spans_x[..active]);
+        let mut new_spans_x = vec![0.0; active];
+        new_spans_x.copy_from_slice(&self.spans_x[..active]);
 
-        let mut new_spans_y = vec![0.0; MAX_ENTITIES];
-        new_spans_y[..active].copy_from_slice(&self.spans_y[..active]);
+        let mut new_spans_y = vec![0.0; active];
+        new_spans_y.copy_from_slice(&self.spans_y[..active]);
 
-        let mut new_centers_x = vec![0.0; MAX_ENTITIES];
-        new_centers_x[..active].copy_from_slice(&self.centers_x[..active]);
+        let mut new_centers_x = vec![0.0; active];
+        new_centers_x.copy_from_slice(&self.centers_x[..active]);
 
-        let mut new_centers_y = vec![0.0; MAX_ENTITIES];
-        new_centers_y[..active].copy_from_slice(&self.centers_y[..active]);
+        let mut new_centers_y = vec![0.0; active];
+        new_centers_y.copy_from_slice(&self.centers_y[..active]);
 
-        let mut new_momentums_x = vec![0.0; MAX_ENTITIES];
-        new_momentums_x[..active].copy_from_slice(&self.momentums_x[..active]);
+        let mut new_momentums_x = vec![0.0; active];
+        new_momentums_x.copy_from_slice(&self.momentums_x[..active]);
 
-        let mut new_momentums_y = vec![0.0; MAX_ENTITIES];
-        new_momentums_y[..active].copy_from_slice(&self.momentums_y[..active]);
+        let mut new_momentums_y = vec![0.0; active];
+        new_momentums_y.copy_from_slice(&self.momentums_y[..active]);
 
-        let mut new_entanglement = vec![0.0; MAX_ENTITIES];
-        new_entanglement[..active].copy_from_slice(&self.entanglement_status[..active]);
+        let mut new_entanglement = vec![0.0; active];
+        new_entanglement.copy_from_slice(&self.entanglement_status[..active]);
 
         Self {
             active_count: self.active_count,
@@ -129,29 +129,28 @@ impl EntityManifold {
             global_width: 0.0,
             global_height: 0.0,
 
-            spatial_tensors: vec![0.0; MAX_ENTITIES * GLOBAL_DIMENSION],
-            shape_tensors: vec![0.0; MAX_ENTITIES * GLOBAL_DIMENSION],
-            semantic_tensors: vec![0.0; MAX_ENTITIES * GLOBAL_DIMENSION],
+            // Start with capacity 0 to allow Lazy Clone scaling, allocating dynamically when needed
+            spatial_tensors: Vec::new(),
+            shape_tensors: Vec::new(),
+            semantic_tensors: Vec::new(),
 
-            ids: vec![String::new(); MAX_ENTITIES],
-            // Inisialisasi masses dengan 0.0 menjadikan seluruh buffer ini sebagai "Dark Matter"
-            // Saat segmenter mengisi partikel awal, masses akan di-set menjadi > 0.0
-            masses: vec![0.0; MAX_ENTITIES],
-            tokens: vec![0; MAX_ENTITIES],
+            ids: Vec::new(),
+            masses: Vec::new(),
+            tokens: Vec::new(),
 
-            spans_x: vec![0.0; MAX_ENTITIES],
-            spans_y: vec![0.0; MAX_ENTITIES],
-            entanglement_status: vec![0.0; MAX_ENTITIES],
-            centers_x: vec![0.0; MAX_ENTITIES],
-            centers_y: vec![0.0; MAX_ENTITIES],
-            momentums_x: vec![0.0; MAX_ENTITIES],
-            momentums_y: vec![0.0; MAX_ENTITIES],
+            spans_x: Vec::new(),
+            spans_y: Vec::new(),
+            entanglement_status: Vec::new(),
+            centers_x: Vec::new(),
+            centers_y: Vec::new(),
+            momentums_x: Vec::new(),
+            momentums_y: Vec::new(),
         }
     }
 
     /// Mendapatkan mutable view dari spatial_tensor (Pusat Posisi Global)
     // Fungsi bantuan agar `Vec` tetap cukup ukurannya saat index diakses
-    fn ensure_capacity(&mut self, required_len: usize) {
+    pub fn ensure_capacity(&mut self, required_len: usize) {
         if self.spatial_tensors.len() < required_len {
             self.spatial_tensors.resize(required_len, 0.0);
             self.shape_tensors.resize(required_len, 0.0);

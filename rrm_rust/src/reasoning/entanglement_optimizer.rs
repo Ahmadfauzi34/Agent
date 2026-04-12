@@ -1,4 +1,3 @@
-use crate::core::config::MAX_ENTITIES;
 use crate::core::entity_manifold::EntityManifold;
 use crate::core::fhrr::FHRR;
 use crate::reasoning::entanglement_graph::EntanglementGraph;
@@ -18,7 +17,8 @@ impl EntanglementOptimizer {
         let mut new_graph = EntanglementGraph {
             values: Vec::with_capacity(num_entities * 10), // Heuristic sparsity
             col_indices: Vec::with_capacity(num_entities * 10),
-            row_ptr: vec![0; MAX_ENTITIES + 1],
+            row_ptr: vec![0; num_entities + 1],
+            capacity: num_entities,
         };
 
         for i in 0..num_entities {
@@ -65,7 +65,7 @@ impl EntanglementOptimizer {
         }
 
         let total_vals = new_graph.values.len();
-        for i in num_entities..=MAX_ENTITIES {
+        for i in num_entities..=num_entities {
             new_graph.row_ptr[i] = total_vals;
         }
 
