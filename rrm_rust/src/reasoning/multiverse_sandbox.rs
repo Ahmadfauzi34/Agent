@@ -320,9 +320,7 @@ impl MultiverseSandbox {
                                     u.centers_x[e] = nx;
                                     u.centers_y[e] = ny;
 
-                                    let new_x_phase = FHRR::fractional_bind(&x_seed, nx);
-                                    let new_y_phase = FHRR::fractional_bind(&y_seed, ny);
-                                    let new_spatial_tensor = FHRR::bind(&new_x_phase, &new_y_phase);
+                                    let new_spatial_tensor = FHRR::fractional_bind_2d(&x_seed, nx, &y_seed, ny);
 
                                     let mut sp_tensor_mut = u.get_spatial_tensor_mut(e);
                                     sp_tensor_mut.assign(&new_spatial_tensor);
@@ -666,11 +664,9 @@ impl MultiverseSandbox {
                 u.centers_x[e] = nx;
                 u.centers_y[e] = ny;
 
-                let new_x_phase = crate::core::fhrr::FHRR::fractional_bind(&x_seed, nx);
-                let new_y_phase = crate::core::fhrr::FHRR::fractional_bind(&y_seed, ny);
-                let new_spatial = crate::core::fhrr::FHRR::bind(&new_x_phase, &new_y_phase);
+                let new_spatial_tensor = crate::core::fhrr::FHRR::fractional_bind_2d(&x_seed, nx, &y_seed, ny);
                 let mut sp_tensor = u.get_spatial_tensor_mut(e);
-                sp_tensor.assign(&new_spatial);
+                sp_tensor.assign(&new_spatial_tensor);
             }
         }
     }

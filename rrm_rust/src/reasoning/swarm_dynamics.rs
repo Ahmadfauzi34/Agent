@@ -29,9 +29,12 @@ impl SwarmDynamics {
         let step_y = delta_y / (max_steps as f32);
 
         // Inline translation generation using FHRR fractional bind
-        let mut x_shift = FHRR::fractional_bind(&CoreSeeds::x_axis_seed(), step_x);
-        let y_shift = FHRR::fractional_bind(&CoreSeeds::y_axis_seed(), step_y);
-        let swarm_shift_tensor = FHRR::bind(&mut x_shift, &y_shift);
+        let swarm_shift_tensor = FHRR::fractional_bind_2d(
+            &CoreSeeds::x_axis_seed(),
+            step_x,
+            &CoreSeeds::y_axis_seed(),
+            step_y,
+        );
 
         for _ in 0..max_steps {
             let mut any_moved = false;
