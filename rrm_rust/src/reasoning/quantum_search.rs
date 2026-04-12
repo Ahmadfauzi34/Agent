@@ -53,7 +53,7 @@ impl WaveNode {
         delta_y: f32,
         physics_tier: u8,
         initial_manifolds: Arc<Vec<RwLock<EntityManifold>>>,
-        static_background: Option<Arc<crate::core::infinite_detail::CoarseData>>,
+        _static_background: Option<Arc<crate::core::infinite_detail::CoarseData>>,
     ) -> Self {
         Self {
             axiom_type: vec![axiom_type],

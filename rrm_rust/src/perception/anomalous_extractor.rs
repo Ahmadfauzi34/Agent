@@ -26,31 +26,18 @@ pub fn extract_anomalous_quadrant(state: &EntityManifold) -> EntityManifold {
     let mut max_y = f32::MIN;
 
     let mut found = false;
-    let anomaly_color = 2; // Hardcode "Merah" sebagai prioritas anomali untuk 05269061, fallback ke selain background
 
-    // FASE 1 (Micro): Deteksi kasar & Bounding Box anomali
-    for i in 0..state.active_count {
-        if state.masses[i] > 0.0 && state.tokens[i] == anomaly_color {
-            found = true;
-            let cx = state.centers_x[i];
-            let cy = state.centers_y[i];
-            if cx < min_x { min_x = cx; }
-            if cx > max_x { max_x = cx; }
-            if cy < min_y { min_y = cy; }
-            if cy > max_y { max_y = cy; }
-        }
-    }
-
-    if !found {
-        // Fallback: Jika tidak ada warna anomali eksplisit, cari semua objek yang
-        // bukan grid background (misalnya bukan hitam/0 dan bukan warna kerangka dominan)
-        let mut color_counts = std::collections::HashMap::new();
+    // FASE 1 (Micro): Deteksi kasar anomali
+    // Jika tidak ada warna anomali eksplisit, cari semua objek yang
+    // bukan grid background (misalnya bukan hitam/0 dan bukan warna kerangka dominan)
+    let mut color_counts = std::collections::HashMap::new();
         for i in 0..state.active_count {
             if state.masses[i] > 0.0 && state.tokens[i] != 0 {
                 *color_counts.entry(state.tokens[i]).or_insert(0) += 1;
             }
         }
 
+    if !found {
         // Cari warna minoritas selain 0
         if let Some((&minority_color, _)) = color_counts.iter().min_by_key(|&(_, c)| c) {
             for i in 0..state.active_count {
