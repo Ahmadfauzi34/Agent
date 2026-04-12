@@ -78,12 +78,13 @@ impl DeepActiveInferenceEngine {
             // 1. Pragmatic: Seberapa cocok dengan Ground Truth?
             // Kita gunakan depth_ratio 0.0 agar hadiah dimensi (-500) langsung aktif
             let pragmatic = SimdEnergyCalculator::calculate_pragmatic_streaming(
-                &temp_state,
-                expected_grid,
-                temp_state.global_width as usize,
-                temp_state.global_height as usize,
-                &CognitivePhase::MacroStructural,
-            );
+            &temp_state,
+            expected_grid,
+            temp_state.global_width as usize,
+            temp_state.global_height as usize,
+            &CognitivePhase::MacroStructural,
+            1e-6,
+        );
             total_pragmatic += pragmatic;
 
             // 2. Epistemic: Seberapa besar ledakan informasi/perubahan struktur?
