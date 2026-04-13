@@ -7,11 +7,7 @@ pub struct EntanglementOptimizer;
 impl EntanglementOptimizer {
     /// 🕸️ HEBBIAN ENTANGLEMENT UPDATE
     /// "Neurons that fire together, wire together."
-    pub fn optimize(
-        manifold: &EntityManifold,
-        graph: &mut EntanglementGraph,
-        learning_rate: f32,
-    ) {
+    pub fn optimize(manifold: &EntityManifold, graph: &mut EntanglementGraph, learning_rate: f32) {
         let num_entities = manifold.active_count;
 
         let mut new_graph = EntanglementGraph {
@@ -56,7 +52,8 @@ impl EntanglementOptimizer {
                 let current_e = graph.get_weight_csr(i, j);
                 let new_e = (current_e + (coherence * learning_rate)).clamp(0.0, 1.0);
 
-                if new_e > 0.001 { // Sparsity Threshold
+                if new_e > 0.001 {
+                    // Sparsity Threshold
                     new_graph.values.push(new_e);
                     new_graph.col_indices.push(j);
                 }

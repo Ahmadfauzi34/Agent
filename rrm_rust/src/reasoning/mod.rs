@@ -1,6 +1,6 @@
 pub mod axiom_generator;
-pub mod entanglement_optimizer;
 pub mod entanglement_graph;
+pub mod entanglement_optimizer;
 pub mod global_blackboard;
 pub mod grover_diffusion_system;
 pub mod hamiltonian_pruner;

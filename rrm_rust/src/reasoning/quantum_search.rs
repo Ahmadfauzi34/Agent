@@ -63,8 +63,11 @@ impl WaveNode {
             delta_x,
             delta_y,
             physics_tier,
-            static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData { regions: std::sync::Arc::new(vec![]), signatures: std::sync::Arc::new(vec![]) }),
-                            state_manifolds: initial_manifolds,
+            static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData {
+                regions: std::sync::Arc::new(vec![]),
+                signatures: std::sync::Arc::new(vec![]),
+            }),
+            state_manifolds: initial_manifolds,
             state_modified: false,
             probability: 1.0,
             depth: 1,
@@ -171,7 +174,6 @@ impl FractalArena {
         tolerance: EnergyTolerance,
         state: Arc<Vec<RwLock<EntityManifold>>>,
     ) -> Option<usize> {
-
         if let Some(idx) = self.free_indices.pop() {
             self.parents[idx] = parent;
             self.tolerances[idx] = tolerance;
@@ -217,7 +219,11 @@ impl FractalArena {
         self.parents.push(parent);
         self.children_ranges.push((0, depth));
         self.tolerances.push(tolerance);
-        self.static_backgrounds.push(Arc::new(crate::core::infinite_detail::CoarseData { regions: Arc::new(vec![]), signatures: Arc::new(vec![]) }));
+        self.static_backgrounds
+            .push(Arc::new(crate::core::infinite_detail::CoarseData {
+                regions: Arc::new(vec![]),
+                signatures: Arc::new(vec![]),
+            }));
         self.amplitudes.push(1.0);
         self.phases.push(0.0);
         self.states.push(state);
@@ -261,7 +267,8 @@ impl FractalArena {
                 .map(|m: &RwLock<EntityManifold>| {
                     let guard = m.read().unwrap();
                     // Implementasi Shallow clone memory
-                    if guard.masses.len() > 0 && guard.masses[0] > 100.0 { // Heuristic check macro vs micro
+                    if guard.masses.len() > 0 && guard.masses[0] > 100.0 {
+                        // Heuristic check macro vs micro
                         let mut shallow = EntityManifold::new();
                         shallow.active_count = 0;
                         RwLock::new(shallow)
@@ -313,13 +320,13 @@ impl FractalArena {
             let current_tolerance = self.tolerances[idx].precision_width;
 
             total_pragmatic_error += SimdEnergyCalculator::calculate_pragmatic_streaming(
-            &*manifold_read,
-            expected_grid,
-            m_width,
-            m_height,
-            &current_phase,
-            current_tolerance,
-        );
+                &*manifold_read,
+                expected_grid,
+                m_width,
+                m_height,
+                &current_phase,
+                current_tolerance,
+            );
             total_epistemic_value +=
                 SimdEnergyCalculator::calculate_epistemic(&*manifold_read, &*initial_read);
         }
@@ -508,8 +515,13 @@ impl AsyncWaveSearch {
                         delta_x: arena.action_dx[current_idx],
                         delta_y: arena.action_dy[current_idx],
                         physics_tier: arena.action_tier[current_idx],
-                        static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData { regions: std::sync::Arc::new(vec![]), signatures: std::sync::Arc::new(vec![]) }),
-                            state_manifolds: arena.states[current_idx].clone(),
+                        static_background: std::sync::Arc::new(
+                            crate::core::infinite_detail::CoarseData {
+                                regions: std::sync::Arc::new(vec![]),
+                                signatures: std::sync::Arc::new(vec![]),
+                            },
+                        ),
+                        state_manifolds: arena.states[current_idx].clone(),
                         state_modified: arena.modified_flags[current_idx],
                         probability: amplitude,
                         depth: current_depth,

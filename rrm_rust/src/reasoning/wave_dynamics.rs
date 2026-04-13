@@ -1,6 +1,6 @@
 use crate::core::config::GLOBAL_DIMENSION;
-use crate::reasoning::entanglement_graph::EntanglementGraph;
 use crate::core::entity_manifold::EntityManifold;
+use crate::reasoning::entanglement_graph::EntanglementGraph;
 use crate::reasoning::entanglement_optimizer::EntanglementOptimizer;
 use ndarray::Array1;
 
@@ -101,7 +101,10 @@ impl WaveDynamics {
 
         // Menggunakan Custom Iterator Zero-Cost dari CSR Graph
         for (target_index, entanglement_weight) in self.entanglement_graph.iter_row(source_index) {
-            if target_index >= num_entities || target_index == source_index || manifold.masses[target_index] == 0.0 {
+            if target_index >= num_entities
+                || target_index == source_index
+                || manifold.masses[target_index] == 0.0
+            {
                 continue;
             }
 

@@ -187,7 +187,7 @@ impl CounterfactualEngine {
                     // Gradient is Target - Current = Direction to move
                     let dx = exp_x - sim_x;
                     let dy = exp_y - sim_y;
-                    let dist = (dx*dx + dy*dy).sqrt();
+                    let dist = (dx * dx + dy * dy).sqrt();
 
                     if dist < min_dist {
                         min_dist = dist;
@@ -262,7 +262,11 @@ impl CounterfactualEngine {
 
     pub fn suggest_correction(&self, failure: &FailureMode) -> Option<Vec<Axiom>> {
         match failure {
-            FailureMode::HighEnergyState { gradient_x, gradient_y, .. } => {
+            FailureMode::HighEnergyState {
+                gradient_x,
+                gradient_y,
+                ..
+            } => {
                 // Konversi vektor kegagalan menjadi tebakan solusi dengan geometri Tensor FHRR
                 // Kita mentranslasikan "distance-to-well" ke dalam bentuk Fractional Bind
                 if gradient_x.abs() > 0.0 || gradient_y.abs() > 0.0 {
@@ -271,9 +275,8 @@ impl CounterfactualEngine {
 
                     let x_seed = crate::core::core_seeds::CoreSeeds::x_axis_seed();
                     let y_seed = crate::core::core_seeds::CoreSeeds::y_axis_seed();
-                    let tensor_spatial = crate::core::fhrr::FHRR::fractional_bind_2d(
-                        &x_seed, rx, &y_seed, ry
-                    );
+                    let tensor_spatial =
+                        crate::core::fhrr::FHRR::fractional_bind_2d(&x_seed, rx, &y_seed, ry);
 
                     let mut correction = Axiom::identity();
                     correction.name = format!("SUGGESTED_TRANS_{}_{}", rx, ry);
@@ -283,9 +286,9 @@ impl CounterfactualEngine {
                     correction.tier = 3; // Relational / Spatial Move Tier
                     Some(vec![correction])
                 } else {
-                     // Jika dimensinya hancur atau gradient 0.0 tapi energi tinggi,
-                     // kita coba CROP_TO_COLOR atau SPAWN
-                     Some(vec![Axiom::crop_to_content()])
+                    // Jika dimensinya hancur atau gradient 0.0 tapi energi tinggi,
+                    // kita coba CROP_TO_COLOR atau SPAWN
+                    Some(vec![Axiom::crop_to_content()])
                 }
             }
         }

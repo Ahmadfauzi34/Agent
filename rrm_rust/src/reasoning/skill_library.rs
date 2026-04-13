@@ -69,8 +69,13 @@ impl SkillLibrary {
                     delta_y: 0.0,
                     depth: 0,
                     physics_tier: 8, // Tier Makro
-                    static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData { regions: std::sync::Arc::new(vec![]), signatures: std::sync::Arc::new(vec![]) }),
-                            state_manifolds: first_axiom.state_manifolds.clone(),
+                    static_background: std::sync::Arc::new(
+                        crate::core::infinite_detail::CoarseData {
+                            regions: std::sync::Arc::new(vec![]),
+                            signatures: std::sync::Arc::new(vec![]),
+                        },
+                    ),
+                    state_manifolds: first_axiom.state_manifolds.clone(),
                     state_modified: false,
                 }
             })
