@@ -22,7 +22,9 @@ impl SoulEvent {
             Self::TaskAttempted { task_id } => format!("ATTEMPT: Task {}", task_id),
             Self::TaskSolved { task_id } => format!("SOLVED: Task {}", task_id),
             Self::MctsFailed { task_id } => format!("FAILED: MCTS exhausted on Task {}", task_id),
-            Self::Evolution { skill_name, depth } => format!("EVOLVE: {} at depth {}", skill_name, depth),
+            Self::Evolution { skill_name, depth } => {
+                format!("EVOLVE: {} at depth {}", skill_name, depth)
+            }
             Self::Checkpoint { file_path } => format!("CHECKPOINT: Saved at {}", file_path),
         }
     }
@@ -141,7 +143,7 @@ impl KVImmortalEngine {
 
         // (Optional) Serialize _state to .bin here if needed
         self.soul_log.append(SoulEvent::Checkpoint {
-            file_path: "hibernate_state.bin".to_string()
+            file_path: "hibernate_state.bin".to_string(),
         });
         self.soul_log.flush_to_background();
     }

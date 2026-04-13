@@ -122,8 +122,8 @@ impl MentalReplay {
                     // Kompas Ditemukan!
                     // Mental Replay tidak lagi melempar tebakan Noise Acak (DREAM_AXIOM_0 .. DREAM_AXIOM_5)
                     // Mental replay menggunakan Vektor Gradien untuk membuat tebakan yang pasti benar.
-                    optimal_dx = gradient_x.round();
-                    optimal_dy = gradient_y.round();
+                    optimal_dx = gradient_x.to_f32().round();
+                    optimal_dy = gradient_y.to_f32().round();
                 }
             }
 

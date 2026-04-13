@@ -2,7 +2,7 @@ use crate::core::config::GLOBAL_DIMENSION;
 use ndarray::Array1;
 use rustfft::num_complex::Complex;
 use rustfft::num_traits::Zero;
-use rustfft::{Fft, FftPlanner};
+use rustfft::FftPlanner;
 use std::cell::RefCell;
 use std::f32::consts::PI;
 
