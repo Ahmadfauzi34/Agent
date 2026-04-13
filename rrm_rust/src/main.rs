@@ -153,5 +153,23 @@ fn main() {
                 }
             }
         }
+
+        if success {
+            println!("✅ SUCCESS (100% Match!)");
+            // successes += 1;
+        } else {
+            println!("💀 FAILED (Mismatch)");
+        }
     }
+
+    println!("\n\n🏁 BATCH EXECUTION COMPLETE");
+
+    println!("\n🌿 ==================================");
+    println!("🌙 MENGAKTIFKAN SIKLUS TIDUR (MENTAL REPLAY)");
+    println!("🌿 ==================================");
+
+    agent.dream(); // Simulasi REM
+
+    let dummy_manifold = EntityManifold::default();
+    let _ = immortal.hibernate(&dummy_manifold); // Simpan state KV int8 ke bin
 }

@@ -23,7 +23,94 @@ pub fn extract_anomalous_quadrant(state: &EntityManifold) -> EntityManifold {
     // ========================================================
     // FASE 1: MICRO SCALE (Semantic & Geometric Detection)
     // ========================================================
+    // RRM "Mata Struktural" - Menganalisa Topologi Lanskap via GestaltEngine
+    // Menciptakan "Medan Gravitasi" yang ditarik oleh anomali bentuk / simetri
 
+    let atoms = GestaltEngine::extract_atoms(state);
+
+    // Kelompokkan berdasarkan AtomType (Signature Geometris)
+    let mut shape_counts = HashMap::new();
+    let mut symmetry_scores = HashMap::new();
+
+    for (i, atom) in atoms.iter().enumerate() {
+        let signature = match atom.atom_type {
+            AtomType::SolidRectangle => "SolidRectangle",
+            AtomType::HollowRectangle => "HollowRectangle",
+            AtomType::HorizontalLine => "HorizontalLine",
+            AtomType::VerticalLine => "VerticalLine",
+            AtomType::DiagonalLine => "DiagonalLine",
+            AtomType::LShape => "LShape",
+            AtomType::TShape => "TShape",
+            AtomType::CrossShape => "CrossShape",
+            AtomType::Scatter => "Scatter",
+            AtomType::SinglePixel => "SinglePixel",
+        };
+
+        *shape_counts.entry(signature).or_insert(0) += 1;
+        symmetry_scores.insert(i, atom.symmetry_score);
+    }
+
+    let mut minority_shape = "None";
+    if let Some((&shape, _)) = shape_counts
+        .iter()
+        .filter(|&(_, &c)| c > 0)
+        .min_by_key(|&(_, c)| c)
+    {
+        minority_shape = shape;
+    }
+
+    // Cari titik pusat anomali gravitasi (titik terdalam dari sumur probabilitas)
+    let mut anomaly_x = 0.0;
+    let mut anomaly_y = 0.0;
+    let mut anomaly_found = false;
+
+    // 1. Prioritaskan bentuk minoritas (misal: ada 1 LShape di antara 3 SolidRectangle)
+    for atom in &atoms {
+        let signature = match atom.atom_type {
+            AtomType::SolidRectangle => "SolidRectangle",
+            AtomType::HollowRectangle => "HollowRectangle",
+            AtomType::HorizontalLine => "HorizontalLine",
+            AtomType::VerticalLine => "VerticalLine",
+            AtomType::DiagonalLine => "DiagonalLine",
+            AtomType::LShape => "LShape",
+            AtomType::TShape => "TShape",
+            AtomType::CrossShape => "CrossShape",
+            AtomType::Scatter => "Scatter",
+            AtomType::SinglePixel => "SinglePixel",
+        };
+
+        if signature == minority_shape && shape_counts[minority_shape] == 1 {
+            // Anomali struktural mutlak!
+            anomaly_x = atom.center_of_mass.0;
+            anomaly_y = atom.center_of_mass.1;
+            anomaly_found = true;
+            break;
+        }
+    }
+
+    // 2. Jika tidak ada minoritas bentuk, cari yang symmetry_score nya paling anjlok
+    if !anomaly_found && !atoms.is_empty() {
+        let mut min_sym = 1.0;
+        let mut best_atom = None;
+        for atom in &atoms {
+            // Abaikan SinglePixel karena pasti simetris 1.0
+            if atom.atom_type != AtomType::SinglePixel && atom.symmetry_score < min_sym {
+                min_sym = atom.symmetry_score;
+                best_atom = Some(atom);
+            }
+        }
+
+        // Jika ada anomali simetri (misal 0.4 vs 1.0)
+        if let Some(atom) = best_atom {
+            if min_sym < 0.8 {
+                anomaly_x = atom.center_of_mass.0;
+                anomaly_y = atom.center_of_mass.1;
+                anomaly_found = true;
+            }
+        }
+    }
+
+    // 3. Fallback ke Warna jika lanskap geometris datar (seperti ARC 2dc579da yang hanya dot 1 piksel)
     let bg_color = 0;
     let mut grid_map = HashMap::new();
     let mut color_counts = HashMap::new();
@@ -52,32 +139,6 @@ pub fn extract_anomalous_quadrant(state: &EntityManifold) -> EntityManifold {
 
     if grid_map.is_empty() {
         return state.clone();
-    }
-
-    // Extract geometric signatures (Shape Minority)
-    let atoms = GestaltEngine::extract_atoms(state);
-    let mut shape_counts = HashMap::new();
-
-    for atom in &atoms {
-        let signature = match atom.atom_type {
-            AtomType::SolidRectangle => "SolidRectangle",
-            AtomType::HollowRectangle => "HollowRectangle",
-            AtomType::HorizontalLine => "HorizontalLine",
-            AtomType::VerticalLine => "VerticalLine",
-            AtomType::LShape => "LShape",
-            AtomType::TShape => "TShape",
-            AtomType::CrossShape => "CrossShape",
-            AtomType::Scatter => "Scatter",
-            AtomType::SinglePixel => "SinglePixel",
-            AtomType::DiagonalLine => "DiagonalLine",
-        };
-        *shape_counts.entry(signature).or_insert(0) += 1;
-    }
-
-    let mut minority_shape = "None";
-    if let Some((&shape, _)) = shape_counts.iter().min_by_key(|&(_, c)| c) {
-        // If there's a shape that is significantly rarer than others, we flag it.
-        minority_shape = shape;
     }
 
     // ========================================================
@@ -172,8 +233,41 @@ pub fn extract_anomalous_quadrant(state: &EntityManifold) -> EntityManifold {
         score += colors.len() as i32;
 
         // 2. Shape Anomaly (Micro scale logic)
-        if shapes.contains(minority_shape) {
+        if shapes.contains(minority_shape) && minority_shape != "None" {
             score += 15; // Stronger signal for unique topological shape
+        }
+
+        // 3. Symmetry Gravity / Topologi Ekstrem (Micro)
+        // Di mana anomaly_found disematkan!
+        if anomaly_found {
+            let (best_pixels, _, _) = &valid_quadrants[idx];
+            let mut q_min_x = i32::MAX;
+            let mut q_max_x = i32::MIN;
+            let mut q_min_y = i32::MAX;
+            let mut q_max_y = i32::MIN;
+
+            for &(cx, cy, _) in best_pixels.iter() {
+                if cx < q_min_x {
+                    q_min_x = cx;
+                }
+                if cx > q_max_x {
+                    q_max_x = cx;
+                }
+                if cy < q_min_y {
+                    q_min_y = cy;
+                }
+                if cy > q_max_y {
+                    q_max_y = cy;
+                }
+            }
+
+            let ax = anomaly_x.round() as i32;
+            let ay = anomaly_y.round() as i32;
+
+            // Tolerasni bounding box
+            if ax >= q_min_x - 1 && ax <= q_max_x + 1 && ay >= q_min_y - 1 && ay <= q_max_y + 1 {
+                score += 50; // Medan gravitasi asimetris menarik tebakan ke kuadran ini
+            }
         }
 
         if score > best_score {
