@@ -163,7 +163,7 @@ impl HierarchicalPlanner {
                 if let Some(failure) = sim_result.failure {
                     // Jika kegagalan memberikan gradient perbaikan,
                     // kita bisa mengevaluasinya sebagai alternatif branch (Gradient Descent)
-                    if let Some(mut corrections) = engine.suggest_correction(&failure) {
+                    if let Some(corrections) = engine.suggest_correction(&failure) {
                         for correction in corrections {
                             let corr_result = engine.what_if(&correction, &state, expected);
 

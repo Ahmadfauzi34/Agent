@@ -121,7 +121,9 @@ impl SimdEnergyCalculator {
                                         if pt == exp_val {
                                             let dx = (px as f32 - x as f32).abs();
                                             let dy = (py as f32 - y as f32).abs();
-                                            if dx <= relaxation_distance && dy <= relaxation_distance {
+                                            if dx <= relaxation_distance
+                                                && dy <= relaxation_distance
+                                            {
                                                 found_nearby = true;
                                                 break;
                                             }

@@ -631,8 +631,13 @@ impl RrmAgent {
                 // 2. ROOT ZERO-POINT (Memulai MCTS dari Depth 0, bukan Depth 1)
                 let initial_wave = WaveNode {
                     axiom_type: vec!["ROOT_START".to_string()],
-                    static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData { regions: std::sync::Arc::new(vec![]), signatures: std::sync::Arc::new(vec![]) }),
-                            state_manifolds: std::sync::Arc::clone(&initial_manifolds_adv),
+                    static_background: std::sync::Arc::new(
+                        crate::core::infinite_detail::CoarseData {
+                            regions: std::sync::Arc::new(vec![]),
+                            signatures: std::sync::Arc::new(vec![]),
+                        },
+                    ),
+                    state_manifolds: std::sync::Arc::clone(&initial_manifolds_adv),
                     condition_tensor: Some(id_tensor.clone()),
                     tensor_spatial: id_tensor.clone(),
                     tensor_semantic: id_tensor.clone(),
@@ -833,8 +838,11 @@ impl RrmAgent {
                 delta_x: 5.0,
                 delta_y: 0.0,
                 physics_tier: 1,
-                static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData { regions: std::sync::Arc::new(vec![]), signatures: std::sync::Arc::new(vec![]) }),
-                            state_manifolds: std::sync::Arc::new(vec![]),
+                static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData {
+                    regions: std::sync::Arc::new(vec![]),
+                    signatures: std::sync::Arc::new(vec![]),
+                }),
+                state_manifolds: std::sync::Arc::new(vec![]),
                 state_modified: false,
                 depth: 1,
                 probability: 0.5,
@@ -848,8 +856,11 @@ impl RrmAgent {
                 delta_x: 0.0,
                 delta_y: 2.0,
                 physics_tier: 1,
-                static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData { regions: std::sync::Arc::new(vec![]), signatures: std::sync::Arc::new(vec![]) }),
-                            state_manifolds: std::sync::Arc::new(vec![]),
+                static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData {
+                    regions: std::sync::Arc::new(vec![]),
+                    signatures: std::sync::Arc::new(vec![]),
+                }),
+                state_manifolds: std::sync::Arc::new(vec![]),
                 state_modified: false,
                 depth: 1,
                 probability: 0.5,

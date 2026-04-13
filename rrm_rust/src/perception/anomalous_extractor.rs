@@ -1,4 +1,6 @@
 use crate::core::entity_manifold::EntityManifold;
+use crate::perception::hierarchical_gestalt::{AtomType, GestaltEngine};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 pub struct AnomalousExtractor;
 
@@ -8,106 +10,237 @@ impl AnomalousExtractor {
     }
 
     pub fn execute(&self, state: &EntityManifold) -> Result<EntityManifold, String> {
-        // Implementasi fallback darurat (Pilihan 1 / Hardcoded ARC fallback)
-        let new_state = state.clone();
-        // Implementasi dummy
+        let new_state = extract_anomalous_quadrant(state);
         Ok(new_state)
     }
 }
 
-/// Menerapkan Hierarki Presisi untuk Anomali:
-/// 1. Micro (1e-6): Deteksi rough semantics (Klaster anomali / bounding box)
-/// 2. Nano (1e-9): Penyelarasan struktural / batas asimetris
-/// 3. Femto (1e-15): Crop mutlak
 pub fn extract_anomalous_quadrant(state: &EntityManifold) -> EntityManifold {
-    let mut min_x = f32::MAX;
-    let mut min_y = f32::MAX;
-    let mut max_x = f32::MIN;
-    let mut max_y = f32::MIN;
-
-    let mut found = false;
-    let anomaly_color = 2; // Hardcode "Merah" sebagai prioritas anomali untuk 05269061, fallback ke selain background
-
-    // FASE 1 (Micro): Deteksi kasar & Bounding Box anomali
-    for i in 0..state.active_count {
-        if state.masses[i] > 0.0 && state.tokens[i] == anomaly_color {
-            found = true;
-            let cx = state.centers_x[i];
-            let cy = state.centers_y[i];
-            if cx < min_x { min_x = cx; }
-            if cx > max_x { max_x = cx; }
-            if cy < min_y { min_y = cy; }
-            if cy > max_y { max_y = cy; }
-        }
-    }
-
-    if !found {
-        // Fallback: Jika tidak ada warna anomali eksplisit, cari semua objek yang
-        // bukan grid background (misalnya bukan hitam/0 dan bukan warna kerangka dominan)
-        let mut color_counts = std::collections::HashMap::new();
-        for i in 0..state.active_count {
-            if state.masses[i] > 0.0 && state.tokens[i] != 0 {
-                *color_counts.entry(state.tokens[i]).or_insert(0) += 1;
-            }
-        }
-
-        // Cari warna minoritas selain 0
-        if let Some((&minority_color, _)) = color_counts.iter().min_by_key(|&(_, c)| c) {
-            for i in 0..state.active_count {
-                if state.masses[i] > 0.0 && state.tokens[i] == minority_color {
-                    found = true;
-                    let cx = state.centers_x[i];
-                    let cy = state.centers_y[i];
-                    if cx < min_x { min_x = cx; }
-                    if cx > max_x { max_x = cx; }
-                    if cy < min_y { min_y = cy; }
-                    if cy > max_y { max_y = cy; }
-                }
-            }
-        }
-    }
-
-    // FASE 2 & 3 (Nano -> Femto): Penyelarasan Asimetris & Crop Kuantisasi
-    let mut new_state = EntityManifold::new();
-    if found {
-        let snap_min_x = min_x.round();
-        let snap_min_y = min_y.round();
-        let snap_max_x = max_x.round();
-        let snap_max_y = max_y.round();
-
-        // Plus 1.0 margin bounding box inklusif
-        let new_w = (snap_max_x - snap_min_x) + 1.0;
-        let new_h = (snap_max_y - snap_min_y) + 1.0;
-
-        new_state.global_width = new_w;
-        new_state.global_height = new_h;
-
-        let mut copied = 0;
-
-        for i in 0..state.active_count {
-            if state.masses[i] > 0.0 {
-                let cx = state.centers_x[i].round();
-                let cy = state.centers_y[i].round();
-
-                // Hanya ambil pixel di dalam bounding box mutlak femto-scale
-                if cx >= snap_min_x && cx <= snap_max_x && cy >= snap_min_y && cy <= snap_max_y {
-                    new_state.ensure_scalar_capacity(copied + 1);
-
-                    new_state.masses[copied] = state.masses[i];
-                    new_state.tokens[copied] = state.tokens[i];
-
-                    // Translasi ke titik awal koordinat (0,0) di viewport baru
-                    new_state.centers_x[copied] = cx - snap_min_x;
-                    new_state.centers_y[copied] = cy - snap_min_y;
-
-                    copied += 1;
-                }
-            }
-        }
-        new_state.active_count = copied;
-    } else {
+    if state.active_count == 0 {
         return state.clone();
     }
 
+    // ========================================================
+    // FASE 1: MICRO SCALE (Semantic & Geometric Detection)
+    // ========================================================
+
+    let bg_color = 0;
+    let mut grid_map = HashMap::new();
+    let mut color_counts = HashMap::new();
+
+    for i in 0..state.active_count {
+        if state.masses[i] > 0.0 && state.tokens[i] != bg_color {
+            let cx = state.centers_x[i].round() as i32;
+            let cy = state.centers_y[i].round() as i32;
+            let w = state.spans_x[i].round() as i32;
+            let h = state.spans_y[i].round() as i32;
+
+            if w <= 1 && h <= 1 {
+                grid_map.insert((cx, cy), i);
+            } else {
+                let left = cx - (w - 1) / 2;
+                let top = cy - (h - 1) / 2;
+                for dx in 0..w {
+                    for dy in 0..h {
+                        grid_map.insert((left + dx, top + dy), i);
+                    }
+                }
+            }
+            *color_counts.entry(state.tokens[i]).or_insert(0) += 1;
+        }
+    }
+
+    if grid_map.is_empty() {
+        return state.clone();
+    }
+
+    // Extract geometric signatures (Shape Minority)
+    let atoms = GestaltEngine::extract_atoms(state);
+    let mut shape_counts = HashMap::new();
+
+    for atom in &atoms {
+        let signature = match atom.atom_type {
+            AtomType::SolidRectangle => "SolidRectangle",
+            AtomType::HollowRectangle => "HollowRectangle",
+            AtomType::HorizontalLine => "HorizontalLine",
+            AtomType::VerticalLine => "VerticalLine",
+            AtomType::LShape => "LShape",
+            AtomType::TShape => "TShape",
+            AtomType::CrossShape => "CrossShape",
+            AtomType::Scatter => "Scatter",
+            AtomType::SinglePixel => "SinglePixel",
+            AtomType::DiagonalLine => "DiagonalLine",
+        };
+        *shape_counts.entry(signature).or_insert(0) += 1;
+    }
+
+    let mut minority_shape = "None";
+    if let Some((&shape, _)) = shape_counts.iter().min_by_key(|&(_, c)| c) {
+        // If there's a shape that is significantly rarer than others, we flag it.
+        minority_shape = shape;
+    }
+
+    // ========================================================
+    // FASE 2: NANO SCALE (Relational Alignment / Grouping)
+    // ========================================================
+    // Still using flood-fill for rigid bounds, but now informed by Micro scale
+
+    let mut visited = HashSet::new();
+    let mut quadrants = Vec::new();
+    let dirs = [(0, 1), (1, 0), (0, -1), (-1, 0)];
+
+    for (&(sx, sy), _) in grid_map.iter() {
+        if !visited.contains(&(sx, sy)) {
+            let mut queue = VecDeque::new();
+            queue.push_back((sx, sy));
+            visited.insert((sx, sy));
+
+            let mut component_pixels = Vec::new();
+            let mut component_colors = HashSet::new();
+            let mut component_shapes = HashSet::new();
+
+            while let Some((cx, cy)) = queue.pop_front() {
+                if let Some(&idx) = grid_map.get(&(cx, cy)) {
+                    component_pixels.push((cx, cy, idx));
+                    component_colors.insert(state.tokens[idx]);
+
+                    // Map back to atom to get shape
+                    if let Some(atom) = atoms.iter().find(|a| a.component_indices.contains(&idx)) {
+                        let signature = match atom.atom_type {
+                            AtomType::SolidRectangle => "SolidRectangle",
+                            AtomType::HollowRectangle => "HollowRectangle",
+                            AtomType::HorizontalLine => "HorizontalLine",
+                            AtomType::VerticalLine => "VerticalLine",
+                            AtomType::LShape => "LShape",
+                            AtomType::TShape => "TShape",
+                            AtomType::CrossShape => "CrossShape",
+                            AtomType::Scatter => "Scatter",
+                            AtomType::SinglePixel => "SinglePixel",
+                            AtomType::DiagonalLine => "DiagonalLine",
+                        };
+                        component_shapes.insert(signature);
+                    }
+                }
+
+                for &(dx, dy) in &dirs {
+                    let nx = cx + dx;
+                    let ny = cy + dy;
+                    if grid_map.contains_key(&(nx, ny)) && !visited.contains(&(nx, ny)) {
+                        visited.insert((nx, ny));
+                        queue.push_back((nx, ny));
+                    }
+                }
+            }
+
+            quadrants.push((component_pixels, component_colors, component_shapes));
+        }
+    }
+
+    if quadrants.len() <= 1 {
+        return state.clone();
+    }
+
+    let max_size = quadrants.iter().map(|(p, _, _)| p.len()).max().unwrap_or(0);
+    let valid_quadrants: Vec<_> = quadrants
+        .into_iter()
+        .filter(|(p, _, _)| p.len() as f32 > max_size as f32 * 0.2)
+        .collect();
+
+    if valid_quadrants.len() <= 1 {
+        return state.clone();
+    }
+
+    let mut global_color_counts = HashMap::new();
+    for (_, colors, _) in &valid_quadrants {
+        for &color in colors.iter() {
+            *global_color_counts.entry(color).or_insert(0) += 1;
+        }
+    }
+
+    let mut best_idx = 0;
+    let mut best_score = -1;
+
+    for (idx, (_, colors, shapes)) in valid_quadrants.iter().enumerate() {
+        let mut score = 0;
+
+        // 1. Color Anomaly (Micro scale logic)
+        for &color in colors.iter() {
+            if *global_color_counts.get(&color).unwrap_or(&0) == 1 {
+                score += 10;
+            }
+        }
+        score += colors.len() as i32;
+
+        // 2. Shape Anomaly (Micro scale logic)
+        if shapes.contains(minority_shape) {
+            score += 15; // Stronger signal for unique topological shape
+        }
+
+        if score > best_score {
+            best_score = score;
+            best_idx = idx;
+        }
+    }
+
+    let (best_pixels, _, _) = &valid_quadrants[best_idx];
+
+    let mut min_x = i32::MAX;
+    let mut max_x = i32::MIN;
+    let mut min_y = i32::MAX;
+    let mut max_y = i32::MIN;
+
+    for &(cx, cy, _) in best_pixels.iter() {
+        if cx < min_x {
+            min_x = cx;
+        }
+        if cx > max_x {
+            max_x = cx;
+        }
+        if cy < min_y {
+            min_y = cy;
+        }
+        if cy > max_y {
+            max_y = cy;
+        }
+    }
+
+    // ========================================================
+    // FASE 3: PICO SCALE (Geometric Transform)
+    // ========================================================
+    // ... Placeholder untuk SymmetryGroup / Rotate ...
+
+    // ========================================================
+    // FASE 4: FEMTO SCALE (Absolute Crop & Coordinate Normalization)
+    // ========================================================
+    let new_w = (max_x - min_x) as f32 + 1.0;
+    let new_h = (max_y - min_y) as f32 + 1.0;
+
+    let mut new_state = EntityManifold::new();
+    new_state.global_width = new_w;
+    new_state.global_height = new_h;
+
+    let mut copied = 0;
+    let mut processed_idx = HashSet::new();
+
+    for &(_cx, _cy, idx) in best_pixels.iter() {
+        if !processed_idx.contains(&idx) {
+            processed_idx.insert(idx);
+
+            new_state.ensure_scalar_capacity(copied + 1);
+
+            new_state.masses[copied] = state.masses[idx];
+            new_state.tokens[copied] = state.tokens[idx];
+
+            new_state.centers_x[copied] = state.centers_x[idx] - min_x as f32;
+            new_state.centers_y[copied] = state.centers_y[idx] - min_y as f32;
+
+            new_state.spans_x[copied] = state.spans_x[idx];
+            new_state.spans_y[copied] = state.spans_y[idx];
+
+            copied += 1;
+        }
+    }
+
+    new_state.active_count = copied;
     new_state
 }

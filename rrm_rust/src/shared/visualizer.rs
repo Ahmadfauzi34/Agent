@@ -239,7 +239,10 @@ impl Visualizer {
         tensor_ops_count: usize,
         level: TransparencyLevel,
     ) {
-        let total_capacity: usize = manifolds.iter().map(|m| m.masses.len() * GLOBAL_DIMENSION * 3 * 4).sum();
+        let total_capacity: usize = manifolds
+            .iter()
+            .map(|m| m.masses.len() * GLOBAL_DIMENSION * 3 * 4)
+            .sum();
         let total_active: usize = manifolds
             .iter()
             .map(|m| m.active_count * GLOBAL_DIMENSION * 3 * 4)

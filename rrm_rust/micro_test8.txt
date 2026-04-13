@@ -1,0 +1,664 @@
+   Compiling rrm_rust v0.1.0 (/app/rrm_rust)
+warning: unused import: `GestaltAtom`
+ --> src/perception/anomalous_extractor.rs:2:62
+  |
+2 | ...cal_gestalt::{GestaltEngine, GestaltAtom, AtomType};
+  |                                 ^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `Fft`
+ --> src/core/fhrr.rs:5:15
+  |
+5 | use rustfft::{Fft, FftPlanner};
+  |               ^^^
+
+warning: variable does not need to be mutable
+  --> src/perception/anomalous_extractor.rs:27:9
+   |
+27 |     let mut bg_color = 0;
+   |         ----^^^^^^^^
+   |         |
+   |         help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cx`
+   --> src/perception/anomalous_extractor.rs:222:11
+    |
+222 |     for &(cx, cy, idx) in best_pixels.iter() {
+    |           ^^ help: if this is intentional, prefix it with an underscore: `_cx`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cy`
+   --> src/perception/anomalous_extractor.rs:222:15
+    |
+222 |     for &(cx, cy, idx) in best_pixels.iter() {
+    |               ^^ help: if this is intentional, prefix it with an underscore: `_cy`
+
+warning: value assigned to `min_x` is never read
+   --> src/reasoning/multiverse_sandbox.rs:185:29
+    |
+185 |             let mut min_x = 0.0;
+    |                             ^^^
+    |
+    = help: maybe it is overwritten before being read?
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `max_x` is never read
+   --> src/reasoning/multiverse_sandbox.rs:186:29
+    |
+186 |             let mut max_x = 0.0;
+    |                             ^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `max_x` is never read
+   --> src/reasoning/multiverse_sandbox.rs:234:25
+    |
+234 |                         max_x = min_x + target_w - 1.0;
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `min_y` is never read
+   --> src/reasoning/multiverse_sandbox.rs:187:29
+    |
+187 |             let mut min_y = 0.0;
+    |                             ^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `max_y` is never read
+   --> src/reasoning/multiverse_sandbox.rs:188:29
+    |
+188 |             let mut max_y = 0.0;
+    |                             ^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `max_y` is never read
+   --> src/reasoning/multiverse_sandbox.rs:235:25
+    |
+235 |                         max_y = min_y + target_h - 1.0;
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `target_w` is never read
+   --> src/reasoning/multiverse_sandbox.rs:189:32
+    |
+189 |             let mut target_w = 0.0;
+    |                                ^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `target_h` is never read
+   --> src/reasoning/multiverse_sandbox.rs:190:32
+    |
+190 |             let mut target_h = 0.0;
+    |                                ^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `found` is never read
+   --> src/reasoning/multiverse_sandbox.rs:218:25
+    |
+218 |                         found = true;
+    |                         ^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `pivot_x` is never read
+   --> src/reasoning/multiverse_sandbox.rs:509:27
+    |
+509 |         let mut pivot_x = 0.0;
+    |                           ^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `pivot_y` is never read
+   --> src/reasoning/multiverse_sandbox.rs:510:27
+    |
+510 |         let mut pivot_y = 0.0;
+    |                           ^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: variable does not need to be mutable
+  --> src/main.rs:31:9
+   |
+31 |     let mut successes = 0;
+   |         ----^^^^^^^^^
+   |         |
+   |         help: remove this `mut`
+
+warning: unused variable: `successes`
+  --> src/main.rs:31:9
+   |
+31 |     let mut successes = 0;
+   |         ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_successes`
+
+warning: unused variable: `total`
+  --> src/main.rs:32:9
+   |
+32 |     let total = tasks.len();
+   |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_total`
+
+warning: unused variable: `start_time`
+  --> src/main.rs:82:13
+   |
+82 |         let start_time = Instant::now();
+   |             ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_start_time`
+
+warning: value assigned to `success` is never read
+   --> src/main.rs:139:13
+    |
+139 |             success = true;
+    |             ^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `success` is never read
+   --> src/main.rs:148:25
+    |
+148 |                         success = false;
+    |                         ^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `success` is never read
+   --> src/main.rs:143:17
+    |
+143 |                 success = false;
+    |                 ^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `final_result` is never read
+  --> src/main.rs:86:32
+   |
+86 |         let mut final_result = result.clone();
+   |                                ^^^^^^^^^^^^^^
+   |
+   = help: maybe it is overwritten before being read?
+
+warning: method `clear` is never used
+   --> src/memory/logic_seed_bank.rs:103:8
+    |
+ 19 | impl LshIndex {
+    | ------------- method in this implementation
+...
+103 |     fn clear(&mut self) {
+    |        ^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: fields `pruner`, `self_reflection`, `structural_analyzer`, `hierarchical_planner`, and `skill_composer` are never read
+  --> src/reasoning/rrm_agent.rs:28:5
+   |
+25 | pub struct RrmAgent {
+   |            -------- fields in this struct
+...
+28 |     pruner: HamiltonianPruner, // Akan di-deprecate
+   |     ^^^^^^
+...
+33 |     self_reflection: SelfReflection,
+   |     ^^^^^^^^^^^^^^^
+34 |     structural_analyzer: StructuralAnalyzer,
+   |     ^^^^^^^^^^^^^^^^^^^
+...
+39 |     hierarchical_planner: crate::reasoning::hierarchical_planner::Hierar...
+   |     ^^^^^^^^^^^^^^^^^^^^
+...
+43 |     skill_composer: crate::reasoning::skill_composer::SkillComposer,
+   |     ^^^^^^^^^^^^^^
+
+warning: `rrm_rust` (bin "rrm_rust") generated 26 warnings (run `cargo fix --bin "rrm_rust" -p rrm_rust` to apply 8 suggestions)
+    Finished `release` profile [optimized] target(s) in 1m 00s
+     Running `target/release/rrm_rust`
+🌌 RRM Quantum Sandbox (Rust Edition) Initialized.
+📚 Berhasil meload 12 skill dari Executable Wiki (.md)
+📚 Berhasil meload 12 skill dari Executable Wiki (.md)
+
+
+🌿 ==================================
+Solving Task: 05269061.json
+🌿 ==================================
+[Depth 0] Axioms: ["IF_COLOR(3)_THEN_TRANS_3_0"] | Pragmatic: 79000.00 | Epistemic: 2.30 | Prob: 0.0400 | Dim: 3x3
+  ╭──────────────────────────────────────────────────────────────╮
+  │  MCTS NODE [0] — Rank 2/2 │ Depth 0                       │
+  ├──────────────────────────────────────────────────────────────┤
+  │  P(dist): ●┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅ ●=0.040 μ=0.420 range[0.040, 0.800]   │
+  │  Threshold: 0.050 ✗ PRUNED                                  │
+  │  Energy Components:                                          │
+  │    Pragmatic (E):  79000.000  │  Goal-seeking error             │
+  │    Epistemic (I):     2.303  │  Information gain               │
+  │    Complexity (C):    0.000  │  Model complexity               │
+  │    ───────────────────────────────────────────────────────── │
+  │    Total Free Energy: 78997.695  │  G = E - I + C                  │
+  ├──────────────────────────────────────────────────────────────┤
+  │  Status: 🌿 EXPANDING (exploring policies...)                   │
+  ╰──────────────────────────────────────────────────────────────╯
+  [Memory]  Map (6/6): [██████]
+[Depth 0] Axioms: ["IF_COLOR(3)_THEN_TRANS_2_4"] | Pragmatic: 79000.00 | Epistemic: 2.30 | Prob: 0.0400 | Dim: 3x3
+  ╭──────────────────────────────────────────────────────────────╮
+  │  MCTS NODE [0] — Rank 2/2 │ Depth 0                       │
+  ├──────────────────────────────────────────────────────────────┤
+  │  P(dist): ●┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅ ●=0.040 μ=0.420 range[0.040, 0.800]   │
+  │  Threshold: 0.050 ✗ PRUNED                                  │
+  │  Energy Components:                                          │
+  │    Pragmatic (E):  79000.000  │  Goal-seeking error             │
+  │    Epistemic (I):     2.303  │  Information gain               │
+  │    Complexity (C):    0.000  │  Model complexity               │
+  │    ───────────────────────────────────────────────────────── │
+  │    Total Free Energy: 78997.695  │  G = E - I + C                  │
+  ├──────────────────────────────────────────────────────────────┤
+  │  Status: 🌿 EXPANDING (exploring policies...)                   │
+  ╰──────────────────────────────────────────────────────────────╯
+  [Memory]  Map (6/6): [██████]
+[Depth 0] Axioms: ["IF_COLOR(3)_THEN_TRANS_2_1"] | Pragmatic: 79000.00 | Epistemic: 2.30 | Prob: 0.0400 | Dim: 3x3
+  ╭──────────────────────────────────────────────────────────────╮
+  │  MCTS NODE [0] — Rank 2/2 │ Depth 0                       │
+  ├──────────────────────────────────────────────────────────────┤
+  │  P(dist): ●┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅ ●=0.040 μ=0.420 range[0.040, 0.800]   │
+  │  Threshold: 0.050 ✗ PRUNED                                  │
+  │  Energy Components:                                          │
+  │    Pragmatic (E):  79000.000  │  Goal-seeking error             │
+  │    Epistemic (I):     2.303  │  Information gain               │
+  │    Complexity (C):    0.000  │  Model complexity               │
+  │    ───────────────────────────────────────────────────────── │
+  │    Total Free Energy: 78997.695  │  G = E - I + C                  │
+  ├──────────────────────────────────────────────────────────────┤
+  │  Status: 🌿 EXPANDING (exploring policies...)                   │
+  ╰──────────────────────────────────────────────────────────────╯
+  [Memory]  Map (6/6): [██████]
+   🧠 [Metakognisi] Terjebak di Local Optimum (Fast Pass Gagal).
+   🧠 Beralih ke Mode: PROBABILISTIC (Mengaktifkan Rasa Ingin Tahu Tinggi untuk Struktur Kosmik!)
+   [Rust MCTS] Fast Pass gagal. Memulai ADVANCED PASS (Depth 2, All Physics)...
+   🧠 Advanced Pass Axioms Generated (Sim >= 0.3): 31
+      [0] ["IF_COLOR(3)_THEN_TRANS_3_0"] | sim: 1.000 | tier: 0 | dx: 3 dy: 0
+      [1] ["IF_COLOR(3)_THEN_MOVE_TO_COLOR(8)"] | sim: 1.000 | tier: 3 | dx: 8 dy: 999
+      [2] ["IF_COLOR(3)_THEN_TRANS_2_4"] | sim: 0.900 | tier: 0 | dx: 2 dy: 4
+      [3] ["IF_COLOR(3)_THEN_MOVE_TO_COLOR(2)"] | sim: 0.900 | tier: 3 | dx: 2 dy: 999
+      [4] ["IF_COLOR(3)_THEN_TRANS_2_1"] | sim: 0.800 | tier: 0 | dx: 2 dy: 1
+      [5] ["GLOBAL_MIRROR_X"] | sim: 0.500 | tier: 4 | dx: 0 dy: 0
+      [6] ["GLOBAL_MIRROR_Y"] | sim: 0.490 | tier: 4 | dx: 0 dy: 0
+      [7] ["GLOBAL_ROTATE_90"] | sim: 0.480 | tier: 4 | dx: 0 dy: 0
+      [8] ["GLOBAL_ROTATE_180"] | sim: 0.470 | tier: 4 | dx: 0 dy: 0
+      [9] ["GLOBAL_ROTATE_270"] | sim: 0.460 | tier: 4 | dx: 0 dy: 0
+      [10] ["IF_COLOR(2)_THEN_MIRROR_X"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [11] ["IF_COLOR(2)_THEN_MIRROR_Y"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [12] ["IF_COLOR(2)_THEN_ROTATE_90"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [13] ["IF_COLOR(2)_THEN_ROTATE_180"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [14] ["IF_COLOR(2)_THEN_ROTATE_270"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [15] ["IF_COLOR(3)_THEN_MIRROR_X"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [16] ["IF_COLOR(3)_THEN_MIRROR_Y"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [17] ["IF_COLOR(3)_THEN_ROTATE_90"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [18] ["IF_COLOR(3)_THEN_ROTATE_180"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [19] ["IF_COLOR(3)_THEN_ROTATE_270"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [20] ["IF_COLOR(8)_THEN_MIRROR_X"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [21] ["IF_COLOR(8)_THEN_MIRROR_Y"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [22] ["IF_COLOR(8)_THEN_ROTATE_90"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [23] ["IF_COLOR(8)_THEN_ROTATE_180"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [24] ["IF_COLOR(8)_THEN_ROTATE_270"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [25] ["IF_COLOR(2)_THEN_ERASE"] | sim: 0.350 | tier: 5 | dx: 0 dy: 0
+      [26] ["CROP_TO_COLOR(2)"] | sim: 0.350 | tier: 7 | dx: 0 dy: 0
+      [27] ["IF_COLOR(3)_THEN_ERASE"] | sim: 0.350 | tier: 5 | dx: 0 dy: 0
+      [28] ["CROP_TO_COLOR(3)"] | sim: 0.350 | tier: 7 | dx: 0 dy: 0
+      [29] ["IF_COLOR(8)_THEN_ERASE"] | sim: 0.350 | tier: 5 | dx: 0 dy: 0
+   🔍 Search Attempt 1: Exploring top 2 advanced axioms...
+   ⚡ Memulai MCTS dari ROOT ZERO-POINT (Depth 0) dengan 31 amunisi unik...
+[Depth 0] Axioms: ["ROOT_START"] | Pragmatic: 79000.00 | Epistemic: 0.00 | Prob: 0.0400 | Dim: 3x3
+  ╭──────────────────────────────────────────────────────────────╮
+  │  MCTS NODE [0] — Rank 2/2 │ Depth 0                       │
+  ├──────────────────────────────────────────────────────────────┤
+  │  P(dist): ●┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅ ●=0.040 μ=0.420 range[0.040, 0.800]   │
+  │  Threshold: 0.050 ✗ PRUNED                                  │
+  │  Energy Components:                                          │
+  │    Pragmatic (E):  79000.000  │  Goal-seeking error             │
+  │    Epistemic (I):     0.000  │  Information gain               │
+  │    Complexity (C):    0.000  │  Model complexity               │
+  │    ───────────────────────────────────────────────────────── │
+  │    Total Free Energy: 79000.000  │  G = E - I + C                  │
+  ├──────────────────────────────────────────────────────────────┤
+  │  Status: 🌿 EXPANDING (exploring policies...)                   │
+  ╰──────────────────────────────────────────────────────────────╯
+  [Memory]  Map (6/6): [██████]
+   🔍 Search Attempt 2: Exploring top 5 advanced axioms...
+   ⚡ Memulai MCTS dari ROOT ZERO-POINT (Depth 0) dengan 31 amunisi unik...
+[Depth 0] Axioms: ["ROOT_START"] | Pragmatic: 79000.00 | Epistemic: 0.00 | Prob: 0.0400 | Dim: 3x3
+  ╭──────────────────────────────────────────────────────────────╮
+  │  MCTS NODE [0] — Rank 2/2 │ Depth 0                       │
+  ├──────────────────────────────────────────────────────────────┤
+  │  P(dist): ●┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅ ●=0.040 μ=0.420 range[0.040, 0.800]   │
+  │  Threshold: 0.050 ✗ PRUNED                                  │
+  │  Energy Components:                                          │
+  │    Pragmatic (E):  79000.000  │  Goal-seeking error             │
+  │    Epistemic (I):     0.000  │  Information gain               │
+  │    Complexity (C):    0.000  │  Model complexity               │
+  │    ───────────────────────────────────────────────────────── │
+  │    Total Free Energy: 79000.000  │  G = E - I + C                  │
+  ├──────────────────────────────────────────────────────────────┤
+  │  Status: 🌿 EXPANDING (exploring policies...)                   │
+  ╰──────────────────────────────────────────────────────────────╯
+  [Memory]  Map (6/6): [██████]
+   🔍 Search Attempt 3: Exploring top 10 advanced axioms...
+   ⚡ Memulai MCTS dari ROOT ZERO-POINT (Depth 0) dengan 31 amunisi unik...
+[Depth 0] Axioms: ["ROOT_START"] | Pragmatic: 79000.00 | Epistemic: 0.00 | Prob: 0.0400 | Dim: 3x3
+  ╭──────────────────────────────────────────────────────────────╮
+  │  MCTS NODE [0] — Rank 2/2 │ Depth 0                       │
+  ├──────────────────────────────────────────────────────────────┤
+  │  P(dist): ●┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅ ●=0.040 μ=0.420 range[0.040, 0.800]   │
+  │  Threshold: 0.050 ✗ PRUNED                                  │
+  │  Energy Components:                                          │
+  │    Pragmatic (E):  79000.000  │  Goal-seeking error             │
+  │    Epistemic (I):     0.000  │  Information gain               │
+  │    Complexity (C):    0.000  │  Model complexity               │
+  │    ───────────────────────────────────────────────────────── │
+  │    Total Free Energy: 79000.000  │  G = E - I + C                  │
+  ├──────────────────────────────────────────────────────────────┤
+  │  Status: 🌿 EXPANDING (exploring policies...)                   │
+  ╰──────────────────────────────────────────────────────────────╯
+  [Memory]  Map (6/6): [██████]
+   🔍 Search Attempt 4: Exploring top 20 advanced axioms...
+   ⚡ Memulai MCTS dari ROOT ZERO-POINT (Depth 0) dengan 31 amunisi unik...
+[Depth 0] Axioms: ["ROOT_START"] | Pragmatic: 79000.00 | Epistemic: 0.00 | Prob: 0.0400 | Dim: 3x3
+  ╭──────────────────────────────────────────────────────────────╮
+  │  MCTS NODE [0] — Rank 2/2 │ Depth 0                       │
+  ├──────────────────────────────────────────────────────────────┤
+  │  P(dist): ●┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅ ●=0.040 μ=0.420 range[0.040, 0.800]   │
+  │  Threshold: 0.050 ✗ PRUNED                                  │
+  │  Energy Components:                                          │
+  │    Pragmatic (E):  79000.000  │  Goal-seeking error             │
+  │    Epistemic (I):     0.000  │  Information gain               │
+  │    Complexity (C):    0.000  │  Model complexity               │
+  │    ───────────────────────────────────────────────────────── │
+  │    Total Free Energy: 79000.000  │  G = E - I + C                  │
+  ├──────────────────────────────────────────────────────────────┤
+  │  Status: 🌿 EXPANDING (exploring policies...)                   │
+  ╰──────────────────────────────────────────────────────────────╯
+  [Memory]  Map (6/6): [██████]
+   [Rust MCTS] WARNING: Semua gelombang hancur! (Halusinasi/Meleset)
+🧬 [Autopoiesis] Kode genetik sudah ada di Wiki ("knowledge/skills/auto/synthesized_crossover_8b516458.md"). Menggunakan kembali tanpa menulis file baru.
+🧬 [Quantum Inference] Menjalankan Axiom Tensor 'synthesized_crossover_8b516458' secara dinamis di Multiverse Sandbox...
+🧬 [Quantum Inference] Wave propagation selesai. (Simulasi internal berhasil).
+MCTS failed. Engaging Generative Synthesized Skill: extract_anomalous_quadrant...
+State active count is 0
+Grid map is empty
+Quadrants too few: 11
+Quadrants too few: 11
+Valid Quadrants too few: 11
+Valid Quadrants too few: 11
+Extracted bounding box of size 1x1
+Len mismatch: 1 vs 7
+
+
+🌿 ==================================
+Solving Task: 09629e4f.json
+🌿 ==================================
+[Depth 0] Axioms: ["IF_COLOR(4)_THEN_TRANS_3_0"] | Pragmatic: -2000.00 | Epistemic: 6.82 | Prob: 1.0000 | Dim: 11x11
+  ╭──────────────────────────────────────────────────────────────╮
+  │  MCTS NODE [0] — Rank 1/2 │ Depth 0                       │
+  ├──────────────────────────────────────────────────────────────┤
+  │  P(dist): ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ●=1.000 μ=0.900 range[0.800, 1.000]   │
+  │  Threshold: 0.050 ✓ SURVIVES                                │
+  │  Energy Components:                                          │
+  │    Pragmatic (E):  -2000.000  │  Goal-seeking error             │
+  │    Epistemic (I):     6.819  │  Information gain               │
+  │    Complexity (C):    0.000  │  Model complexity               │
+  │    ───────────────────────────────────────────────────────── │
+  │    Total Free Energy: -2006.819  │  G = E - I + C                  │
+  ├──────────────────────────────────────────────────────────────┤
+  │  Status: 🌿 EXPANDING (exploring policies...)                   │
+  ╰──────────────────────────────────────────────────────────────╯
+  [Memory]  Map (45/45): [█████████████████████████████████████████████]
+[Depth 0] Axioms: ["IF_COLOR(5)_THEN_SHIFT(->4)"] | Pragmatic: -2000.00 | Epistemic: 0.00 | Prob: 1.0000 | Dim: 11x11
+  ╭──────────────────────────────────────────────────────────────╮
+  │  MCTS NODE [0] — Rank 1/2 │ Depth 0                       │
+  ├──────────────────────────────────────────────────────────────┤
+  │  P(dist): ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ●=1.000 μ=0.900 range[0.800, 1.000]   │
+  │  Threshold: 0.050 ✓ SURVIVES                                │
+  │  Energy Components:                                          │
+  │    Pragmatic (E):  -2000.000  │  Goal-seeking error             │
+  │    Epistemic (I):     0.000  │  Information gain               │
+  │    Complexity (C):    0.000  │  Model complexity               │
+  │    ───────────────────────────────────────────────────────── │
+  │    Total Free Energy: -2000.000  │  G = E - I + C                  │
+  ├──────────────────────────────────────────────────────────────┤
+  │  Status: 🌿 EXPANDING (exploring policies...)                   │
+  ╰──────────────────────────────────────────────────────────────╯
+  [Memory]  Map (45/45): [█████████████████████████████████████████████]
+[Depth 0] Axioms: ["IF_COLOR(6)_THEN_TRANS_0_-3"] | Pragmatic: -2000.00 | Epistemic: 6.82 | Prob: 1.0000 | Dim: 11x11
+  ╭──────────────────────────────────────────────────────────────╮
+  │  MCTS NODE [0] — Rank 1/2 │ Depth 0                       │
+  ├──────────────────────────────────────────────────────────────┤
+  │  P(dist): ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ●=1.000 μ=0.900 range[0.800, 1.000]   │
+  │  Threshold: 0.050 ✓ SURVIVES                                │
+  │  Energy Components:                                          │
+  │    Pragmatic (E):  -2000.000  │  Goal-seeking error             │
+  │    Epistemic (I):     6.819  │  Information gain               │
+  │    Complexity (C):    0.000  │  Model complexity               │
+  │    ───────────────────────────────────────────────────────── │
+  │    Total Free Energy: -2006.819  │  G = E - I + C                  │
+  ├──────────────────────────────────────────────────────────────┤
+  │  Status: 🌿 EXPANDING (exploring policies...)                   │
+  ╰──────────────────────────────────────────────────────────────╯
+  [Memory]  Map (45/45): [█████████████████████████████████████████████]
+   🧠 [Metakognisi] Terjebak di Local Optimum (Fast Pass Gagal).
+   🧠 Beralih ke Mode: PROBABILISTIC (Mengaktifkan Rasa Ingin Tahu Tinggi untuk Struktur Kosmik!)
+   [Rust MCTS] Fast Pass gagal. Memulai ADVANCED PASS (Depth 2, All Physics)...
+   🧠 Advanced Pass Axioms Generated (Sim >= 0.3): 81
+      [0] ["IF_COLOR(4)_THEN_TRANS_3_0"] | sim: 1.000 | tier: 0 | dx: 3 dy: 0
+      [1] ["IF_COLOR(4)_THEN_MOVE_TO_COLOR(5)"] | sim: 1.000 | tier: 3 | dx: 5 dy: 999
+      [2] ["IF_COLOR(5)_THEN_SHIFT(->4)"] | sim: 1.000 | tier: 0 | dx: 0 dy: 0
+      [3] ["IF_COLOR(6)_THEN_TRANS_0_-3"] | sim: 0.900 | tier: 0 | dx: 0 dy: -3
+      [4] ["IF_COLOR(2)_THEN_TRANS_-1_3"] | sim: 0.900 | tier: 0 | dx: -1 dy: 3
+      [5] ["IF_COLOR(4)_THEN_TRANS_-3_0"] | sim: 0.900 | tier: 0 | dx: -3 dy: 0
+      [6] ["IF_COLOR(2)_THEN_TRANS_-1_-1"] | sim: 0.900 | tier: 0 | dx: -1 dy: -1
+      [7] ["IF_COLOR(3)_THEN_TRANS_-4_-1"] | sim: 0.900 | tier: 0 | dx: -4 dy: -1
+      [8] ["IF_COLOR(2)_THEN_TRANS_1_1"] | sim: 0.900 | tier: 0 | dx: 1 dy: 1
+      [9] ["IF_COLOR(8)_THEN_TRANS_0_-1"] | sim: 0.900 | tier: 0 | dx: 0 dy: -1
+      [10] ["IF_COLOR(8)_THEN_TRANS_1_3"] | sim: 0.900 | tier: 0 | dx: 1 dy: 3
+      [11] ["IF_COLOR(2)_THEN_TRANS_0_3"] | sim: 0.900 | tier: 0 | dx: 0 dy: 3
+      [12] ["IF_COLOR(3)_THEN_TRANS_1_-1"] | sim: 0.900 | tier: 0 | dx: 1 dy: -1
+      [13] ["IF_COLOR(6)_THEN_TRANS_1_-1"] | sim: 0.900 | tier: 0 | dx: 1 dy: -1
+      [14] ["IF_COLOR(3)_THEN_TRANS_1_4"] | sim: 0.900 | tier: 0 | dx: 1 dy: 4
+      [15] ["IF_COLOR(3)_THEN_TRANS_0_-1"] | sim: 0.900 | tier: 0 | dx: 0 dy: -1
+      [16] ["IF_COLOR(3)_THEN_TRANS_0_-5"] | sim: 0.900 | tier: 0 | dx: 0 dy: -5
+      [17] ["IF_COLOR(4)_THEN_TRANS_-1_5"] | sim: 0.900 | tier: 0 | dx: -1 dy: 5
+      [18] ["IF_COLOR(6)_THEN_TRANS_-1_4"] | sim: 0.900 | tier: 0 | dx: -1 dy: 4
+      [19] ["IF_COLOR(3)_THEN_TRANS_1_-3"] | sim: 0.900 | tier: 0 | dx: 1 dy: -3
+      [20] ["IF_COLOR(8)_THEN_TRANS_-1_-4"] | sim: 0.900 | tier: 0 | dx: -1 dy: -4
+      [21] ["IF_COLOR(8)_THEN_TRANS_-1_-4"] | sim: 0.900 | tier: 0 | dx: -1 dy: -4
+      [22] ["IF_COLOR(8)_THEN_TRANS_1_-1"] | sim: 0.900 | tier: 0 | dx: 1 dy: -1
+      [23] ["IF_COLOR(2)_THEN_TRANS_-1_5"] | sim: 0.900 | tier: 0 | dx: -1 dy: 5
+      [24] ["IF_COLOR(3)_THEN_TRANS_-1_0"] | sim: 0.900 | tier: 0 | dx: -1 dy: 0
+      [25] ["IF_COLOR(4)_THEN_TRANS_0_1"] | sim: 0.900 | tier: 0 | dx: 0 dy: 1
+      [26] ["IF_COLOR(6)_THEN_TRANS_-3_-1"] | sim: 0.900 | tier: 0 | dx: -3 dy: -1
+      [27] ["IF_COLOR(2)_THEN_TRANS_1_-5"] | sim: 0.900 | tier: 0 | dx: 1 dy: -5
+      [28] ["IF_COLOR(4)_THEN_TRANS_-1_0"] | sim: 0.900 | tier: 0 | dx: -1 dy: 0
+      [29] ["IF_COLOR(6)_THEN_TRANS_1_0"] | sim: 0.900 | tier: 0 | dx: 1 dy: 0
+   🔍 Search Attempt 1: Exploring top 2 advanced axioms...
+   ✅ Grover Diffusion menemukan solusi eksak! Index: 0
+   [Rust MCTS] Ground State Ditemukan: IF_COLOR(4)_THEN_TRANS_3_0 (Energy = 0.0)
+MCTS failed. Engaging Generative Synthesized Skill: extract_anomalous_quadrant...
+State active count is 0
+Grid map is empty
+Quadrants too few: 4
+Quadrants too few: 4
+Valid Quadrants too few: 1
+Valid Quadrants too few: 1
+Row mismatch 0: [6, 4, 0, 5, 0, 3, 0, 5, 0, 4, 0] vs [0, 0, 0, 5, 2, 2, 2, 5, 4, 4, 4]
+
+
+🌿 ==================================
+Solving Task: 2dc579da.json
+🌿 ==================================
+[Depth 0] Axioms: ["IF_COLOR(8)_THEN_TRANS_-2.8_-0.2"] | Pragmatic: 260000.00 | Epistemic: 1.50 | Prob: 0.0400 | Dim: 5x5
+  ╭──────────────────────────────────────────────────────────────╮
+  │  MCTS NODE [0] — Rank 2/2 │ Depth 0                       │
+  ├──────────────────────────────────────────────────────────────┤
+  │  P(dist): ●┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅ ●=0.040 μ=0.420 range[0.040, 0.800]   │
+  │  Threshold: 0.050 ✗ PRUNED                                  │
+  │  Energy Components:                                          │
+  │    Pragmatic (E):  260000.000  │  Goal-seeking error             │
+  │    Epistemic (I):     1.504  │  Information gain               │
+  │    Complexity (C):    0.000  │  Model complexity               │
+  │    ───────────────────────────────────────────────────────── │
+  │    Total Free Energy: 259998.500  │  G = E - I + C                  │
+  ├──────────────────────────────────────────────────────────────┤
+  │  Status: 🌿 EXPANDING (exploring policies...)                   │
+  ╰──────────────────────────────────────────────────────────────╯
+  [Memory]  Map (6/6): [██████]
+[Depth 0] Axioms: ["IF_COLOR(4)_THEN_TRANS_1_-4"] | Pragmatic: 260000.00 | Epistemic: 1.50 | Prob: 0.0400 | Dim: 5x5
+  ╭──────────────────────────────────────────────────────────────╮
+  │  MCTS NODE [0] — Rank 2/2 │ Depth 0                       │
+  ├──────────────────────────────────────────────────────────────┤
+  │  P(dist): ●┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅ ●=0.040 μ=0.420 range[0.040, 0.800]   │
+  │  Threshold: 0.050 ✗ PRUNED                                  │
+  │  Energy Components:                                          │
+  │    Pragmatic (E):  260000.000  │  Goal-seeking error             │
+  │    Epistemic (I):     1.504  │  Information gain               │
+  │    Complexity (C):    0.000  │  Model complexity               │
+  │    ───────────────────────────────────────────────────────── │
+  │    Total Free Energy: 259998.500  │  G = E - I + C                  │
+  ├──────────────────────────────────────────────────────────────┤
+  │  Status: 🌿 EXPANDING (exploring policies...)                   │
+  ╰──────────────────────────────────────────────────────────────╯
+  [Memory]  Map (6/6): [██████]
+[Depth 0] Axioms: ["IF_COLOR(8)_THEN_TRANS_-3_-3"] | Pragmatic: 260000.00 | Epistemic: 1.50 | Prob: 0.0400 | Dim: 5x5
+  ╭──────────────────────────────────────────────────────────────╮
+  │  MCTS NODE [0] — Rank 2/2 │ Depth 0                       │
+  ├──────────────────────────────────────────────────────────────┤
+  │  P(dist): ●┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅ ●=0.040 μ=0.420 range[0.040, 0.800]   │
+  │  Threshold: 0.050 ✗ PRUNED                                  │
+  │  Energy Components:                                          │
+  │    Pragmatic (E):  260000.000  │  Goal-seeking error             │
+  │    Epistemic (I):     1.504  │  Information gain               │
+  │    Complexity (C):    0.000  │  Model complexity               │
+  │    ───────────────────────────────────────────────────────── │
+  │    Total Free Energy: 259998.500  │  G = E - I + C                  │
+  ├──────────────────────────────────────────────────────────────┤
+  │  Status: 🌿 EXPANDING (exploring policies...)                   │
+  ╰──────────────────────────────────────────────────────────────╯
+  [Memory]  Map (6/6): [██████]
+   🧠 [Metakognisi] Terjebak di Local Optimum (Fast Pass Gagal).
+   🧠 Beralih ke Mode: PROBABILISTIC (Mengaktifkan Rasa Ingin Tahu Tinggi untuk Struktur Kosmik!)
+   [Rust MCTS] Fast Pass gagal. Memulai ADVANCED PASS (Depth 2, All Physics)...
+   🧠 Advanced Pass Axioms Generated (Sim >= 0.3): 40
+      [0] ["IF_COLOR(8)_THEN_TRANS_-2.8_-0.2"] | sim: 1.000 | tier: 0 | dx: -2.8 dy: -0.2
+      [1] ["CROP_TO_COLOR(3)"] | sim: 0.980 | tier: 7 | dx: 0 dy: 0
+      [2] ["CROP_WINDOW_AROUND(3)"] | sim: 0.980 | tier: 7 | dx: 0 dy: 0
+      [3] ["CROP_TO_COLOR(4)"] | sim: 0.980 | tier: 7 | dx: 0 dy: 0
+      [4] ["CROP_WINDOW_AROUND(4)"] | sim: 0.980 | tier: 7 | dx: 0 dy: 0
+      [5] ["CROP_WINDOW_AROUND(8)"] | sim: 0.980 | tier: 7 | dx: 0 dy: 0
+      [6] ["IF_COLOR(4)_THEN_TRANS_1_-4"] | sim: 0.900 | tier: 0 | dx: 1 dy: -4
+      [7] ["IF_COLOR(8)_THEN_TRANS_-3_-3"] | sim: 0.900 | tier: 0 | dx: -3 dy: -3
+      [8] ["IF_COLOR(8)_THEN_TRANS_-1_-2"] | sim: 0.900 | tier: 0 | dx: -1 dy: -2
+      [9] ["IF_COLOR(8)_THEN_TRANS_-3_-0"] | sim: 0.900 | tier: 0 | dx: -3 dy: -0
+      [10] ["IF_COLOR(3)_THEN_TRANS_-1_-2"] | sim: 0.900 | tier: 0 | dx: -1 dy: -2
+      [11] ["IF_COLOR(8)_THEN_TRANS_0_-0"] | sim: 0.900 | tier: 0 | dx: 0 dy: -0
+      [12] ["IF_COLOR(8)_THEN_TRANS_0_-3"] | sim: 0.900 | tier: 0 | dx: 0 dy: -3
+      [13] ["IF_COLOR(8)_THEN_TRANS_-2.8_-3.2"] | sim: 0.800 | tier: 0 | dx: -2.8 dy: -3.2
+      [14] ["GLOBAL_MIRROR_X"] | sim: 0.500 | tier: 4 | dx: 0 dy: 0
+      [15] ["GLOBAL_MIRROR_Y"] | sim: 0.490 | tier: 4 | dx: 0 dy: 0
+      [16] ["GLOBAL_ROTATE_90"] | sim: 0.480 | tier: 4 | dx: 0 dy: 0
+      [17] ["GLOBAL_ROTATE_180"] | sim: 0.470 | tier: 4 | dx: 0 dy: 0
+      [18] ["GLOBAL_ROTATE_270"] | sim: 0.460 | tier: 4 | dx: 0 dy: 0
+      [19] ["IF_COLOR(3)_THEN_MIRROR_X"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [20] ["IF_COLOR(3)_THEN_MIRROR_Y"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [21] ["IF_COLOR(3)_THEN_ROTATE_90"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [22] ["IF_COLOR(3)_THEN_ROTATE_180"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [23] ["IF_COLOR(3)_THEN_ROTATE_270"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [24] ["IF_COLOR(4)_THEN_MIRROR_X"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [25] ["IF_COLOR(4)_THEN_MIRROR_Y"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [26] ["IF_COLOR(4)_THEN_ROTATE_90"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [27] ["IF_COLOR(4)_THEN_ROTATE_180"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [28] ["IF_COLOR(4)_THEN_ROTATE_270"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+      [29] ["IF_COLOR(8)_THEN_MIRROR_X"] | sim: 0.400 | tier: 4 | dx: 0 dy: 0
+   🔍 Search Attempt 1: Exploring top 2 advanced axioms...
+   ⚡ Memulai MCTS dari ROOT ZERO-POINT (Depth 0) dengan 40 amunisi unik...
+[Depth 0] Axioms: ["ROOT_START"] | Pragmatic: 260000.00 | Epistemic: 0.00 | Prob: 0.0400 | Dim: 5x5
+  ╭──────────────────────────────────────────────────────────────╮
+  │  MCTS NODE [0] — Rank 2/2 │ Depth 0                       │
+  ├──────────────────────────────────────────────────────────────┤
+  │  P(dist): ●┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅ ●=0.040 μ=0.420 range[0.040, 0.800]   │
+  │  Threshold: 0.050 ✗ PRUNED                                  │
+  │  Energy Components:                                          │
+  │    Pragmatic (E):  260000.000  │  Goal-seeking error             │
+  │    Epistemic (I):     0.000  │  Information gain               │
+  │    Complexity (C):    0.000  │  Model complexity               │
+  │    ───────────────────────────────────────────────────────── │
+  │    Total Free Energy: 260000.000  │  G = E - I + C                  │
+  ├──────────────────────────────────────────────────────────────┤
+  │  Status: 🌿 EXPANDING (exploring policies...)                   │
+  ╰──────────────────────────────────────────────────────────────╯
+  [Memory]  Map (6/6): [██████]
+   🔍 Search Attempt 2: Exploring top 5 advanced axioms...
+   ⚡ Memulai MCTS dari ROOT ZERO-POINT (Depth 0) dengan 40 amunisi unik...
+[Depth 0] Axioms: ["ROOT_START"] | Pragmatic: 260000.00 | Epistemic: 0.00 | Prob: 0.0400 | Dim: 5x5
+  ╭──────────────────────────────────────────────────────────────╮
+  │  MCTS NODE [0] — Rank 2/2 │ Depth 0                       │
+  ├──────────────────────────────────────────────────────────────┤
+  │  P(dist): ●┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅ ●=0.040 μ=0.420 range[0.040, 0.800]   │
+  │  Threshold: 0.050 ✗ PRUNED                                  │
+  │  Energy Components:                                          │
+  │    Pragmatic (E):  260000.000  │  Goal-seeking error             │
+  │    Epistemic (I):     0.000  │  Information gain               │
+  │    Complexity (C):    0.000  │  Model complexity               │
+  │    ───────────────────────────────────────────────────────── │
+  │    Total Free Energy: 260000.000  │  G = E - I + C                  │
+  ├──────────────────────────────────────────────────────────────┤
+  │  Status: 🌿 EXPANDING (exploring policies...)                   │
+  ╰──────────────────────────────────────────────────────────────╯
+  [Memory]  Map (6/6): [██████]
+   🔍 Search Attempt 3: Exploring top 10 advanced axioms...
+   ⚡ Memulai MCTS dari ROOT ZERO-POINT (Depth 0) dengan 40 amunisi unik...
+[Depth 0] Axioms: ["ROOT_START"] | Pragmatic: 260000.00 | Epistemic: 0.00 | Prob: 0.0400 | Dim: 5x5
+  ╭──────────────────────────────────────────────────────────────╮
+  │  MCTS NODE [0] — Rank 2/2 │ Depth 0                       │
+  ├──────────────────────────────────────────────────────────────┤
+  │  P(dist): ●┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅ ●=0.040 μ=0.420 range[0.040, 0.800]   │
+  │  Threshold: 0.050 ✗ PRUNED                                  │
+  │  Energy Components:                                          │
+  │    Pragmatic (E):  260000.000  │  Goal-seeking error             │
+  │    Epistemic (I):     0.000  │  Information gain               │
+  │    Complexity (C):    0.000  │  Model complexity               │
+  │    ───────────────────────────────────────────────────────── │
+  │    Total Free Energy: 260000.000  │  G = E - I + C                  │
+  ├──────────────────────────────────────────────────────────────┤
+  │  Status: 🌿 EXPANDING (exploring policies...)                   │
+  ╰──────────────────────────────────────────────────────────────╯
+  [Memory]  Map (6/6): [██████]
+   🔍 Search Attempt 4: Exploring top 20 advanced axioms...
+   ⚡ Memulai MCTS dari ROOT ZERO-POINT (Depth 0) dengan 40 amunisi unik...
+[Depth 0] Axioms: ["ROOT_START"] | Pragmatic: 260000.00 | Epistemic: 0.00 | Prob: 0.0400 | Dim: 5x5
+  ╭──────────────────────────────────────────────────────────────╮
+  │  MCTS NODE [0] — Rank 2/2 │ Depth 0                       │
+  ├──────────────────────────────────────────────────────────────┤
+  │  P(dist): ●┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅ ●=0.040 μ=0.420 range[0.040, 0.800]   │
+  │  Threshold: 0.050 ✗ PRUNED                                  │
+  │  Energy Components:                                          │
+  │    Pragmatic (E):  260000.000  │  Goal-seeking error             │
+  │    Epistemic (I):     0.000  │  Information gain               │
+  │    Complexity (C):    0.000  │  Model complexity               │
+  │    ───────────────────────────────────────────────────────── │
+  │    Total Free Energy: 260000.000  │  G = E - I + C                  │
+  ├──────────────────────────────────────────────────────────────┤
+  │  Status: 🌿 EXPANDING (exploring policies...)                   │
+  ╰──────────────────────────────────────────────────────────────╯
+  [Memory]  Map (6/6): [██████]
+   [Rust MCTS] WARNING: Semua gelombang hancur! (Halusinasi/Meleset)
+🧬 [Autopoiesis] Kode genetik sudah ada di Wiki ("knowledge/skills/auto/synthesized_crossover_8b516458.md"). Menggunakan kembali tanpa menulis file baru.
+🧬 [Quantum Inference] Menjalankan Axiom Tensor 'synthesized_crossover_8b516458' secara dinamis di Multiverse Sandbox...
+🧬 [Quantum Inference] Wave propagation selesai. (Simulasi internal berhasil).
+MCTS failed. Engaging Generative Synthesized Skill: extract_anomalous_quadrant...
+State active count is 0
+Grid map is empty
+Quadrants too few: 4
+Quadrants too few: 4
+Valid Quadrants too few: 4
+Valid Quadrants too few: 4
+Extracted bounding box of size 6x6

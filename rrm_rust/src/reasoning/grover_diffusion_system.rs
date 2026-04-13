@@ -126,7 +126,7 @@ impl<'a> GroverDiffusionSystem<'a> {
                     temp_state.global_width as usize,
                     temp_state.global_height as usize,
                     &CognitivePhase::MacroStructural, // Grover selalu beroperasi di fase penentCognitivePhase::MacroStructural,
-                     1e-6
+                    1e-6,
                 );
 
                 // Epistemic Value (Penghancuran sampah kosmik = bonus tinggi!)
