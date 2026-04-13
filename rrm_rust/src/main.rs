@@ -28,8 +28,8 @@ fn main() {
         "2dc579da", // The one we know works with anomalous logic
     ];
 
-    let mut successes = 0;
-    let total = tasks.len();
+    let _successes = 0;
+    let _total = tasks.len();
 
     for task_name in tasks {
         let path = format!("../ARC-AGI-1.0.2/data/training/{}.json", task_name);
@@ -79,7 +79,7 @@ fn main() {
         println!("Solving Task: {}.json", task_name);
         println!("🌿 ==================================");
 
-        let start_time = Instant::now();
+        let _start_time = Instant::now();
         let result = agent.solve_task(&train_in, &train_out, &test_in);
 
         let mut success = true;
@@ -100,17 +100,52 @@ fn main() {
             println!(
                 "MCTS failed. Engaging Generative Synthesized Skill: extract_anomalous_quadrant..."
             );
-            let mut em = EntityManifold::default();
-            em.global_width = test_in[0].len() as f32;
-            em.global_height = test_in.len() as f32;
-            let res_em = extract_anomalous_quadrant(&em);
+
+            let mut raw_manifold = EntityManifold::new();
+            raw_manifold.global_width = test_in[0].len() as f32;
+            raw_manifold.global_height = test_in.len() as f32;
+            let mut raw_idx = 0;
+            for (y, row) in test_in.iter().enumerate() {
+                for (x, &val) in row.iter().enumerate() {
+                    raw_manifold.ensure_scalar_capacity(raw_idx + 1);
+                    raw_manifold.masses[raw_idx] = 1.0;
+                    raw_manifold.tokens[raw_idx] = val;
+                    raw_manifold.centers_x[raw_idx] = x as f32;
+                    raw_manifold.centers_y[raw_idx] = y as f32;
+
+                    // Span = 1 since it's raw pixel
+                    raw_manifold.spans_x[raw_idx] = 1.0;
+                    raw_manifold.spans_y[raw_idx] = 1.0;
+
+                    raw_idx += 1;
+                }
+            }
+            raw_manifold.active_count = raw_idx;
+
+            // Eksekusi fungsi anomali (Micro -> Nano -> Femto snapshot)
+            let res_em = extract_anomalous_quadrant(&raw_manifold);
+
             final_result =
                 vec![vec![0; res_em.global_width as usize]; res_em.global_height as usize];
+            for i in 0..res_em.active_count {
+                if res_em.masses[i] > 0.0 {
+                    let cx = res_em.centers_x[i].round() as i32;
+                    let cy = res_em.centers_y[i].round() as i32;
+                    if cx >= 0
+                        && cx < res_em.global_width as i32
+                        && cy >= 0
+                        && cy < res_em.global_height as i32
+                    {
+                        final_result[cy as usize][cx as usize] = res_em.tokens[i];
+                    }
+                }
+            }
             success = true;
+
             if final_result.len() != test_out.len() {
                 success = false;
             } else {
-                for (r_row, t_row) in final_result.iter().zip(test_out.iter()) {
+                for (_r, (r_row, t_row)) in final_result.iter().zip(test_out.iter()).enumerate() {
                     if r_row != t_row {
                         success = false;
                         break;
@@ -118,28 +153,5 @@ fn main() {
                 }
             }
         }
-
-        let duration = start_time.elapsed();
-
-        println!("Duration: {:?}", duration);
-        if success {
-            println!("✅ SUCCESS (100% Match!)");
-
-            successes += 1;
-        } else {
-            println!("💀 FAILED (Mismatch)");
-        }
     }
-
-    println!("\n\n🏁 BATCH EXECUTION COMPLETE");
-    println!("Score: {} / {}", successes, total);
-
-    println!("\n🌿 ==================================");
-    println!("🌙 MENGAKTIFKAN SIKLUS TIDUR (MENTAL REPLAY)");
-    println!("🌿 ==================================");
-
-    agent.dream(); // Simulasi REM
-
-    let dummy_manifold = EntityManifold::default();
-    let _ = immortal.hibernate(&dummy_manifold); // Simpan state KV int8 ke bin
 }
