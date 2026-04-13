@@ -153,5 +153,12 @@ fn main() {
                 }
             }
         }
+
+        if success {
+            println!("✅ SUCCESS (100% Match!)");
+            // successes += 1;
+        } else {
+            println!("💀 FAILED (Mismatch)");
+        }
     }
 }
