@@ -419,12 +419,8 @@ impl RrmAgent {
 
             for m in matches {
                 // Gunakan Arc<Vec<RwLock>> (Copy-on-Write) untuk menghindari memory bloat
-                let initial_manifolds: Arc<Vec<std::sync::RwLock<EntityManifold>>> = Arc::new(
-                    train_states
-                        .iter()
-                        .map(|s| std::sync::RwLock::new(s.0.clone()))
-                        .collect(),
-                );
+                let initial_manifolds: Arc<Vec<EntityManifold>> =
+                    Arc::new(train_states.iter().map(|s| s.0.clone()).collect());
 
                 let mut node = WaveNode::new(
                     m.axiom_type,
@@ -602,7 +598,7 @@ impl RrmAgent {
                             std::sync::Arc::new(
                                 train_states
                                     .iter()
-                                    .map(|(m, _)| std::sync::RwLock::new(m.clone()))
+                                    .map(|(m, _)| m.clone())
                                     .collect::<Vec<_>>(),
                             ),
                             None,
@@ -624,7 +620,7 @@ impl RrmAgent {
                 let initial_manifolds_adv = std::sync::Arc::new(
                     train_states
                         .iter()
-                        .map(|(m, _)| std::sync::RwLock::new(m.clone()))
+                        .map(|(m, _)| m.clone())
                         .collect::<Vec<_>>(),
                 );
 

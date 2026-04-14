@@ -118,7 +118,8 @@ impl WaveDynamics {
 
             let current_status = manifold.entanglement_status[target_index];
             if entanglement_weight > current_status {
-                manifold.entanglement_status[target_index] = entanglement_weight;
+                std::sync::Arc::make_mut(&mut manifold.entanglement_status)[target_index] =
+                    entanglement_weight;
             }
         }
     }

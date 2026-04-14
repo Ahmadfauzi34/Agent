@@ -3,6 +3,7 @@ use crate::perception::hierarchical_gestalt::GestaltEngine;
 use crate::perception::universal_manifold::UniversalManifold;
 use ndarray::Array1;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 pub struct EntitySegmenter;
 
@@ -43,11 +44,11 @@ impl EntitySegmenter {
             global_width = usize::max(global_width, parsed.x + 1);
             global_height = usize::max(global_height, parsed.y + 1);
 
-            temp_manifold.ids[raw_idx] = format!("RAW_{}", raw_idx);
-            temp_manifold.masses[raw_idx] = 1.0;
-            temp_manifold.tokens[raw_idx] = parsed.token;
-            temp_manifold.centers_x[raw_idx] = parsed.x as f32;
-            temp_manifold.centers_y[raw_idx] = parsed.y as f32;
+            Arc::make_mut(&mut temp_manifold.ids)[raw_idx] = format!("RAW_{}", raw_idx);
+            Arc::make_mut(&mut manifold.masses)[raw_idx] = 1.0;
+            Arc::make_mut(&mut manifold.tokens)[raw_idx] = parsed.token;
+            Arc::make_mut(&mut manifold.centers_x)[raw_idx] = parsed.x as f32;
+            Arc::make_mut(&mut manifold.centers_y)[raw_idx] = parsed.y as f32;
 
             let mut dest_sp = temp_manifold.get_spatial_tensor_mut(raw_idx);
             dest_sp.assign(spatial_tensor);
@@ -72,16 +73,18 @@ impl EntitySegmenter {
         manifold.ensure_scalar_capacity(atoms.len());
 
         for atom in atoms {
-            manifold.ids[manifold_idx] = format!("OBJ_{}", entity_counter);
+            Arc::make_mut(&mut manifold.ids)[manifold_idx] = format!("OBJ_{}", entity_counter);
             entity_counter += 1;
 
-            manifold.masses[manifold_idx] = atom.pixel_count as f32;
-            manifold.tokens[manifold_idx] = atom.color;
-            manifold.centers_x[manifold_idx] = atom.center_of_mass.0;
-            manifold.centers_y[manifold_idx] = atom.center_of_mass.1;
+            Arc::make_mut(&mut manifold.masses)[manifold_idx] = atom.pixel_count as f32;
+            Arc::make_mut(&mut manifold.tokens)[manifold_idx] = atom.color;
+            Arc::make_mut(&mut manifold.centers_x)[manifold_idx] = atom.center_of_mass.0;
+            Arc::make_mut(&mut manifold.centers_y)[manifold_idx] = atom.center_of_mass.1;
 
-            manifold.spans_x[manifold_idx] = atom.bounding_box.2 - atom.bounding_box.0 + 1.0;
-            manifold.spans_y[manifold_idx] = atom.bounding_box.3 - atom.bounding_box.1 + 1.0;
+            Arc::make_mut(&mut manifold.spans_x)[manifold_idx] =
+                atom.bounding_box.2 - atom.bounding_box.0 + 1.0;
+            Arc::make_mut(&mut manifold.spans_y)[manifold_idx] =
+                atom.bounding_box.3 - atom.bounding_box.1 + 1.0;
 
             // Rata-rata spatial tensor (CoM)
             let mut avg_spatial = Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);

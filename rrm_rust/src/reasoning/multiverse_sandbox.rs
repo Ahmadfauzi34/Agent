@@ -1,6 +1,7 @@
 use crate::core::entity_manifold::EntityManifold;
 use crate::core::fhrr::FHRR;
 use ndarray::Array1;
+use std::sync::Arc;
 
 pub struct MultiverseSandbox {
     pub active_universes: usize,
@@ -159,10 +160,10 @@ impl MultiverseSandbox {
                                 u.ensure_scalar_capacity(dm_idx + 1);
 
                                 // Bangkitkan!
-                                u.masses[dm_idx] = 1.0;
-                                u.centers_x[dm_idx] = spawn_x as f32;
-                                u.centers_y[dm_idx] = spawn_y as f32;
-                                u.tokens[dm_idx] = target_color;
+                                Arc::make_mut(&mut u.masses)[dm_idx] = 1.0;
+                                Arc::make_mut(&mut u.centers_x)[dm_idx] = spawn_x as f32;
+                                Arc::make_mut(&mut u.centers_y)[dm_idx] = spawn_y as f32;
+                                Arc::make_mut(&mut u.tokens)[dm_idx] = target_color;
 
                                 // Update Tensors
                                 let mut sem_tensor = u.get_semantic_tensor_mut(dm_idx);
@@ -313,8 +314,8 @@ impl MultiverseSandbox {
 
                                 // 🌟 ANNIHILASI DEBRIS KOSMIK & Sinkronisasi Tensor 🌟
                                 if nx >= 0.0 && nx < new_w && ny >= 0.0 && ny < new_h {
-                                    u.centers_x[e] = nx;
-                                    u.centers_y[e] = ny;
+                                    Arc::make_mut(&mut u.centers_x)[e] = nx;
+                                    Arc::make_mut(&mut u.centers_y)[e] = ny;
 
                                     let new_spatial_tensor =
                                         FHRR::fractional_bind_2d(&x_seed, nx, &y_seed, ny);
@@ -322,7 +323,7 @@ impl MultiverseSandbox {
                                     let mut sp_tensor_mut = u.get_spatial_tensor_mut(e);
                                     sp_tensor_mut.assign(&new_spatial_tensor);
                                 } else {
-                                    u.masses[e] = 0.0; // Hancurkan
+                                    Arc::make_mut(&mut u.masses)[e] = 0.0; // Hancurkan
                                 }
                             }
                         }
@@ -409,7 +410,7 @@ impl MultiverseSandbox {
                 // TIER 5: ANNIHILATION (DESTROY)
                 // Mengembalikan partikel ke dalam Dark Matter
                 if physics_tier == 5 && axiom_type.contains("ERASE") {
-                    u.masses[e] = 0.0;
+                    Arc::make_mut(&mut u.masses)[e] = 0.0;
                     // Lanjutkan ke entitas berikutnya, tidak perlu binding.
                     continue;
                 }
@@ -421,36 +422,36 @@ impl MultiverseSandbox {
                     if axiom_type.contains("MIRROR_X") {
                         // Mirror horizontal: flip sumbu X
                         // x_baru = max_x - (cx - min_x)
-                        u.centers_x[e] = max_x - (cx - min_x);
+                        Arc::make_mut(&mut u.centers_x)[e] = max_x - (cx - min_x);
                     } else if axiom_type.contains("MIRROR_Y") {
-                        u.centers_y[e] = max_y - (cy - min_y);
+                        Arc::make_mut(&mut u.centers_y)[e] = max_y - (cy - min_y);
                     } else if axiom_type.contains("ROTATE_90") {
                         // Asumsi putar kanan terhadap center bbox
                         let center_x = (min_x + max_x) / 2.0;
                         let center_y = (min_y + max_y) / 2.0;
                         let rx = cx - center_x;
                         let ry = cy - center_y;
-                        u.centers_x[e] = center_x - ry;
-                        u.centers_y[e] = center_y + rx;
+                        Arc::make_mut(&mut u.centers_x)[e] = center_x - ry;
+                        Arc::make_mut(&mut u.centers_y)[e] = center_y + rx;
                     } else if axiom_type.contains("ROTATE_180") {
                         let center_x = (min_x + max_x) / 2.0;
                         let center_y = (min_y + max_y) / 2.0;
                         let rx = cx - center_x;
                         let ry = cy - center_y;
-                        u.centers_x[e] = center_x - rx;
-                        u.centers_y[e] = center_y - ry;
+                        Arc::make_mut(&mut u.centers_x)[e] = center_x - rx;
+                        Arc::make_mut(&mut u.centers_y)[e] = center_y - ry;
                     } else if axiom_type.contains("ROTATE_270") {
                         let center_x = (min_x + max_x) / 2.0;
                         let center_y = (min_y + max_y) / 2.0;
                         let rx = cx - center_x;
                         let ry = cy - center_y;
-                        u.centers_x[e] = center_x + ry;
-                        u.centers_y[e] = center_y - rx;
+                        Arc::make_mut(&mut u.centers_x)[e] = center_x + ry;
+                        Arc::make_mut(&mut u.centers_y)[e] = center_y - rx;
                     }
 
                     // Pastikan tetap bilangan bulat
-                    u.centers_x[e] = u.centers_x[e].round();
-                    u.centers_y[e] = u.centers_y[e].round();
+                    Arc::make_mut(&mut u.centers_x)[e] = u.centers_x[e].round();
+                    Arc::make_mut(&mut u.centers_y)[e] = u.centers_y[e].round();
                 }
 
                 // 1. Spasial Tensor Binding
@@ -480,8 +481,8 @@ impl MultiverseSandbox {
                         apply_dy
                     };
 
-                    u.centers_x[e] += real_dx;
-                    u.centers_y[e] += real_dy;
+                    Arc::make_mut(&mut u.centers_x)[e] += real_dx;
+                    Arc::make_mut(&mut u.centers_y)[e] += real_dy;
                 }
 
                 // MURNI UNTUK SWARM: Update token untuk Decoder
@@ -653,13 +654,13 @@ impl MultiverseSandbox {
             };
             let inside = inside_x * inside_y;
 
-            u.masses[e] *= inside;
+            Arc::make_mut(&mut u.masses)[e] *= inside;
 
             if inside > 0.5 {
                 let nx = (cx - actual_min_x).round();
                 let ny = (cy - actual_min_y).round();
-                u.centers_x[e] = nx;
-                u.centers_y[e] = ny;
+                Arc::make_mut(&mut u.centers_x)[e] = nx;
+                Arc::make_mut(&mut u.centers_y)[e] = ny;
 
                 let new_spatial_tensor =
                     crate::core::fhrr::FHRR::fractional_bind_2d(&x_seed, nx, &y_seed, ny);
