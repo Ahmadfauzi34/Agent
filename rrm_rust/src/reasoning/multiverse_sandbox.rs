@@ -667,5 +667,6 @@ impl MultiverseSandbox {
                 sp_tensor.assign(&new_spatial_tensor);
             }
         }
+        u.sync_to_cow();
     }
 }

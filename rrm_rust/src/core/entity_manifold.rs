@@ -1,4 +1,5 @@
 use crate::core::config::GLOBAL_DIMENSION;
+use crate::core::cow_memory::SmartMultiverseState;
 use ndarray::{Array1, ArrayViewMut1};
 
 /// Struktur SoA (Structure of Arrays) untuk Quantum Entity Manifold.
@@ -26,6 +27,9 @@ pub struct EntityManifold {
     pub spans_x: Vec<f32>,
     pub spans_y: Vec<f32>,
 
+    // Dense CoW representation for O(1) cloning grid operations
+    pub cow_grid: Option<SmartMultiverseState>,
+
     // Pusat Massa Kinetik / Scalar Momentum
     pub centers_x: Vec<f32>,
     pub centers_y: Vec<f32>,
@@ -50,6 +54,7 @@ impl Clone for EntityManifold {
             tokens: self.tokens.clone(),
             spans_x: self.spans_x.clone(),
             spans_y: self.spans_y.clone(),
+            cow_grid: self.cow_grid.clone(),
             centers_x: self.centers_x.clone(),
             centers_y: self.centers_y.clone(),
             momentums_x: self.momentums_x.clone(),
@@ -82,6 +87,7 @@ impl EntityManifold {
 
             spans_x: Vec::new(),
             spans_y: Vec::new(),
+            cow_grid: None,
             entanglement_status: Vec::new(),
             centers_x: Vec::new(),
             centers_y: Vec::new(),
@@ -163,6 +169,61 @@ impl EntityManifold {
             Array1::from_vec(self.semantic_tensors[offset..required].to_vec())
         } else {
             Array1::zeros(GLOBAL_DIMENSION)
+        }
+    }
+}
+
+impl EntityManifold {
+    /// Sinkronisasi Sparse SOA -> Dense CoW Grid.
+    /// Fungsi ini mengubah token-token warna 1D dari EntityManifold menjadi
+    /// representasi dense `SmartMultiverseState` 2D.
+    pub fn sync_to_cow(&mut self) {
+        if self.global_width <= 0.0 || self.global_height <= 0.0 {
+            return;
+        }
+
+        let w = self.global_width as usize;
+        let h = self.global_height as usize;
+
+        // Tentukan jumlah chunk
+        // Misalnya CHUNK_SIZE = 64
+        let width_chunks =
+            (w + crate::core::cow_memory::CHUNK_SIZE - 1) / crate::core::cow_memory::CHUNK_SIZE;
+        let height_chunks =
+            (h + crate::core::cow_memory::CHUNK_SIZE - 1) / crate::core::cow_memory::CHUNK_SIZE;
+
+        let mut needs_new_grid = false;
+        if let Some(ref grid) = self.cow_grid {
+            if grid.width_chunks != width_chunks || grid.height_chunks != height_chunks {
+                needs_new_grid = true;
+            }
+        } else {
+            needs_new_grid = true;
+        }
+
+        if needs_new_grid {
+            self.cow_grid = Some(SmartMultiverseState::new(width_chunks, height_chunks));
+        }
+
+        // Sekarang sinkronisasi data warna ke dalam grid
+        // Kita set grid ke 0 terlebih dahulu (blank state) -
+        // Ini mungkin agak mahal jika kita set 0 secara manual tiap kali sync,
+        // tapi dalam praktiknya, cow_grid idealnya sudah menjadi the source of truth suatu saat nanti.
+        // Untuk "cicilan", kita akan asumsikan kita replace dengan grid baru atau bersihkan.
+
+        let grid = self.cow_grid.as_mut().unwrap();
+
+        // Warning: Jika kita bersihkan seluruh grid lama, kita merusak Copy-on-Write sharing
+        // dengan mutasi massal. Idealnya, sync ini cuma dipanggil SEKALI saat inisialisasi awal.
+        // Setelah MCTS berjalan, MCTS cukup mengubah grid via modify_cell.
+        for i in 0..self.active_count {
+            if self.masses[i] > 0.0 {
+                let x = self.centers_x[i].round() as i32;
+                let y = self.centers_y[i].round() as i32;
+                if x >= 0 && x < w as i32 && y >= 0 && y < h as i32 {
+                    grid.modify_cell(x as usize, y as usize, self.tokens[i] as f32);
+                }
+            }
         }
     }
 }
