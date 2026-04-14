@@ -28,8 +28,8 @@ fn main() {
         "2dc579da", // The one we know works with anomalous logic
     ];
 
-    let _successes = 0;
-    let _total = tasks.len();
+    let mut successes = 0;
+    let total = tasks.len();
 
     for task_name in tasks {
         let path = format!("../ARC-AGI-1.0.2/data/training/{}.json", task_name);
@@ -156,13 +156,14 @@ fn main() {
 
         if success {
             println!("✅ SUCCESS (100% Match!)");
-            // successes += 1;
+            successes += 1;
         } else {
             println!("💀 FAILED (Mismatch)");
         }
     }
 
     println!("\n\n🏁 BATCH EXECUTION COMPLETE");
+    println!("Score: {} / {}", successes, total);
 
     println!("\n🌿 ==================================");
     println!("🌙 MENGAKTIFKAN SIKLUS TIDUR (MENTAL REPLAY)");
