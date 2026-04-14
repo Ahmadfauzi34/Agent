@@ -53,6 +53,84 @@ impl SkillLibrary {
         entry.utility_score += 1.0; // Hebbian Learning: neurons that fire together, wire together
     }
 
+        pub fn load_grammar_from_wiki(&mut self, wiki_dir: &str) {
+        if let Ok(entries) = std::fs::read_dir(wiki_dir) {
+            for entry in entries.flatten() {
+                if let Ok(file_type) = entry.file_type() {
+                    if file_type.is_file() {
+                        if let Some(ext) = entry.path().extension() {
+                            if ext == "md" {
+                                if let Ok(content) = std::fs::read_to_string(entry.path()) {
+                                    self.parse_markdown_grammar(&content);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn parse_markdown_grammar(&mut self, markdown: &str) {
+        let json_start = markdown.find("```json");
+        let json_end = markdown.rfind("```");
+
+        if let (Some(start), Some(end)) = (json_start, json_end) {
+            if end > start + 7 {
+                let json_str = &markdown[start + 7..end].trim();
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(json_str) {
+                    if let Some(id) = parsed["id"].as_str() {
+                        // Create a dummy WaveNode sequence representing this Macro
+                        let mut sequence = Vec::new();
+
+                        let base_tensor = ndarray::Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);
+
+                        if let Some(seq_array) = parsed["sequence"].as_array() {
+                            for step in seq_array {
+                                let axiom_type = step["axiom_type"].as_str().unwrap_or("UNKNOWN").to_string();
+                                let dx = step["delta_x"].as_f64().unwrap_or(0.0) as f32;
+                                let dy = step["delta_y"].as_f64().unwrap_or(0.0) as f32;
+                                let tier = step["physics_tier"].as_u64().unwrap_or(5) as u8;
+
+                                let node = WaveNode {
+                                    axiom_type: vec![axiom_type],
+                                    condition_tensor: None,
+                                    tensor_spatial: base_tensor.clone(),
+                                    tensor_semantic: base_tensor.clone(),
+                                    delta_x: dx,
+                                    delta_y: dy,
+                                    physics_tier: tier,
+                                    static_background: std::sync::Arc::new(
+                                        crate::core::infinite_detail::CoarseData {
+                                            regions: std::sync::Arc::new(vec![]),
+                                            signatures: std::sync::Arc::new(vec![]),
+                                        },
+                                    ),
+                                    state_manifolds: std::sync::Arc::new(Vec::new()),
+                                    state_modified: false,
+                                    probability: 10.0,
+                                    depth: 0,
+                                };
+                                sequence.push(node);
+                            }
+                        }
+
+                        if !sequence.is_empty() {
+                            self.macros.insert(
+                                id.to_string(),
+                                MacroSkill {
+                                    id: id.to_string(),
+                                    sequence,
+                                    utility_score: 50.0, // High starting utility so MCTS will prioritize it
+                                },
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     pub fn inject_macros_as_hypotheses(&self) -> Vec<WaveNode> {
         self.macros
             .values()

@@ -33,6 +33,49 @@ impl MultiverseSandbox {
     ) {
         // 🌟 FISIKA TIER 8: REKURSI MACRO (Interpreter Siklus Otot/Skill) 🌟
         if physics_tier == 8 {
+            if axiom_type == "MACRO:EXTRACT_ANOMALY" {
+                // native fallback logic from extract_anomalous_quadrant
+                let temp = crate::perception::anomalous_extractor::extract_anomalous_quadrant(u);
+
+                // apply changes in-place to u to mutate current universe branch
+                u.active_count = temp.active_count;
+                u.global_width = temp.global_width;
+                u.global_height = temp.global_height;
+
+                let mut cow_mut = None;
+                if let Some(ref mut c) = u.cow_grid {
+                    // Update cow dimensions, maybe just wipe it to None and sync_to_cow later
+                    cow_mut = Some(c.clone()); // just a dummy, let sync_to_cow handle it natively later
+                }
+                u.cow_grid = None;
+
+                let mut sp_mut = std::sync::Arc::make_mut(&mut u.spatial_tensors);
+                let mut sh_mut = std::sync::Arc::make_mut(&mut u.shape_tensors);
+                let mut se_mut = std::sync::Arc::make_mut(&mut u.semantic_tensors);
+
+                sp_mut.clear(); sp_mut.extend(temp.spatial_tensors.iter());
+                sh_mut.clear(); sh_mut.extend(temp.shape_tensors.iter());
+                se_mut.clear(); se_mut.extend(temp.semantic_tensors.iter());
+
+                let mut id_mut = std::sync::Arc::make_mut(&mut u.ids);
+                let mut ma_mut = std::sync::Arc::make_mut(&mut u.masses);
+                let mut to_mut = std::sync::Arc::make_mut(&mut u.tokens);
+                let mut sx_mut = std::sync::Arc::make_mut(&mut u.spans_x);
+                let mut sy_mut = std::sync::Arc::make_mut(&mut u.spans_y);
+                let mut cx_mut = std::sync::Arc::make_mut(&mut u.centers_x);
+                let mut cy_mut = std::sync::Arc::make_mut(&mut u.centers_y);
+
+                id_mut.clear(); id_mut.extend(temp.ids.iter().cloned());
+                ma_mut.clear(); ma_mut.extend(temp.masses.iter());
+                to_mut.clear(); to_mut.extend(temp.tokens.iter());
+                sx_mut.clear(); sx_mut.extend(temp.spans_x.iter());
+                sy_mut.clear(); sy_mut.extend(temp.spans_y.iter());
+                cx_mut.clear(); cx_mut.extend(temp.centers_x.iter());
+                cy_mut.clear(); cy_mut.extend(temp.centers_y.iter());
+
+                return;
+            }
+
             if let Some(macro_content) = axiom_type.strip_prefix("MACRO:") {
                 let sub_axioms: Vec<&str> = macro_content.split('|').collect();
                 for sub_axiom_str in sub_axioms {

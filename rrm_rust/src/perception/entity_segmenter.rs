@@ -36,6 +36,9 @@ impl EntitySegmenter {
         // Tahap 1: Muat raw pixels ke temporary manifold (Swarm Paradigm)
         let mut temp_manifold = EntityManifold::new();
         let mut raw_idx = 0;
+        manifold.ensure_scalar_capacity(stream.len());
+        temp_manifold.ensure_scalar_capacity(stream.len());
+        temp_manifold.ensure_tensor_capacity(stream.len());
 
         temp_manifold.ensure_scalar_capacity(stream.len());
 
