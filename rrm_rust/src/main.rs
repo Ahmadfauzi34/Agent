@@ -1,3 +1,4 @@
+use std::sync::Arc;
 pub mod core;
 pub mod memory;
 pub mod perception;
@@ -108,14 +109,14 @@ fn main() {
             for (y, row) in test_in.iter().enumerate() {
                 for (x, &val) in row.iter().enumerate() {
                     raw_manifold.ensure_scalar_capacity(raw_idx + 1);
-                    raw_manifold.masses[raw_idx] = 1.0;
-                    raw_manifold.tokens[raw_idx] = val;
-                    raw_manifold.centers_x[raw_idx] = x as f32;
-                    raw_manifold.centers_y[raw_idx] = y as f32;
+                    Arc::make_mut(&mut raw_manifold.masses)[raw_idx] = 1.0;
+                    Arc::make_mut(&mut raw_manifold.tokens)[raw_idx] = val;
+                    Arc::make_mut(&mut raw_manifold.centers_x)[raw_idx] = x as f32;
+                    Arc::make_mut(&mut raw_manifold.centers_y)[raw_idx] = y as f32;
 
                     // Span = 1 since it's raw pixel
-                    raw_manifold.spans_x[raw_idx] = 1.0;
-                    raw_manifold.spans_y[raw_idx] = 1.0;
+                    Arc::make_mut(&mut raw_manifold.spans_x)[raw_idx] = 1.0;
+                    Arc::make_mut(&mut raw_manifold.spans_y)[raw_idx] = 1.0;
 
                     raw_idx += 1;
                 }
