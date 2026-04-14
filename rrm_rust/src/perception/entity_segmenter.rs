@@ -48,10 +48,10 @@ impl EntitySegmenter {
             global_height = usize::max(global_height, parsed.y + 1);
 
             Arc::make_mut(&mut temp_manifold.ids)[raw_idx] = format!("RAW_{}", raw_idx);
-            Arc::make_mut(&mut manifold.masses)[raw_idx] = 1.0;
-            Arc::make_mut(&mut manifold.tokens)[raw_idx] = parsed.token;
-            Arc::make_mut(&mut manifold.centers_x)[raw_idx] = parsed.x as f32;
-            Arc::make_mut(&mut manifold.centers_y)[raw_idx] = parsed.y as f32;
+            Arc::make_mut(&mut temp_manifold.masses)[raw_idx] = 1.0;
+            Arc::make_mut(&mut temp_manifold.tokens)[raw_idx] = parsed.token;
+            Arc::make_mut(&mut temp_manifold.centers_x)[raw_idx] = parsed.x as f32;
+            Arc::make_mut(&mut temp_manifold.centers_y)[raw_idx] = parsed.y as f32;
 
             let mut dest_sp = temp_manifold.get_spatial_tensor_mut(raw_idx);
             dest_sp.assign(spatial_tensor);

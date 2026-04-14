@@ -53,7 +53,7 @@ impl SkillLibrary {
         entry.utility_score += 1.0; // Hebbian Learning: neurons that fire together, wire together
     }
 
-        pub fn load_grammar_from_wiki(&mut self, wiki_dir: &str) {
+    pub fn load_grammar_from_wiki(&mut self, wiki_dir: &str) {
         if let Ok(entries) = std::fs::read_dir(wiki_dir) {
             for entry in entries.flatten() {
                 if let Ok(file_type) = entry.file_type() {
@@ -83,20 +83,40 @@ impl SkillLibrary {
                         // Create a dummy WaveNode sequence representing this Macro
                         let mut sequence = Vec::new();
 
-                        let base_tensor = ndarray::Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);
+                        let base_tensor =
+                            ndarray::Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);
 
                         if let Some(seq_array) = parsed["sequence"].as_array() {
                             for step in seq_array {
-                                let axiom_type = step["axiom_type"].as_str().unwrap_or("UNKNOWN").to_string();
+                                let axiom_type =
+                                    step["axiom_type"].as_str().unwrap_or("UNKNOWN").to_string();
                                 let dx = step["delta_x"].as_f64().unwrap_or(0.0) as f32;
                                 let dy = step["delta_y"].as_f64().unwrap_or(0.0) as f32;
                                 let tier = step["physics_tier"].as_u64().unwrap_or(5) as u8;
 
+                                let mut t_spatial = base_tensor.clone();
+                                if let Some(arr) = step["tensor_spatial"].as_array() {
+                                    for (idx, val) in arr.iter().enumerate() {
+                                        if idx < crate::core::config::GLOBAL_DIMENSION {
+                                            t_spatial[idx] = val.as_f64().unwrap_or(0.0) as f32;
+                                        }
+                                    }
+                                }
+
+                                let mut t_semantic = base_tensor.clone();
+                                if let Some(arr) = step["tensor_semantic"].as_array() {
+                                    for (idx, val) in arr.iter().enumerate() {
+                                        if idx < crate::core::config::GLOBAL_DIMENSION {
+                                            t_semantic[idx] = val.as_f64().unwrap_or(0.0) as f32;
+                                        }
+                                    }
+                                }
+
                                 let node = WaveNode {
                                     axiom_type: vec![axiom_type],
                                     condition_tensor: None,
-                                    tensor_spatial: base_tensor.clone(),
-                                    tensor_semantic: base_tensor.clone(),
+                                    tensor_spatial: t_spatial,
+                                    tensor_semantic: t_semantic,
                                     delta_x: dx,
                                     delta_y: dy,
                                     physics_tier: tier,
