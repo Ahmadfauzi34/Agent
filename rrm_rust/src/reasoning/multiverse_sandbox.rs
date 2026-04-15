@@ -33,6 +33,28 @@ impl MultiverseSandbox {
     ) {
         // 🌟 FISIKA TIER 8: REKURSI MACRO (Interpreter Siklus Otot/Skill) 🌟
         if physics_tier == 8 {
+            if axiom_type.starts_with("MACRO:") {
+                // TENSOR DRIVEN EXECUTION
+                // Alih-alih if-else hardcode, MCTS akan memutar ruang menggunakan Array Tensor murni.
+                // Jika array ini adalah hasil distilasi 'Anomaly Cropping', ia akan mengikat dan menormalkan pusat massa ke origin.
+                if delta_spatial.iter().any(|&v| v.abs() > 0.0) {
+                    let sp_mut = std::sync::Arc::make_mut(&mut u.spatial_tensors);
+                    let dim = crate::core::config::GLOBAL_DIMENSION;
+
+                    for i in 0..u.active_count {
+                        let start = i * dim;
+                        let end = start + dim;
+                        let chunk = ndarray::Array1::from_vec(sp_mut[start..end].to_vec());
+                        let new_chunk = FHRR::bind(&chunk, delta_spatial);
+                        sp_mut[start..end].copy_from_slice(new_chunk.as_slice().unwrap());
+                    }
+
+                    // Untuk merubah piksel visual, sistem akan mende-bind posisinya
+                    // menggunakan hologram_decoder. Namun di MCTS Phase, cukup transform Tensor-nya dulu.
+                }
+                // (Untuk task visual murni 2dc579da sementara tetap kita biarkan fallback jika tidak ada Tensor, tapi kali ini Tensornya ada!)
+            }
+
             if let Some(macro_content) = axiom_type.strip_prefix("MACRO:") {
                 let sub_axioms: Vec<&str> = macro_content.split('|').collect();
                 for sub_axiom_str in sub_axioms {

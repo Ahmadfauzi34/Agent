@@ -89,7 +89,7 @@ impl EntityManifold {
     }
 
     /// Fungsi bantuan agar `Vec` tensor tetap cukup ukurannya saat index diakses
-    fn ensure_tensor_capacity(&mut self, required_len: usize) {
+    pub fn ensure_tensor_capacity(&mut self, required_len: usize) {
         if self.spatial_tensors.len() < required_len {
             Arc::make_mut(&mut self.spatial_tensors).resize(required_len, 0.0);
             Arc::make_mut(&mut self.shape_tensors).resize(required_len, 0.0);
