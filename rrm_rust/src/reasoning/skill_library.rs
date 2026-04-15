@@ -88,11 +88,13 @@ impl SkillLibrary {
             if let Ok(parsed) = serde_yaml::from_str::<serde_yaml::Value>(content_str) {
                 if let Some(id) = parsed["id"].as_str() {
                     let mut sequence = Vec::new();
-                    let base_tensor = ndarray::Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);
+                    let base_tensor =
+                        ndarray::Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);
 
                     if let Some(seq_array) = parsed["sequence"].as_sequence() {
                         for step in seq_array {
-                            let axiom_type = step["axiom_type"].as_str().unwrap_or("UNKNOWN").to_string();
+                            let axiom_type =
+                                step["axiom_type"].as_str().unwrap_or("UNKNOWN").to_string();
                             let dx = step["delta_x"].as_f64().unwrap_or(0.0) as f32;
                             let dy = step["delta_y"].as_f64().unwrap_or(0.0) as f32;
                             let tier = step["physics_tier"].as_u64().unwrap_or(5) as u8;
