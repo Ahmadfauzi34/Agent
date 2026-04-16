@@ -14,7 +14,74 @@ use serde_json::Value;
 use std::fs;
 use std::time::Instant;
 
+fn distill_yaml_skills() {
+    use crate::core::fhrr::FHRR;
+    use crate::core::config::GLOBAL_DIMENSION;
+    use crate::core::core_seeds::CoreSeeds;
+    use ndarray::Array1;
+    use std::fs;
+
+    println!("--- DISTILLING 4 CORE TENSOR SKILLS TO YAML ---");
+
+    let x_seed = CoreSeeds::x_axis_seed();
+    let y_seed = CoreSeeds::y_axis_seed();
+
+    let generate_yaml = |id: &str, dx: f32, dy: f32, mirror_x: bool, rotate: bool| {
+        // Untuk "Pergeseran murni" (Translasi) di FHRR, kita cukup melakukan Fractional Binding dari Seed X dan Y!
+        // Tidak perlu membungkus gambar 5x5 lalu mencari Inverse(Input), karena itu bisa memicu ledakan fasa.
+        // Jika kita ingin menggeser seluruh alam semesta sejauh (dx, dy),
+        // Vektor Transformasinya hanyalah: X_Seed^dx (X) Y_Seed^dy
+
+        let mut skill_tensor = FHRR::fractional_bind_2d(&x_seed, dx, &y_seed, dy);
+
+        // Untuk operasi cermin atau rotasi (di luar translasi standar), dalam VSA/FHRR sesungguhnya
+        // memerlukan Permutation Matrix. Namun, sebagai placeholder (karena kita akan melatih MCTS untuk menemukannya),
+        // kita akan memberikan tensor acak/pseudorandom yang stabil sebagai "ID" unik dari operasi ini,
+        // atau membiarkannya 0.0 jika kita belum mengimplementasikan Permutation murni.
+        // Sebagai contoh praktis:
+        if mirror_x || rotate {
+            let mut noise = Array1::<f32>::zeros(GLOBAL_DIMENSION);
+            for i in 0..GLOBAL_DIMENSION {
+                noise[i] = ((i as f32) * 0.123).sin() * 0.1; // Stable deterministic noise bounded to [-0.1, 0.1]
+            }
+            skill_tensor = FHRR::bind(&skill_tensor, &noise);
+        }
+
+        // Pastikan nilainya tidak pernah meledak! Kita normalkan agar L2 Norm = 1.0 atau batasnya stabil.
+                let mut sum_sq = 0.0;
+        for i in 0..GLOBAL_DIMENSION {
+            sum_sq += skill_tensor[i] * skill_tensor[i];
+        }
+        let mag = sum_sq.sqrt();
+        if mag > 0.0 {
+            for i in 0..GLOBAL_DIMENSION {
+                skill_tensor[i] /= mag;
+            }
+        }
+
+        let mut yaml_arr = String::new();
+        for i in 0..GLOBAL_DIMENSION {
+            yaml_arr.push_str(&format!("{:.6}", skill_tensor[i]));
+            if i < GLOBAL_DIMENSION - 1 {
+                yaml_arr.push_str(", ");
+            }
+        }
+
+        let yaml_doc = format!("\n# Tensor Driven Macro: {id}\n\n```yaml\nid: MACRO:{id}\ntier: 6\ndescription: Generated tensor skill\nsequence:\n  - axiom_type: TENSOR_DRIVEN_BIND\n    physics_tier: 6\n    delta_x: {dx:.1}\n    delta_y: {dy:.1}\n    tensor_spatial: [{yaml_arr}]\n```\n");
+
+        fs::write(format!("knowledge/grammar/{}.md", id.to_lowercase()), yaml_doc).unwrap();
+    };
+
+    generate_yaml("SHIFT_RIGHT", 1.0, 0.0, false, false);
+    generate_yaml("SHIFT_DOWN", 0.0, 1.0, false, false);
+    generate_yaml("MIRROR_X", 0.0, 0.0, true, false);
+    generate_yaml("ROTATE_90", 0.0, 0.0, false, true);
+
+    println!("--- DISTILLATION TO YAML COMPLETED ---");
+}
 fn main() {
+    distill_yaml_skills();
+
     println!("🌌 RRM Quantum Sandbox (Rust Edition) Initialized.");
 
     let base_dir = std::path::PathBuf::from(".");
