@@ -11,7 +11,9 @@ impl AxiomGenerator {
         x_seed: &Array1<f32>,
         y_seed: &Array1<f32>,
     ) -> Array1<f32> {
-        FHRR::fractional_bind_2d(x_seed, delta_x, y_seed, delta_y)
+        let x_shift = FHRR::fractional_bind(x_seed, delta_x);
+        let y_shift = FHRR::fractional_bind(y_seed, delta_y);
+        FHRR::bind(&x_shift, &y_shift)
     }
 
     pub fn generate_geometric_axiom(
@@ -25,7 +27,10 @@ impl AxiomGenerator {
         let geom_mod = match name {
             "MIRROR_X" => FHRR::fractional_bind(x_seed, -1.0),
             "MIRROR_Y" => FHRR::fractional_bind(y_seed, -1.0),
-            "MIRROR_XY" => FHRR::fractional_bind_2d(x_seed, -1.0, y_seed, -1.0),
+            "MIRROR_XY" => FHRR::bind(
+                &FHRR::fractional_bind(x_seed, -1.0),
+                &FHRR::fractional_bind(y_seed, -1.0),
+            ),
             _ => {
                 let mut identity = Array1::zeros(GLOBAL_DIMENSION);
                 identity[0] = 1.0;

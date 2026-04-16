@@ -1,3 +1,4 @@
+use crate::core::config::MAX_ENTITIES;
 use crate::core::entity_manifold::EntityManifold;
 use crate::core::fhrr::FHRR;
 use crate::reasoning::entanglement_graph::EntanglementGraph;
@@ -7,13 +8,17 @@ pub struct EntanglementOptimizer;
 impl EntanglementOptimizer {
     /// 🕸️ HEBBIAN ENTANGLEMENT UPDATE
     /// "Neurons that fire together, wire together."
-    pub fn optimize(manifold: &EntityManifold, graph: &mut EntanglementGraph, learning_rate: f32) {
+    pub fn optimize(
+        manifold: &EntityManifold,
+        graph: &mut EntanglementGraph,
+        learning_rate: f32,
+    ) {
         let num_entities = manifold.active_count;
 
         let mut new_graph = EntanglementGraph {
             values: Vec::with_capacity(num_entities * 10), // Heuristic sparsity
             col_indices: Vec::with_capacity(num_entities * 10),
-            row_ptr: vec![0; num_entities + 1],
+            row_ptr: vec![0; MAX_ENTITIES + 1],
         };
 
         for i in 0..num_entities {
@@ -52,8 +57,7 @@ impl EntanglementOptimizer {
                 let current_e = graph.get_weight_csr(i, j);
                 let new_e = (current_e + (coherence * learning_rate)).clamp(0.0, 1.0);
 
-                if new_e > 0.001 {
-                    // Sparsity Threshold
+                if new_e > 0.001 { // Sparsity Threshold
                     new_graph.values.push(new_e);
                     new_graph.col_indices.push(j);
                 }
@@ -61,7 +65,9 @@ impl EntanglementOptimizer {
         }
 
         let total_vals = new_graph.values.len();
-        new_graph.row_ptr[num_entities] = total_vals;
+        for i in num_entities..=MAX_ENTITIES {
+            new_graph.row_ptr[i] = total_vals;
+        }
 
         *graph = new_graph;
     }

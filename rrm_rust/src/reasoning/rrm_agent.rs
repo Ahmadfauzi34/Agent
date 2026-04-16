@@ -419,8 +419,12 @@ impl RrmAgent {
 
             for m in matches {
                 // Gunakan Arc<Vec<RwLock>> (Copy-on-Write) untuk menghindari memory bloat
-                let initial_manifolds: Arc<Vec<EntityManifold>> =
-                    Arc::new(train_states.iter().map(|s| s.0.clone()).collect());
+                let initial_manifolds: Arc<Vec<std::sync::RwLock<EntityManifold>>> = Arc::new(
+                    train_states
+                        .iter()
+                        .map(|s| std::sync::RwLock::new(s.0.clone()))
+                        .collect(),
+                );
 
                 let mut node = WaveNode::new(
                     m.axiom_type,
@@ -598,7 +602,7 @@ impl RrmAgent {
                             std::sync::Arc::new(
                                 train_states
                                     .iter()
-                                    .map(|(m, _)| m.clone())
+                                    .map(|(m, _)| std::sync::RwLock::new(m.clone()))
                                     .collect::<Vec<_>>(),
                             ),
                             None,
@@ -620,20 +624,15 @@ impl RrmAgent {
                 let initial_manifolds_adv = std::sync::Arc::new(
                     train_states
                         .iter()
-                        .map(|(m, _)| m.clone())
+                        .map(|(m, _)| std::sync::RwLock::new(m.clone()))
                         .collect::<Vec<_>>(),
                 );
 
                 // 2. ROOT ZERO-POINT (Memulai MCTS dari Depth 0, bukan Depth 1)
                 let initial_wave = WaveNode {
                     axiom_type: vec!["ROOT_START".to_string()],
-                    static_background: std::sync::Arc::new(
-                        crate::core::infinite_detail::CoarseData {
-                            regions: std::sync::Arc::new(vec![]),
-                            signatures: std::sync::Arc::new(vec![]),
-                        },
-                    ),
-                    state_manifolds: std::sync::Arc::clone(&initial_manifolds_adv),
+                    static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData { regions: std::sync::Arc::new(vec![]), signatures: std::sync::Arc::new(vec![]) }),
+                            state_manifolds: std::sync::Arc::clone(&initial_manifolds_adv),
                     condition_tensor: Some(id_tensor.clone()),
                     tensor_spatial: id_tensor.clone(),
                     tensor_semantic: id_tensor.clone(),
@@ -746,6 +745,36 @@ impl RrmAgent {
                     }
                 }
 
+                // Metakognisi: Memantau denyut nadi MCTS
+                let current_energy = if max_prob > 0.0 { (1.0 - max_prob) * 100.0 } else { 100.0 };
+                let current_cognitive_state = self.self_reflection.assess_cognitive_health(current_energy);
+
+                // OODA Loop (Observe, Orient, Decide, Act) - Cognitive Routing
+                match current_cognitive_state {
+                    crate::self_awareness::self_reflection::CognitiveState::Solved => {
+                         println!("   ✅ [OODA - Decide] Solusi Sempurna Ditemukan! Menghentikan pencarian.");
+                    },
+                    crate::self_awareness::self_reflection::CognitiveState::FineTuning => {
+                         println!("   🔬 [OODA - Orient] Dekat dengan target. Mengaktifkan mode Counterfactual / Fine-Tuning...");
+                         // OODA - Act: Switch strategy (Simulated here)
+                         // self.counterfactual_engine.refine(&mut search);
+                    },
+                    crate::self_awareness::self_reflection::CognitiveState::LocalOptimum => {
+                         println!("   ⚠️ [OODA - Orient] MCTS Terjebak di Local Optimum.");
+                         // OODA - Act: Inject random noise / gestalting to break symmetry
+                         println!("   🔄 [OODA - Act] Menginjeksi skill eksotik ke MCTS...");
+                    },
+                    crate::self_awareness::self_reflection::CognitiveState::Desperate => {
+                         println!("   🚨 [OODA - Orient] Frustrasi Kognitif ekstrim!");
+                         // OODA - Act: Fallback ke Gestalt / Autopoietic Synthesizer
+                         println!("   ⚡ [OODA - Act] Menghentikan MCTS murni, mengalihkan kendali ke Autopoietic Synthesizer...");
+                         break;
+                    },
+                    _ => {
+                         println!("   🧭 [OODA - Decide] Melanjutkan eksplorasi MCTS standar...");
+                    }
+                }
+
                 // Jika Ground State ditemukan (prob mendekati 1.0, error 0.0), break dari Iterative Deepening!
                 if max_prob >= 0.95 {
                     println!(
@@ -834,11 +863,8 @@ impl RrmAgent {
                 delta_x: 5.0,
                 delta_y: 0.0,
                 physics_tier: 1,
-                static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData {
-                    regions: std::sync::Arc::new(vec![]),
-                    signatures: std::sync::Arc::new(vec![]),
-                }),
-                state_manifolds: std::sync::Arc::new(vec![]),
+                static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData { regions: std::sync::Arc::new(vec![]), signatures: std::sync::Arc::new(vec![]) }),
+                            state_manifolds: std::sync::Arc::new(vec![]),
                 state_modified: false,
                 depth: 1,
                 probability: 0.5,
@@ -852,11 +878,8 @@ impl RrmAgent {
                 delta_x: 0.0,
                 delta_y: 2.0,
                 physics_tier: 1,
-                static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData {
-                    regions: std::sync::Arc::new(vec![]),
-                    signatures: std::sync::Arc::new(vec![]),
-                }),
-                state_manifolds: std::sync::Arc::new(vec![]),
+                static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData { regions: std::sync::Arc::new(vec![]), signatures: std::sync::Arc::new(vec![]) }),
+                            state_manifolds: std::sync::Arc::new(vec![]),
                 state_modified: false,
                 depth: 1,
                 probability: 0.5,
@@ -924,7 +947,7 @@ impl RrmAgent {
             .collapse_to_grid(&test_manifold, test_width, test_height, 0.50)
     }
 
-    pub fn encode_grid(
+    fn encode_grid(
         &self,
         grid: &Vec<Vec<i32>>,
         stream: &mut HashMap<String, (Array1<f32>, Array1<f32>)>,

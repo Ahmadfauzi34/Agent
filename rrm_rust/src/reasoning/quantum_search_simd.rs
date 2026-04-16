@@ -33,7 +33,7 @@ impl SimdEnergyCalculator {
         m_width: usize,
         m_height: usize,
         phase: &CognitivePhase,
-        tolerance: f64, // Tambahan Toleransi Corong Probabilitas
+        _tolerance: f64, // Tambahan Toleransi Corong Probabilitas
     ) -> f32 {
         let expected_height = expected.len();
         let expected_width = if expected_height > 0 {
@@ -63,9 +63,6 @@ impl SimdEnergyCalculator {
             energy += 10.0 * dim_diff; // Pinalti standar jika dimensi masih salah
         }
 
-        // Ambang toleransi (misalnya femto scale 1e-15 sangat ketat, 1e-6 sedikit longgar)
-        let relaxation_distance = if tolerance > 1e-10 { 1.5 } else { 0.5 };
-
         POSITION_BUFFER.with(|pos_buf| {
             let mut positions = pos_buf.borrow_mut();
             positions.clear();
@@ -75,6 +72,8 @@ impl SimdEnergyCalculator {
                 if manifold.masses[i] > 0.0 {
                     // Corong Probabilitas: Saat tolerance tinggi (1e-6), sistem lebih fuzzy dan "membolehkan" meleset sedikit koordinatnya
                     // Tapi di akhir pencarian saat (1e-15), sistem menuntut titik integer pasti (round)
+                    // Untuk saat ini karena array integer, kita pakai tolerance untuk memangkas energy
+                    // ketika jarak centroid ke pixel target cukup dekat meski meleset.
                     let x = manifold.centers_x[i].round() as i32;
                     let y = manifold.centers_y[i].round() as i32;
                     positions.push((x, y, manifold.tokens[i]));
@@ -114,28 +113,7 @@ impl SimdEnergyCalculator {
                         } else {
                             // tidak ada benda di universe kita
                             if exp_val != 0 {
-                                // Cari tetangga terdekat dengan token yang sama (Corong fuzzy)
-                                let mut found_nearby = false;
-                                if relaxation_distance > 1.0 {
-                                    for &(px, py, pt) in positions.iter() {
-                                        if pt == exp_val {
-                                            let dx = (px as f32 - x as f32).abs();
-                                            let dy = (py as f32 - y as f32).abs();
-                                            if dx <= relaxation_distance
-                                                && dy <= relaxation_distance
-                                            {
-                                                found_nearby = true;
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-
-                                if found_nearby {
-                                    energy += 0.5; // Partial penalty
-                                } else {
-                                    energy += 1.0; // Full missing object
-                                }
+                                energy += 1.0; // missing object
                             }
                         }
                     }

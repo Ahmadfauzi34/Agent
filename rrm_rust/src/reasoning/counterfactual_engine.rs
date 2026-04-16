@@ -1,4 +1,3 @@
-use crate::core::deterministic_femto::DeterministicFemto;
 use crate::core::entity_manifold::EntityManifold;
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
 use crate::reasoning::structures::{Axiom, StructuralSignature};
@@ -18,8 +17,8 @@ pub enum FailureMode {
     /// to the nearest Femto-Well (exact precision target).
     HighEnergyState {
         distance: f32,
-        gradient_x: DeterministicFemto, // The direction the tensor should have moved
-        gradient_y: DeterministicFemto,
+        gradient_x: f32, // The direction the tensor should have moved
+        gradient_y: f32,
         energy_level: f32, // How bad the mismatch is
     },
 }
@@ -188,7 +187,7 @@ impl CounterfactualEngine {
                     // Gradient is Target - Current = Direction to move
                     let dx = exp_x - sim_x;
                     let dy = exp_y - sim_y;
-                    let dist = (dx * dx + dy * dy).sqrt();
+                    let dist = (dx*dx + dy*dy).sqrt();
 
                     if dist < min_dist {
                         min_dist = dist;
@@ -209,23 +208,10 @@ impl CounterfactualEngine {
         }
 
         if dim_mismatch || energy > 0.1 || matched_entities != exp_count {
-            // Evaluasi vektor gradien optimal untuk mental replay:
-            // Rata-rata vektor geseran hanya efektif jika obyeknya satu.
-            // Pada task multiobyek yang bergerak identik, rata-rata adalah representasi pergerakan global.
-            let mut avg_dx = DeterministicFemto::ZERO;
-            let mut avg_dy = DeterministicFemto::ZERO;
-
-            if matched_entities > 0 {
-                // Konversi total akumulasi menjadi fixed-point DULU, baru dibagi secara integer (deterministic)
-                let total_dx_fixed = DeterministicFemto::from_f32(total_dx);
-                let total_dy_fixed = DeterministicFemto::from_f32(total_dy);
-                avg_dx = total_dx_fixed / (matched_entities as i64);
-                avg_dy = total_dy_fixed / (matched_entities as i64);
-            }
-
-            let avg_dx_f32 = avg_dx.to_f32();
-            let avg_dy_f32 = avg_dy.to_f32();
-            let dist = (avg_dx_f32 * avg_dx_f32 + avg_dy_f32 * avg_dy_f32).sqrt();
+            // Rata-rata vektor geseran untuk mental replay
+            let avg_dx = if matched_entities > 0 { total_dx / matched_entities as f32 } else { 0.0 };
+            let avg_dy = if matched_entities > 0 { total_dy / matched_entities as f32 } else { 0.0 };
+            let dist = (avg_dx * avg_dx + avg_dy * avg_dy).sqrt();
 
             return SimulationResult {
                 is_success: false,
@@ -266,37 +252,20 @@ impl CounterfactualEngine {
         }
     }
 
-    pub fn suggest_correction(&self, failure: &FailureMode) -> Option<Vec<Axiom>> {
+    fn suggest_correction(&self, failure: &FailureMode) -> Option<Vec<Axiom>> {
         match failure {
-            FailureMode::HighEnergyState {
-                gradient_x,
-                gradient_y,
-                ..
-            } => {
-                // Konversi vektor kegagalan menjadi tebakan solusi dengan geometri Tensor FHRR
-                // Kita mentranslasikan "distance-to-well" ke dalam bentuk Fractional Bind
-                if gradient_x.abs() > DeterministicFemto::ZERO
-                    || gradient_y.abs() > DeterministicFemto::ZERO
-                {
-                    let rx = gradient_x.to_f32().round();
-                    let ry = gradient_y.to_f32().round();
-
-                    let x_seed = crate::core::core_seeds::CoreSeeds::x_axis_seed();
-                    let y_seed = crate::core::core_seeds::CoreSeeds::y_axis_seed();
-                    let tensor_spatial =
-                        crate::core::fhrr::FHRR::fractional_bind_2d(&x_seed, rx, &y_seed, ry);
-
-                    let mut correction = Axiom::identity();
-                    correction.name = format!("SUGGESTED_TRANS_{}_{}", rx, ry);
-                    correction.delta_x = rx;
-                    correction.delta_y = ry;
-                    correction.delta_spatial = tensor_spatial;
-                    correction.tier = 3; // Relational / Spatial Move Tier
-                    Some(vec![correction])
+            FailureMode::HighEnergyState { gradient_x, gradient_y, .. } => {
+                // Konversi vektor kegagalan menjadi tebakan solusi!
+                // Misalnya: Kalau tebakan kurang ke kanan 5 langkah, axiom koreksinya adalah shift_x(5)
+                // Ini meniadakan blind noise guess.
+                if gradient_x.abs() > 0.0 || gradient_y.abs() > 0.0 {
+                     let mut correction = Axiom::identity();
+                     correction.delta_x = gradient_x.round();
+                     correction.delta_y = gradient_y.round();
+                     correction.tier = 3; // Translation Tier
+                     Some(vec![correction])
                 } else {
-                    // Jika dimensinya hancur atau gradient 0.0 tapi energi tinggi,
-                    // kita coba CROP_TO_COLOR atau SPAWN
-                    Some(vec![Axiom::crop_to_content()])
+                     Some(vec![Axiom::crop_to_content()])
                 }
             }
         }

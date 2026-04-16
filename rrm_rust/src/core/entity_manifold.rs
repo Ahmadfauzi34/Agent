@@ -1,45 +1,119 @@
-use crate::core::config::GLOBAL_DIMENSION;
-use crate::core::cow_memory::SmartMultiverseState;
+use crate::core::config::{GLOBAL_DIMENSION, MAX_ENTITIES};
 use ndarray::{Array1, ArrayViewMut1};
-use std::sync::Arc;
 
 /// Struktur SoA (Structure of Arrays) untuk Quantum Entity Manifold.
-/// Didesain untuk Zero-GC dan cache locality di L1/L2 secara dinamis.
+/// Didesain untuk Zero-GC dan cache locality di L1/L2.
 /// Menggunakan sistem Tri-Tensor: Spatial (Pusat Global), Shape (Pola Lokal), dan Semantic (Warna).
-#[derive(Clone)]
 pub struct EntityManifold {
     pub active_count: usize,
     pub global_width: f32,
     pub global_height: f32,
 
     // 1. Posisi Global (Pusat Massa Absolut di Kanvas)
-    pub spatial_tensors: Arc<Vec<f32>>,
+    pub spatial_tensors: Vec<f32>, // Ukuran: MAX_ENTITIES * GLOBAL_DIMENSION
 
     // 2. Cetak Biru (Blueprint) Relatif (Bentuk lokal dari titik pusat)
-    pub shape_tensors: Arc<Vec<f32>>,
+    pub shape_tensors: Vec<f32>, // Ukuran: MAX_ENTITIES * GLOBAL_DIMENSION
 
     // 3. Warna / Tipe Material
-    pub semantic_tensors: Arc<Vec<f32>>,
+    pub semantic_tensors: Vec<f32>, // Ukuran: MAX_ENTITIES * GLOBAL_DIMENSION
 
-    pub ids: Arc<Vec<String>>,
-    pub masses: Arc<Vec<f32>>,
-    pub tokens: Arc<Vec<i32>>,
+    pub ids: Vec<String>, // Ukuran: MAX_ENTITIES
+    pub masses: Vec<f32>, // Ukuran: MAX_ENTITIES
+    pub tokens: Vec<i32>, // Ukuran: MAX_ENTITIES
 
     // Spans / Bounding Boxes Anisotropik
-    pub spans_x: Arc<Vec<f32>>,
-    pub spans_y: Arc<Vec<f32>>,
-
-    // Dense CoW representation for O(1) cloning grid operations
-    pub cow_grid: Option<SmartMultiverseState>,
+    pub spans_x: Vec<f32>,
+    pub spans_y: Vec<f32>,
 
     // Pusat Massa Kinetik / Scalar Momentum
-    pub centers_x: Arc<Vec<f32>>,
-    pub centers_y: Arc<Vec<f32>>,
-    pub momentums_x: Arc<Vec<f32>>,
-    pub momentums_y: Arc<Vec<f32>>,
+    pub centers_x: Vec<f32>,
+    pub centers_y: Vec<f32>,
+    pub momentums_x: Vec<f32>,
+    pub momentums_y: Vec<f32>,
 
     // Status Jeratan (Entanglement)
-    pub entanglement_status: Arc<Vec<f32>>,
+    pub entanglement_status: Vec<f32>,
+}
+
+impl Clone for EntityManifold {
+    fn clone(&self) -> Self {
+        let active = self.active_count;
+        let tensor_end = active * GLOBAL_DIMENSION;
+
+        // Optimized Memory Allocation
+        // Alih-alih melakukan clone 1000 entitas (3 * 1000 * 8192 f32 = ~98MB),
+        // Kita HANYA mengalokasi memori yang terpakai oleh active_count.
+        // Bagian vec yang tidak terpakai dibiarkan kosong, dan akan bertambah
+        // kembali ke MAX_ENTITIES jika dibutuhkan (sangat jarang terjadi di simulasi internal MCTS)
+
+        // Shrink-to-fit allocation: We only allocate exact memory needed for `active_count`.
+        // If the simulation needs to spawn more entities later, Rust's Vec will automatically reallocate/grow.
+        // This cuts memory from 100MB per state down to <1MB for typical ARC tasks.
+
+        let mut new_spatial = vec![0.0; tensor_end];
+        new_spatial.copy_from_slice(&self.spatial_tensors[..tensor_end]);
+
+        let mut new_shape = vec![0.0; tensor_end];
+        new_shape.copy_from_slice(&self.shape_tensors[..tensor_end]);
+
+        let mut new_semantic = vec![0.0; tensor_end];
+        new_semantic.copy_from_slice(&self.semantic_tensors[..tensor_end]);
+
+        let mut new_ids = vec![String::new(); MAX_ENTITIES];
+        for i in 0..active {
+            new_ids[i] = self.ids[i].clone();
+        }
+
+        let mut new_masses = vec![0.0; MAX_ENTITIES];
+        new_masses[..active].copy_from_slice(&self.masses[..active]);
+
+        let mut new_tokens = vec![0; MAX_ENTITIES];
+        new_tokens[..active].copy_from_slice(&self.tokens[..active]);
+
+        let mut new_spans_x = vec![0.0; MAX_ENTITIES];
+        new_spans_x[..active].copy_from_slice(&self.spans_x[..active]);
+
+        let mut new_spans_y = vec![0.0; MAX_ENTITIES];
+        new_spans_y[..active].copy_from_slice(&self.spans_y[..active]);
+
+        let mut new_centers_x = vec![0.0; MAX_ENTITIES];
+        new_centers_x[..active].copy_from_slice(&self.centers_x[..active]);
+
+        let mut new_centers_y = vec![0.0; MAX_ENTITIES];
+        new_centers_y[..active].copy_from_slice(&self.centers_y[..active]);
+
+        let mut new_momentums_x = vec![0.0; MAX_ENTITIES];
+        new_momentums_x[..active].copy_from_slice(&self.momentums_x[..active]);
+
+        let mut new_momentums_y = vec![0.0; MAX_ENTITIES];
+        new_momentums_y[..active].copy_from_slice(&self.momentums_y[..active]);
+
+        let mut new_entanglement = vec![0.0; MAX_ENTITIES];
+        new_entanglement[..active].copy_from_slice(&self.entanglement_status[..active]);
+
+        Self {
+            active_count: self.active_count,
+            global_width: self.global_width,
+            global_height: self.global_height,
+
+            spatial_tensors: new_spatial,
+            shape_tensors: new_shape,
+            semantic_tensors: new_semantic,
+
+            ids: new_ids,
+            masses: new_masses,
+            tokens: new_tokens,
+
+            spans_x: new_spans_x,
+            spans_y: new_spans_y,
+            centers_x: new_centers_x,
+            centers_y: new_centers_y,
+            momentums_x: new_momentums_x,
+            momentums_y: new_momentums_y,
+            entanglement_status: new_entanglement,
+        }
+    }
 }
 
 impl Default for EntityManifold {
@@ -54,152 +128,78 @@ impl EntityManifold {
             active_count: 0,
             global_width: 0.0,
             global_height: 0.0,
-            spatial_tensors: Arc::new(Vec::new()),
-            shape_tensors: Arc::new(Vec::new()),
-            semantic_tensors: Arc::new(Vec::new()),
-            ids: Arc::new(Vec::new()),
-            masses: Arc::new(Vec::new()),
-            tokens: Arc::new(Vec::new()),
-            spans_x: Arc::new(Vec::new()),
-            spans_y: Arc::new(Vec::new()),
-            centers_x: Arc::new(Vec::new()),
-            centers_y: Arc::new(Vec::new()),
-            cow_grid: None,
-            entanglement_status: Arc::new(Vec::new()),
-            momentums_x: Arc::new(Vec::new()),
-            momentums_y: Arc::new(Vec::new()),
+
+            spatial_tensors: vec![0.0; MAX_ENTITIES * GLOBAL_DIMENSION],
+            shape_tensors: vec![0.0; MAX_ENTITIES * GLOBAL_DIMENSION],
+            semantic_tensors: vec![0.0; MAX_ENTITIES * GLOBAL_DIMENSION],
+
+            ids: vec![String::new(); MAX_ENTITIES],
+            // Inisialisasi masses dengan 0.0 menjadikan seluruh buffer ini sebagai "Dark Matter"
+            // Saat segmenter mengisi partikel awal, masses akan di-set menjadi > 0.0
+            masses: vec![0.0; MAX_ENTITIES],
+            tokens: vec![0; MAX_ENTITIES],
+
+            spans_x: vec![0.0; MAX_ENTITIES],
+            spans_y: vec![0.0; MAX_ENTITIES],
+            entanglement_status: vec![0.0; MAX_ENTITIES],
+            centers_x: vec![0.0; MAX_ENTITIES],
+            centers_y: vec![0.0; MAX_ENTITIES],
+            momentums_x: vec![0.0; MAX_ENTITIES],
+            momentums_y: vec![0.0; MAX_ENTITIES],
         }
     }
 
-    /// Dynamic capacity extension for dense array mapping (SparseSet behavior fallback)
-    pub fn ensure_scalar_capacity(&mut self, required_len: usize) {
-        if self.masses.len() < required_len {
-            let add = required_len - self.masses.len();
-            Arc::make_mut(&mut self.ids).extend(std::iter::repeat(String::new()).take(add));
-            Arc::make_mut(&mut self.masses).extend(std::iter::repeat(0.0).take(add));
-            Arc::make_mut(&mut self.tokens).extend(std::iter::repeat(0).take(add));
-            Arc::make_mut(&mut self.spans_x).extend(std::iter::repeat(0.0).take(add));
-            Arc::make_mut(&mut self.spans_y).extend(std::iter::repeat(0.0).take(add));
-            Arc::make_mut(&mut self.centers_x).extend(std::iter::repeat(0.0).take(add));
-            Arc::make_mut(&mut self.centers_y).extend(std::iter::repeat(0.0).take(add));
-            Arc::make_mut(&mut self.entanglement_status).extend(std::iter::repeat(0.0).take(add));
-            Arc::make_mut(&mut self.momentums_x).extend(std::iter::repeat(0.0).take(add));
-            Arc::make_mut(&mut self.momentums_y).extend(std::iter::repeat(0.0).take(add));
-        }
-    }
-
-    /// Fungsi bantuan agar `Vec` tensor tetap cukup ukurannya saat index diakses
-    pub fn ensure_tensor_capacity(&mut self, required_len: usize) {
+    /// Mendapatkan mutable view dari spatial_tensor (Pusat Posisi Global)
+    // Fungsi bantuan agar `Vec` tetap cukup ukurannya saat index diakses
+    fn ensure_capacity(&mut self, required_len: usize) {
         if self.spatial_tensors.len() < required_len {
-            Arc::make_mut(&mut self.spatial_tensors).resize(required_len, 0.0);
-            Arc::make_mut(&mut self.shape_tensors).resize(required_len, 0.0);
-            Arc::make_mut(&mut self.semantic_tensors).resize(required_len, 0.0);
+            self.spatial_tensors.resize(required_len, 0.0);
+            self.shape_tensors.resize(required_len, 0.0);
+            self.semantic_tensors.resize(required_len, 0.0);
         }
     }
 
     pub fn get_spatial_tensor_mut(&mut self, index: usize) -> ArrayViewMut1<'_, f32> {
         let offset = index * GLOBAL_DIMENSION;
         let required = offset + GLOBAL_DIMENSION;
-        self.ensure_tensor_capacity(required);
-        ArrayViewMut1::from(&mut Arc::make_mut(&mut self.spatial_tensors)[offset..required])
+        self.ensure_capacity(required);
+        ArrayViewMut1::from(&mut self.spatial_tensors[offset..required])
     }
 
+    /// Mendapatkan salinan spatial_tensor (untuk dibaca)
     pub fn get_spatial_tensor(&self, index: usize) -> Array1<f32> {
         let offset = index * GLOBAL_DIMENSION;
         let required = offset + GLOBAL_DIMENSION;
-        if self.spatial_tensors.len() >= required {
-            Array1::from_vec(self.spatial_tensors[offset..required].to_vec())
-        } else {
-            Array1::zeros(GLOBAL_DIMENSION)
-        }
+        Array1::from_vec(self.spatial_tensors[offset..required].to_vec())
     }
 
+    /// Mendapatkan mutable view dari shape_tensor (Cetak Biru Bentuk Lokal)
     pub fn get_shape_tensor_mut(&mut self, index: usize) -> ArrayViewMut1<'_, f32> {
         let offset = index * GLOBAL_DIMENSION;
         let required = offset + GLOBAL_DIMENSION;
-        self.ensure_tensor_capacity(required);
-        ArrayViewMut1::from(&mut Arc::make_mut(&mut self.shape_tensors)[offset..required])
+        self.ensure_capacity(required);
+        ArrayViewMut1::from(&mut self.shape_tensors[offset..required])
     }
 
+    /// Mendapatkan salinan shape_tensor (untuk dibaca)
     pub fn get_shape_tensor(&self, index: usize) -> Array1<f32> {
         let offset = index * GLOBAL_DIMENSION;
         let required = offset + GLOBAL_DIMENSION;
-        if self.shape_tensors.len() >= required {
-            Array1::from_vec(self.shape_tensors[offset..required].to_vec())
-        } else {
-            Array1::zeros(GLOBAL_DIMENSION)
-        }
+        Array1::from_vec(self.shape_tensors[offset..required].to_vec())
     }
 
+    /// Mendapatkan mutable view dari semantic_tensor (Warna)
     pub fn get_semantic_tensor_mut(&mut self, index: usize) -> ArrayViewMut1<'_, f32> {
         let offset = index * GLOBAL_DIMENSION;
         let required = offset + GLOBAL_DIMENSION;
-        self.ensure_tensor_capacity(required);
-        ArrayViewMut1::from(&mut Arc::make_mut(&mut self.semantic_tensors)[offset..required])
+        self.ensure_capacity(required);
+        ArrayViewMut1::from(&mut self.semantic_tensors[offset..required])
     }
 
+    /// Mendapatkan salinan semantic_tensor (untuk dibaca)
     pub fn get_semantic_tensor(&self, index: usize) -> Array1<f32> {
         let offset = index * GLOBAL_DIMENSION;
         let required = offset + GLOBAL_DIMENSION;
-        if self.semantic_tensors.len() >= required {
-            Array1::from_vec(self.semantic_tensors[offset..required].to_vec())
-        } else {
-            Array1::zeros(GLOBAL_DIMENSION)
-        }
-    }
-}
-
-impl EntityManifold {
-    /// Sinkronisasi Sparse SOA -> Dense CoW Grid.
-    /// Fungsi ini mengubah token-token warna 1D dari EntityManifold menjadi
-    /// representasi dense `SmartMultiverseState` 2D.
-    pub fn sync_to_cow(&mut self) {
-        if self.global_width <= 0.0 || self.global_height <= 0.0 {
-            return;
-        }
-
-        let w = self.global_width as usize;
-        let h = self.global_height as usize;
-
-        // Tentukan jumlah chunk
-        // Misalnya CHUNK_SIZE = 64
-        let width_chunks =
-            (w + crate::core::cow_memory::CHUNK_SIZE - 1) / crate::core::cow_memory::CHUNK_SIZE;
-        let height_chunks =
-            (h + crate::core::cow_memory::CHUNK_SIZE - 1) / crate::core::cow_memory::CHUNK_SIZE;
-
-        let mut needs_new_grid = false;
-        if let Some(ref grid) = self.cow_grid {
-            if grid.width_chunks != width_chunks || grid.height_chunks != height_chunks {
-                needs_new_grid = true;
-            }
-        } else {
-            needs_new_grid = true;
-        }
-
-        if needs_new_grid {
-            self.cow_grid = Some(SmartMultiverseState::new(width_chunks, height_chunks));
-        }
-
-        // Sekarang sinkronisasi data warna ke dalam grid
-        // Kita set grid ke 0 terlebih dahulu (blank state) -
-        // Ini mungkin agak mahal jika kita set 0 secara manual tiap kali sync,
-        // tapi dalam praktiknya, cow_grid idealnya sudah menjadi the source of truth suatu saat nanti.
-        // Untuk "cicilan", kita akan asumsikan kita replace dengan grid baru atau bersihkan.
-
-        let grid = self.cow_grid.as_mut().unwrap();
-
-        // Warning: Jika kita bersihkan seluruh grid lama, kita merusak Copy-on-Write sharing
-        // dengan mutasi massal. Idealnya, sync ini cuma dipanggil SEKALI saat inisialisasi awal.
-        // Setelah MCTS berjalan, MCTS cukup mengubah grid via modify_cell.
-        for i in 0..self.active_count {
-            if self.masses[i] > 0.0 {
-                let x = self.centers_x[i].round() as i32;
-                let y = self.centers_y[i].round() as i32;
-                if x >= 0 && x < w as i32 && y >= 0 && y < h as i32 {
-                    grid.modify_cell(x as usize, y as usize, self.tokens[i] as f32);
-                }
-            }
-        }
+        Array1::from_vec(self.semantic_tensors[offset..required].to_vec())
     }
 }

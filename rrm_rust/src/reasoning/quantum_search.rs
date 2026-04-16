@@ -35,7 +35,7 @@ pub struct WaveNode {
     pub static_background: Arc<crate::core::infinite_detail::CoarseData>,
 
     // Status dinamis (Mikroskopik) -> Disalin penuh/Copy-on-Write jika dimodifikasi
-    pub state_manifolds: Arc<Vec<EntityManifold>>,
+    pub state_manifolds: Arc<Vec<RwLock<EntityManifold>>>,
     pub state_modified: bool,
 
     // Amplitudo kelangsungan hidup (1.0 = sempurna, 0.0 = hancur/pruned)
@@ -52,8 +52,8 @@ impl WaveNode {
         delta_x: f32,
         delta_y: f32,
         physics_tier: u8,
-        initial_manifolds: Arc<Vec<EntityManifold>>,
-        _static_background: Option<Arc<crate::core::infinite_detail::CoarseData>>,
+        initial_manifolds: Arc<Vec<RwLock<EntityManifold>>>,
+        static_background: Option<Arc<crate::core::infinite_detail::CoarseData>>,
     ) -> Self {
         Self {
             axiom_type: vec![axiom_type],
@@ -63,11 +63,8 @@ impl WaveNode {
             delta_x,
             delta_y,
             physics_tier,
-            static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData {
-                regions: std::sync::Arc::new(vec![]),
-                signatures: std::sync::Arc::new(vec![]),
-            }),
-            state_manifolds: initial_manifolds,
+            static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData { regions: std::sync::Arc::new(vec![]), signatures: std::sync::Arc::new(vec![]) }),
+                            state_manifolds: initial_manifolds,
             state_modified: false,
             probability: 1.0,
             depth: 1,
@@ -77,16 +74,17 @@ impl WaveNode {
     /// Lazy clone — hanya clone memory berat jika benar-benar akan dimodifikasi di Sandbox
     pub fn ensure_unique_state(&mut self) {
         if !self.state_modified {
-            let cloned: Vec<EntityManifold> = self
+            let cloned: Vec<RwLock<EntityManifold>> = self
                 .state_manifolds
                 .iter()
-                .map(|m: &EntityManifold| {
-                    if m.masses.len() > 0 && m.masses[0] > 100.0 {
+                .map(|m: &RwLock<EntityManifold>| {
+                    let guard = m.read().unwrap();
+                    if guard.masses.len() > 0 && guard.masses[0] > 100.0 {
                         let mut shallow = EntityManifold::new();
                         shallow.active_count = 0;
-                        shallow
+                        RwLock::new(shallow)
                     } else {
-                        m.clone()
+                        RwLock::new(guard.clone())
                     }
                 })
                 .collect();
@@ -111,7 +109,7 @@ pub struct FractalArena {
     pub static_backgrounds: Vec<Arc<crate::core::infinite_detail::CoarseData>>,
     pub amplitudes: Vec<f32>,
     pub phases: Vec<f32>,
-    pub states: Vec<Arc<Vec<EntityManifold>>>,
+    pub states: Vec<Arc<Vec<RwLock<EntityManifold>>>>,
     pub modified_flags: Vec<bool>,
 
     // Extracted fields for logical grouping
@@ -171,8 +169,9 @@ impl FractalArena {
         &mut self,
         parent: Option<usize>,
         tolerance: EnergyTolerance,
-        state: Arc<Vec<EntityManifold>>,
+        state: Arc<Vec<RwLock<EntityManifold>>>,
     ) -> Option<usize> {
+
         if let Some(idx) = self.free_indices.pop() {
             self.parents[idx] = parent;
             self.tolerances[idx] = tolerance;
@@ -218,11 +217,7 @@ impl FractalArena {
         self.parents.push(parent);
         self.children_ranges.push((0, depth));
         self.tolerances.push(tolerance);
-        self.static_backgrounds
-            .push(Arc::new(crate::core::infinite_detail::CoarseData {
-                regions: Arc::new(vec![]),
-                signatures: Arc::new(vec![]),
-            }));
+        self.static_backgrounds.push(Arc::new(crate::core::infinite_detail::CoarseData { regions: Arc::new(vec![]), signatures: Arc::new(vec![]) }));
         self.amplitudes.push(1.0);
         self.phases.push(0.0);
         self.states.push(state);
@@ -261,15 +256,17 @@ impl FractalArena {
 
     pub fn ensure_unique_state(&mut self, idx: usize) {
         if !self.modified_flags[idx] {
-            let cloned: Vec<EntityManifold> = self.states[idx]
+            let cloned: Vec<RwLock<EntityManifold>> = self.states[idx]
                 .iter()
-                .map(|m: &EntityManifold| {
-                    if m.masses.len() > 0 && m.masses[0] > 100.0 {
+                .map(|m: &RwLock<EntityManifold>| {
+                    let guard = m.read().unwrap();
+                    // Implementasi Shallow clone memory
+                    if guard.masses.len() > 0 && guard.masses[0] > 100.0 { // Heuristic check macro vs micro
                         let mut shallow = EntityManifold::new();
                         shallow.active_count = 0;
-                        shallow
+                        RwLock::new(shallow)
                     } else {
-                        m.clone()
+                        RwLock::new(guard.clone())
                     }
                 })
                 .collect();
@@ -283,7 +280,7 @@ impl FractalArena {
         &mut self,
         idx: usize,
         expected_grids: &[Vec<Vec<i32>>],
-        initial_manifolds: &Arc<Vec<EntityManifold>>,
+        initial_manifolds: &Arc<Vec<RwLock<EntityManifold>>>,
     ) {
         let mut total_pragmatic_error = 0.0;
         let mut total_epistemic_value = 0.0;
@@ -299,8 +296,8 @@ impl FractalArena {
             let width = expected_grid[0].len();
             let height = expected_grid.len();
 
-            let manifold_read = &self.states[idx][i];
-            let initial_read = &initial_manifolds[i];
+            let manifold_read = self.states[idx][i].read().unwrap();
+            let initial_read = initial_manifolds[i].read().unwrap();
 
             let m_width = if manifold_read.global_width > 0.0 {
                 manifold_read.global_width as usize
@@ -313,18 +310,16 @@ impl FractalArena {
                 height
             };
 
-            let current_tolerance = self.tolerances[idx].precision_width;
-
             total_pragmatic_error += SimdEnergyCalculator::calculate_pragmatic_streaming(
-                &*manifold_read,
-                expected_grid,
-                m_width,
-                m_height,
-                &current_phase,
-                current_tolerance,
-            );
+            &*manifold_read,
+            expected_grid,
+            m_width,
+            m_height,
+            &current_phase,
+            1e-6,
+        );
             total_epistemic_value +=
-                SimdEnergyCalculator::calculate_epistemic(&*manifold_read, &initial_read);
+                SimdEnergyCalculator::calculate_epistemic(&*manifold_read, &*initial_read);
         }
 
         self.reasoning_pragmatic[idx] = total_pragmatic_error;
@@ -377,7 +372,7 @@ impl AsyncWaveSearch {
     pub fn propagate_wave(
         self: Arc<Self>,
         wave: WaveNode,
-        initial_manifolds: Arc<Vec<EntityManifold>>,
+        initial_manifolds: Arc<Vec<RwLock<EntityManifold>>>,
         all_possible_axioms: Vec<WaveNode>,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> {
         Box::pin(async move {
@@ -428,24 +423,16 @@ impl AsyncWaveSearch {
                     .map(|s: &String| s.clone())
                     .unwrap_or_else(|| "IDENTITY_STATIC".to_string());
 
-                // We must extract these immutable fields BEFORE modifying `arena.states`
-                let action_condition = arena.action_condition[current_idx].clone();
-                let action_spatial = arena.action_spatial[current_idx].clone();
-                let action_semantic = arena.action_semantic[current_idx].clone();
-                let action_dx = arena.action_dx[current_idx];
-                let action_dy = arena.action_dy[current_idx];
-                let action_tier = arena.action_tier[current_idx];
-
-                let states_mut = Arc::make_mut(&mut arena.states[current_idx]);
-                for manifold in states_mut.iter_mut() {
+                for manifold_lock in arena.states[current_idx].iter() {
+                    let mut manifold = manifold_lock.write().unwrap();
                     MultiverseSandbox::apply_axiom(
                         &mut *manifold,
-                        &action_condition,
-                        &action_spatial,
-                        &action_semantic,
-                        action_dx,
-                        action_dy,
-                        action_tier,
+                        &arena.action_condition[current_idx],
+                        &arena.action_spatial[current_idx],
+                        &arena.action_semantic[current_idx],
+                        arena.action_dx[current_idx],
+                        arena.action_dy[current_idx],
+                        arena.action_tier[current_idx],
                         &current_axiom_str,
                     );
                 }
@@ -459,8 +446,8 @@ impl AsyncWaveSearch {
                 let current_depth = arena.children_ranges[current_idx].1 as usize;
 
                 // Visualizer & Logging
-                let m_width = arena.states[current_idx][0].global_width;
-                let m_height = arena.states[current_idx][0].global_height;
+                let m_width = arena.states[current_idx][0].read().unwrap().global_width;
+                let m_height = arena.states[current_idx][0].read().unwrap().global_height;
 
                 let is_ground_state = pragmatic_error <= 0.0 && current_depth > 1;
                 let is_pruned = amplitude < 0.01;
@@ -505,8 +492,8 @@ impl AsyncWaveSearch {
                         TransparencyLevel::Standard,
                     );
 
-                    let debug_manifold = &arena.states[current_idx][0];
-                    Visualizer::print_particle_memory_map(&debug_manifold);
+                    let debug_manifold = arena.states[current_idx][0].read().unwrap();
+                    Visualizer::print_particle_memory_map(&*debug_manifold);
                 }
 
                 // Cek Ground State
@@ -519,13 +506,8 @@ impl AsyncWaveSearch {
                         delta_x: arena.action_dx[current_idx],
                         delta_y: arena.action_dy[current_idx],
                         physics_tier: arena.action_tier[current_idx],
-                        static_background: std::sync::Arc::new(
-                            crate::core::infinite_detail::CoarseData {
-                                regions: std::sync::Arc::new(vec![]),
-                                signatures: std::sync::Arc::new(vec![]),
-                            },
-                        ),
-                        state_manifolds: arena.states[current_idx].clone(),
+                        static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData { regions: std::sync::Arc::new(vec![]), signatures: std::sync::Arc::new(vec![]) }),
+                            state_manifolds: arena.states[current_idx].clone(),
                         state_modified: arena.modified_flags[current_idx],
                         probability: amplitude,
                         depth: current_depth,
@@ -533,7 +515,7 @@ impl AsyncWaveSearch {
                     self.ground_states.write().unwrap().push(result_wave);
 
                     println!("\n🌟 === GROUND STATE DITEMUKAN (Zero Error) === 🌟");
-                    let debug_manifold = &arena.states[current_idx][0];
+                    let debug_manifold = arena.states[current_idx][0].read().unwrap();
                     Visualizer::print_tensor_quantum(
                         "Semantic T[0]",
                         &debug_manifold.get_semantic_tensor(0),
@@ -584,7 +566,7 @@ impl AsyncWaveSearch {
 
                         // Spawn child iteratif di Arena, membagikan referensi state CoW
                         // Modulasi Corong Toleransi (Femto Annealing)
-                        let new_width = arena.tolerances[current_idx].precision_width * 1e-4; // Menajam secara eksponensial lebih cepat
+                        let new_width = arena.tolerances[current_idx].precision_width * 0.1; // Menajam secara logaritmik
                         let child_tolerance = EnergyTolerance {
                             precision_width: new_width.max(1e-15), // Berhenti di Femto scale
                             max_branching_factor: max_branches as u8,

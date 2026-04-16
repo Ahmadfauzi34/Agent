@@ -1,7 +1,6 @@
 use crate::core::core_seeds::CoreSeeds;
 use crate::core::entity_manifold::EntityManifold;
 use crate::core::fhrr::FHRR;
-use std::sync::Arc;
 // AxiomGenerator is missing from rust so we use FHRR directly for macro translations.
 // This preserves the kinematics loop exactly as it was.
 
@@ -30,12 +29,9 @@ impl SwarmDynamics {
         let step_y = delta_y / (max_steps as f32);
 
         // Inline translation generation using FHRR fractional bind
-        let swarm_shift_tensor = FHRR::fractional_bind_2d(
-            &CoreSeeds::x_axis_seed(),
-            step_x,
-            &CoreSeeds::y_axis_seed(),
-            step_y,
-        );
+        let mut x_shift = FHRR::fractional_bind(&CoreSeeds::x_axis_seed(), step_x);
+        let y_shift = FHRR::fractional_bind(&CoreSeeds::y_axis_seed(), step_y);
+        let swarm_shift_tensor = FHRR::bind(&mut x_shift, &y_shift);
 
         for _ in 0..max_steps {
             let mut any_moved = false;
@@ -107,8 +103,8 @@ impl SwarmDynamics {
             // Apply kinetics and quantum shifts
             for i in 0..active_count {
                 if can_move[i] {
-                    Arc::make_mut(&mut u.centers_x)[i] = next_rel_xs[i];
-                    Arc::make_mut(&mut u.centers_y)[i] = next_rel_ys[i];
+                    u.centers_x[i] = next_rel_xs[i];
+                    u.centers_y[i] = next_rel_ys[i];
 
                     let future_state = {
                         let entity_tensor = u.get_spatial_tensor(i);
