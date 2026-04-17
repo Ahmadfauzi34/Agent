@@ -474,6 +474,28 @@ impl RrmAgent {
             let bottleneck = self.self_reflection.assess_current_bottleneck();
 
             match bottleneck {
+                Bottleneck::MemoryBloat => {
+                    println!("🧠 [Metakognisi] Bottleneck::MemoryBloat - Pelanggaran Copy-on-Write (CoW) Terdeteksi!");
+                    println!("   📝 MENULIS LOG ARCHITECTURE KE SISTEM: MCTS melakukan {} Deep Copy dan {} Shallow Clone. Ini menghancurkan cache L1/L2.", self.self_reflection.deep_copy_count, self.self_reflection.shallow_clone_count);
+
+                    if let Ok(mut file) = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open("knowledge/architecture_lint.md")
+                    {
+                        use std::io::Write;
+                        let _ = writeln!(
+                            file,
+                            "ARCHITECTURAL PAIN: Agent observed {} deep copies vs {} shallow clones during MCTS. Please review `Arc::make_mut` usage or consider implementing an Object Pool to prevent heap thrashing.",
+                            self.self_reflection.deep_copy_count,
+                            self.self_reflection.shallow_clone_count
+                        );
+                    }
+
+                    // Kita asumsikan agen bisa mentolerirnya, kita reset metriknya agar simulasi dapat berlanjut
+                    self.self_reflection.deep_copy_count = 0;
+                    self.self_reflection.last_failure_mode = FailureMode::None;
+                }
                 Bottleneck::BodyLimitation => {
                     println!("🧠 [Metakognisi] Bottleneck::BodyLimitation - Mind-Body Disconnect terdeteksi!");
                     println!("   Pikiran logis (Tensor) sangat yakin, namun tubuh fisik (Sandbox) gagal mengeksekusi.");
@@ -984,6 +1006,10 @@ impl RrmAgent {
                             }
                         }
 
+                        let arena = search.arena.read().unwrap();
+                        self.self_reflection.deep_copy_count += arena.tracked_deep_copies;
+                        self.self_reflection.shallow_clone_count += arena.tracked_shallow_clones;
+
                         if max_prob >= 0.95 {
                             if (max_prob - 0.99).abs() < 0.005 {
                                 println!("   ⚠️  Sinyal Anomali Mind-Body Disconnect terdeteksi selama Advanced Pass.");
@@ -1062,6 +1088,10 @@ impl RrmAgent {
                         }
                     }
 
+                    let arena = search.arena.read().unwrap();
+                    self.self_reflection.deep_copy_count += arena.tracked_deep_copies;
+                    self.self_reflection.shallow_clone_count += arena.tracked_shallow_clones;
+
                     if max_prob >= 0.99 {
                         self.self_reflection
                             .update_metrics(0.0, 0.0, FailureMode::None);
@@ -1080,6 +1110,10 @@ impl RrmAgent {
                         );
                         self.self_reflection.iterations_without_improvement += 350;
                         // Paksa iterasi selanjutnya menjadi LocalOptimum, PrecisionError, atau CombinatorialExplosion sesuai energi & entropy
+                    }
+
+                    if self.self_reflection.deep_copy_count > 100 {
+                        self.self_reflection.last_failure_mode = FailureMode::ExcessiveDeepCopy;
                     }
                 }
             }

@@ -13,6 +13,7 @@ pub enum FailureMode {
     PositionMismatch,
     CollisionDetected, // Terjadi tabrakan dengan rintangan saat mencoba bergerak
     PhysicsNotImplemented, // Pikiran (Tensor) sangat yakin, tapi Tubuh (Grid) tidak bisa mengeksekusi
+    ExcessiveDeepCopy,     // Deteksi Memory Bloat karena CoW Violation
 }
 
 /// Status Bottleneck Kognitif RRM
@@ -25,6 +26,7 @@ pub enum Bottleneck {
     PrecisionError,
     ObstacleStuck,  // Agen menyadari pergerakannya terhalang rintangan
     BodyLimitation, // Agen sadar ia kekurangan kapabilitas fisik (membutuhkan upgrade kode manusia)
+    MemoryBloat,    // Mengeluh karena Deep Copy Arrays berlebihan
     Solved,
     Exhausted,
     Exploring,
@@ -41,6 +43,8 @@ pub struct SelfReflection {
     pub iterations_without_improvement: usize,
     pub wave_entropy: f32, // Semakin tinggi = probabilitas menyebar (tebakan buta)
     pub active_saliency_ratio: f32, // Rasio area grid yang benar-benar berubah (0.0 - 1.0)
+    pub deep_copy_count: usize, // Pelacakan rasa sakit memori (CoW violations)
+    pub shallow_clone_count: usize,
     pub last_failure_mode: FailureMode,
     pub total_iterations: usize,
 }
@@ -79,6 +83,8 @@ impl SelfReflection {
             iterations_without_improvement: 0,
             wave_entropy: 0.0,
             active_saliency_ratio: 1.0,
+            deep_copy_count: 0,
+            shallow_clone_count: 0,
             last_failure_mode: FailureMode::None,
             total_iterations: 0,
         }
@@ -92,6 +98,8 @@ impl SelfReflection {
         self.iterations_without_improvement = 0;
         self.wave_entropy = 0.0;
         self.active_saliency_ratio = 1.0; // Default: seluruh area penting
+        self.deep_copy_count = 0;
+        self.shallow_clone_count = 0;
         self.last_failure_mode = FailureMode::None;
         self.total_iterations = 0;
     }
@@ -122,6 +130,11 @@ impl SelfReflection {
         if self.time_spent_ms > 30_000 || self.total_iterations > 5000 {
             // Jika sudah telalu lama, menyerah
             return Bottleneck::Exhausted;
+        }
+
+        if self.last_failure_mode == FailureMode::ExcessiveDeepCopy {
+            // Agen merasakan nyeri alokasi memori berlebih
+            return Bottleneck::MemoryBloat;
         }
 
         if self.active_saliency_ratio < 0.2 && self.total_iterations <= 1 {

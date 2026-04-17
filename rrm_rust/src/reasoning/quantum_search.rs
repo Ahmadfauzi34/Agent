@@ -114,6 +114,10 @@ pub struct FractalArena {
     pub states: Vec<Arc<Vec<EntityManifold>>>,
     pub modified_flags: Vec<bool>,
 
+    // Metrik Pelacakan CoW (Copy-on-Write)
+    pub tracked_deep_copies: usize,
+    pub tracked_shallow_clones: usize,
+
     // Extracted fields for logical grouping
     pub perception_sensory: Vec<Array1<f32>>,
     pub reasoning_pragmatic: Vec<f32>,
@@ -147,6 +151,9 @@ impl FractalArena {
             states: Vec::with_capacity(capacity),
             modified_flags: Vec::with_capacity(capacity),
 
+            tracked_deep_copies: 0,
+            tracked_shallow_clones: 0,
+
             perception_sensory: Vec::with_capacity(capacity),
             reasoning_pragmatic: Vec::with_capacity(capacity),
             reasoning_epistemic: Vec::with_capacity(capacity),
@@ -179,7 +186,11 @@ impl FractalArena {
             self.amplitudes[idx] = 1.0;
             self.phases[idx] = 0.0;
             self.modified_flags[idx] = false;
+
+            // Shallow Clone Tracker
+            self.tracked_shallow_clones += 1;
             self.states[idx] = state;
+
             self.ids[idx] = FractalId {
                 index: idx as u32,
                 path_hash: 0,
@@ -452,6 +463,11 @@ impl AsyncWaveSearch {
                 let action_dx = arena.action_dx[current_idx];
                 let action_dy = arena.action_dy[current_idx];
                 let action_tier = arena.action_tier[current_idx];
+
+                // Hitung Deep Copy Tracker
+                if Arc::strong_count(&arena.states[current_idx]) > 1 {
+                    arena.tracked_deep_copies += 1;
+                }
 
                 let states_mut = Arc::make_mut(&mut arena.states[current_idx]);
                 let mut any_collision = false;
