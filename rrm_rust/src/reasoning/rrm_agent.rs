@@ -405,54 +405,13 @@ impl RrmAgent {
         let mut test_manifold = EntityManifold::new();
         EntitySegmenter::segment_stream(&stream_test, &mut test_manifold, 0.85, &self.perceiver);
 
-        // 2. RESONATE
-        let mut seed_axioms: Vec<WaveNode> = Vec::new();
         let expected_grids: Vec<Vec<Vec<i32>>> = train_out.clone();
-
-        if let Some((man_in, man_out)) = train_states.iter().next() {
-            // Kombinasikan tebakan cerdas dari HGM (Top-Down) dengan tebakan Partikel dari Hebbian Voting (Bottom-Up)
-            let mut matches = TopDownAxiomator::generate_axioms(man_in, man_out);
-            matches.extend(TopologicalAligner::align(man_in, man_out));
-
-            // Prioritaskan berdasarkan skor similarity (HGM biasanya >0.85)
-            matches.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap());
-
-            for m in matches {
-                // Gunakan Arc<Vec<RwLock>> (Copy-on-Write) untuk menghindari memory bloat
-                let initial_manifolds: Arc<Vec<EntityManifold>> =
-                    Arc::new(train_states.iter().map(|s| s.0.clone()).collect());
-
-                let mut node = WaveNode::new(
-                    m.axiom_type,
-                    m.condition_tensor,
-                    m.delta_spatial,
-                    m.delta_semantic,
-                    m.delta_x,
-                    m.delta_y,
-                    m.physics_tier,
-                    initial_manifolds,
-                    None,
-                );
-                node.probability = m.similarity; // Meminjam property probability untuk menyimpan skor prioritas/similarity saat inisiasi
-                seed_axioms.push(node);
-            }
-            // Kita cukup ambil hipotesis dari contoh pertama saja untuk mengefisienkan tree search
-            // (Karena rule sejati harus bisa bekerja/beresonansi di semua training states anyway)
-        }
 
         // 3. COGNITIVE STATE-MACHINE LOOP (MCTS + Grover)
         let mut loop_counter = 0;
-        let max_loops = 3;
+        let max_loops = 6;
 
         let mut best_rule: Option<WaveNode> = None;
-        let mut max_prob = -1.0;
-
-        // Simpan referensi ke High Confidence Axioms agar tidak perlu dicari ulang terus
-        let high_confidence_axioms: Vec<WaveNode> = seed_axioms
-            .iter()
-            .filter(|a| a.probability >= 0.3)
-            .cloned()
-            .collect();
 
         loop {
             loop_counter += 1;
@@ -460,6 +419,41 @@ impl RrmAgent {
                 println!("🧠 [Metakognisi] Batas loop kognitif tercapai (Infinite Loop Protection). Simulasi dihentikan paksa.");
                 break;
             }
+
+            // 2. RESONATE (Regenerasi Axioms, diletakkan di dalam loop agar bisa menyesuaikan jika ada Paradigm Shift / Gestalt)
+            let mut seed_axioms: Vec<WaveNode> = Vec::new();
+            if let Some((man_in, man_out)) = train_states.iter().next() {
+                let mut matches = TopDownAxiomator::generate_axioms(man_in, man_out);
+                matches.extend(TopologicalAligner::align(man_in, man_out));
+                matches.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap());
+
+                for m in matches {
+                    let initial_manifolds: Arc<Vec<EntityManifold>> =
+                        Arc::new(train_states.iter().map(|s| s.0.clone()).collect());
+
+                    let mut node = WaveNode::new(
+                        m.axiom_type,
+                        m.condition_tensor,
+                        m.delta_spatial,
+                        m.delta_semantic,
+                        m.delta_x,
+                        m.delta_y,
+                        m.physics_tier,
+                        initial_manifolds,
+                        None,
+                    );
+                    node.probability = m.similarity;
+                    seed_axioms.push(node);
+                }
+            }
+
+            let high_confidence_axioms: Vec<WaveNode> = seed_axioms
+                .iter()
+                .filter(|a| a.probability >= 0.3)
+                .cloned()
+                .collect();
+
+            let mut max_prob = -1.0;
 
             let bottleneck = self.self_reflection.assess_current_bottleneck();
 
@@ -473,9 +467,80 @@ impl RrmAgent {
                     break;
                 }
                 Bottleneck::Blindness => {
-                    println!("🧠 [Metakognisi] Bottleneck::Blindness - Saya tidak memahami struktur. (Fallback ke MCTS Advanced Pass).");
-                    self.self_reflection.best_energy = 5.0; // Turunkan energy
-                    self.self_reflection.last_failure_mode = FailureMode::None;
+                    println!("🧠 [Metakognisi] Bottleneck::Blindness - Saya tidak memahami struktur. Mengobati Kebutaan via Hierarchical Gestalt...");
+                    // Panggil dokter mata: Hierarchical Gestalt untuk mengelompokkan piksel menjadi objek makro
+                    use crate::perception::hierarchical_gestalt::GestaltEngine;
+
+                    let mut macro_found = false;
+
+                    // Kita akan mengubah struktur data test_manifold dengan temuan Gestalt jika bermanfaat
+                    let gestalt_atoms = GestaltEngine::extract_atoms(&test_manifold);
+                    if !gestalt_atoms.is_empty() {
+                        println!(
+                            "   👁️ [Gestalt Vision] Menemukan {} objek makro pada Test Manifold (Bentuk: {:?}, dsb).",
+                            gestalt_atoms.len(),
+                            gestalt_atoms[0].atom_type
+                        );
+
+                        // Menggantikan manifold lama dengan interpretasi makro (gestalt_atoms)
+                        let create_macro_manifold =
+                            |source: &EntityManifold,
+                             atoms: &[crate::perception::hierarchical_gestalt::GestaltAtom]|
+                             -> EntityManifold {
+                                let mut macro_manifold = EntityManifold::new();
+                                macro_manifold.global_width = source.global_width;
+                                macro_manifold.global_height = source.global_height;
+
+                                let mut idx = 0;
+                                for atom in atoms.iter() {
+                                    macro_manifold.ensure_scalar_capacity(idx + 1);
+                                    Arc::make_mut(&mut macro_manifold.masses)[idx] =
+                                        atom.pixel_count as f32;
+                                    Arc::make_mut(&mut macro_manifold.tokens)[idx] = atom.color;
+                                    Arc::make_mut(&mut macro_manifold.centers_x)[idx] =
+                                        atom.center_of_mass.0;
+                                    Arc::make_mut(&mut macro_manifold.centers_y)[idx] =
+                                        atom.center_of_mass.1;
+                                    Arc::make_mut(&mut macro_manifold.spans_x)[idx] =
+                                        (atom.bounding_box.2 - atom.bounding_box.0).max(1.0);
+                                    Arc::make_mut(&mut macro_manifold.spans_y)[idx] =
+                                        (atom.bounding_box.3 - atom.bounding_box.1).max(1.0);
+                                    idx += 1;
+                                }
+                                macro_manifold.active_count = idx;
+                                macro_manifold
+                            };
+
+                        test_manifold = create_macro_manifold(&test_manifold, &gestalt_atoms);
+
+                        // Penting: Paradigm Shift juga harus diaplikasikan ke memori Training Data agar Axioms baru konsisten
+                        for (man_in, man_out) in train_states.iter_mut() {
+                            let in_atoms = GestaltEngine::extract_atoms(man_in);
+                            if !in_atoms.is_empty() {
+                                *man_in = create_macro_manifold(man_in, &in_atoms);
+                            }
+                            let out_atoms = GestaltEngine::extract_atoms(man_out);
+                            if !out_atoms.is_empty() {
+                                *man_out = create_macro_manifold(man_out, &out_atoms);
+                            }
+                        }
+
+                        macro_found = true;
+                    }
+
+                    if macro_found {
+                        // Jika berhasil mengelompokkan, kita reset metrik agar MCTS / Grover berjalan lagi
+                        println!("   👁️ [Gestalt Vision] Pandangan dipulihkan. Mengulang pencarian dengan paradigma makro...");
+                        self.self_reflection.best_energy = 5.0; // Turunkan energy agar lolos dari blok Blindness
+                        self.self_reflection.last_failure_mode = FailureMode::None;
+                        self.self_reflection.iterations_without_improvement = 0;
+                    } else {
+                        // Jika Gestalt juga tidak bisa menemukan bentuk berarti, anggap agen kelelahan.
+                        println!(
+                            "   👁️ [Gestalt Vision] Pandangan tetap buram (Noise Total). Menyerah."
+                        );
+                        self.self_reflection.total_iterations = 9999;
+                    }
                 }
                 Bottleneck::PrecisionError => {
                     println!("🧠 [Metakognisi] Bottleneck::PrecisionError - Meleset sedikit. (Fallback ke MCTS Advanced Pass).");
@@ -687,9 +752,10 @@ impl RrmAgent {
                     }
 
                     if max_prob < 0.95 {
-                        self.self_reflection.total_iterations = 9999; // Paksa Exhausted pada siklus berikutnya
+                        // Membiarkan iterasi natural berlanjut agar kondisi Blindness
+                        // dapat dipicu oleh DimensionMismatch tanpa ter-override oleh Exhausted
                         self.self_reflection.update_metrics(
-                            50.0,
+                            60.0,
                             1.0,
                             FailureMode::DimensionMismatch,
                         );

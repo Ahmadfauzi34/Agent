@@ -116,7 +116,7 @@ impl SelfReflection {
             return Bottleneck::Exhausted;
         }
 
-        if self.last_failure_mode == FailureMode::DimensionMismatch && self.best_energy > 50.0 {
+        if self.last_failure_mode == FailureMode::DimensionMismatch && self.best_energy >= 50.0 {
             // Agen tidak melihat gambaran besarnya (mungkin noise / segmentasi salah)
             return Bottleneck::Blindness;
         }
