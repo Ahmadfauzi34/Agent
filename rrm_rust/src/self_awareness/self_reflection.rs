@@ -1,10 +1,42 @@
 use crate::core::entity_manifold::EntityManifold;
 use crate::perception::structural_analyzer::*;
 use crate::self_awareness::skill_ontology::*;
+use std::time::Instant;
+
+/// Kategori Kegagalan yang dialami agen (untuk membantu routing)
+#[derive(Debug, Clone, PartialEq)]
+pub enum FailureMode {
+    None,
+    DimensionMismatch,
+    ColorMismatch,
+    TopologyMismatch,
+    PositionMismatch,
+}
+
+/// Status Bottleneck Kognitif RRM
+#[derive(Debug, Clone, PartialEq)]
+pub enum Bottleneck {
+    Blindness,
+    LocalOptimum(f32),
+    CombinatorialExplosion,
+    PrecisionError,
+    Solved,
+    Exhausted,
+    Exploring,
+}
 
 pub struct SelfReflection {
     ontology: SkillOntology,
     current_context: Option<StructuralSignature>,
+
+    // Metrik Pemantauan Diri (Cognitive Metrics)
+    pub start_time: Instant,
+    pub time_spent_ms: u64,
+    pub best_energy: f32,
+    pub iterations_without_improvement: usize,
+    pub wave_entropy: f32, // Semakin tinggi = probabilitas menyebar (tebakan buta)
+    pub last_failure_mode: FailureMode,
+    pub total_iterations: usize,
 }
 
 pub struct IntrospectionReport {
@@ -35,7 +67,81 @@ impl SelfReflection {
         Self {
             ontology,
             current_context: None,
+            start_time: Instant::now(),
+            time_spent_ms: 0,
+            best_energy: f32::MAX,
+            iterations_without_improvement: 0,
+            wave_entropy: 0.0,
+            last_failure_mode: FailureMode::None,
+            total_iterations: 0,
         }
+    }
+
+    /// Mereset kondisi metrik kognitif setiap kali soal baru dimulai
+    pub fn reset_metrics(&mut self) {
+        self.start_time = Instant::now();
+        self.time_spent_ms = 0;
+        self.best_energy = f32::MAX;
+        self.iterations_without_improvement = 0;
+        self.wave_entropy = 0.0;
+        self.last_failure_mode = FailureMode::None;
+        self.total_iterations = 0;
+    }
+
+    /// Mengupdate metrik kognitif berdasarkan hasil komputasi terkini
+    pub fn update_metrics(&mut self, current_energy: f32, entropy: f32, failure: FailureMode) {
+        self.time_spent_ms = self.start_time.elapsed().as_millis() as u64;
+        self.wave_entropy = entropy;
+        self.last_failure_mode = failure;
+        self.total_iterations += 1;
+
+        if current_energy < self.best_energy {
+            self.best_energy = current_energy;
+            self.iterations_without_improvement = 0;
+        } else {
+            self.iterations_without_improvement += 1;
+        }
+    }
+
+    /// Menganalisis kondisi pikiran (bottleneck) berdasarkan metrik saat ini
+    pub fn assess_current_bottleneck(&mut self) -> Bottleneck {
+        self.time_spent_ms = self.start_time.elapsed().as_millis() as u64;
+
+        if self.best_energy <= 0.001 {
+            return Bottleneck::Solved;
+        }
+
+        if self.time_spent_ms > 30_000 || self.total_iterations > 5000 {
+            // Jika sudah telalu lama, menyerah
+            return Bottleneck::Exhausted;
+        }
+
+        if self.last_failure_mode == FailureMode::DimensionMismatch && self.best_energy > 50.0 {
+            // Agen tidak melihat gambaran besarnya (mungkin noise / segmentasi salah)
+            return Bottleneck::Blindness;
+        }
+
+        if self.iterations_without_improvement > 300 {
+            // Mentok. Tidak ada kemajuan setelah sekian iterasi.
+            return Bottleneck::LocalOptimum(self.best_energy);
+        }
+
+        if self.wave_entropy > 0.8 && self.total_iterations > 100 {
+            // Tebakan terlalu acak, probabilitas sangat tersebar.
+            // Kita butuh Wave/Swarm Dynamics.
+            return Bottleneck::CombinatorialExplosion;
+        }
+
+        if self.best_energy > 0.0
+            && self.best_energy < 5.0
+            && self.last_failure_mode == FailureMode::PositionMismatch
+        {
+            // Sudah sangat dekat (energy kecil), tapi ada piksel meleset.
+            // Gunakan kalkulus eksak (Counterfactual Femto)
+            return Bottleneck::PrecisionError;
+        }
+
+        Bottleneck::Exploring
     }
 
     pub fn assess_situation(&mut self, delta: &StructuralDelta) -> IntrospectionReport {

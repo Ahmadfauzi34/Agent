@@ -15,7 +15,7 @@ use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
 use crate::reasoning::quantum_search::{AsyncWaveSearch, WaveNode};
 use crate::reasoning::top_down_axiomator::TopDownAxiomator;
 use crate::reasoning::topological_aligner::TopologicalAligner;
-use crate::self_awareness::self_reflection::SelfReflection;
+use crate::self_awareness::self_reflection::{Bottleneck, FailureMode, SelfReflection};
 use crate::self_awareness::skill_ontology::SkillOntology;
 
 use ndarray::Array1;
@@ -440,324 +440,306 @@ impl RrmAgent {
             // (Karena rule sejati harus bisa bekerja/beresonansi di semua training states anyway)
         }
 
-        // 3. EVOLVE (Asynchronous Wave Search) - Meta-Reactive Orchestrator
-
-        // FAST PASS: Hanya mencoba translasi dan mutasi warna dasar (Tier <= 2)
-        // Ini memastikan tugas sederhana selesai dalam hitungan kilat (< 1 detik).
-        let fast_pass_axioms: Vec<WaveNode> = seed_axioms
-            .iter()
-            .filter(|a| a.physics_tier <= 2)
-            .cloned()
-            .take(3)
-            .collect();
-        let mut search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 1)); // Depth 1 for Fast Pass
-
-        // Simpan Initial Manifolds untuk perhitungan Epistemic Value di Fast Pass
-        let initial_manifolds_fast = if let Some(first) = fast_pass_axioms.first() {
-            Arc::clone(&first.state_manifolds)
-        } else {
-            Arc::new(vec![])
-        };
-
-        for axiom_node in fast_pass_axioms {
-            let s_clone = Arc::clone(&search);
-            let all_clone = vec![]; // Kosongkan all_clone pada fast pass depth 1 agar tidak mengalokasi memori berlebih
-            let init_clone = Arc::clone(&initial_manifolds_fast);
-            pollster::block_on(async move {
-                s_clone
-                    .propagate_wave(axiom_node, init_clone, all_clone)
-                    .await;
-            });
-        }
+        // 3. COGNITIVE STATE-MACHINE LOOP (MCTS + Grover)
+        let mut loop_counter = 0;
+        let max_loops = 3;
 
         let mut best_rule: Option<WaveNode> = None;
         let mut max_prob = -1.0;
-        let mut best_fast_pass_energy = f32::MAX;
 
-        {
-            let ground_states = search.ground_states.read().unwrap();
-            for state in ground_states.iter() {
-                if state.probability > max_prob {
-                    max_prob = state.probability;
-                    best_rule = Some(state.clone());
-                }
+        // Simpan referensi ke High Confidence Axioms agar tidak perlu dicari ulang terus
+        let high_confidence_axioms: Vec<WaveNode> = seed_axioms
+            .iter()
+            .filter(|a| a.probability >= 0.3)
+            .cloned()
+            .collect();
 
-                // Estimate pragmatic error from fast pass node energy conceptually
-                // For simplicity, if we don't find a perfect solution, let's assume error is high
-                if max_prob < 0.99 {
-                    best_fast_pass_energy = 100.0;
-                }
-            }
-        }
-
-        // 🌟 1. INISIALISASI CEO
-        let mut ceo_engine = DeepActiveInferenceEngine::new();
-
-        // 🌟 2. METAKOGNISI: SAKLAR GIGI OTOMATIS
-        if best_fast_pass_energy > 50.0 || max_prob < 0.99 {
-            println!("   🧠 [Metakognisi] Terjebak di Local Optimum (Fast Pass Gagal).");
-            println!("   🧠 Beralih ke Mode: PROBABILISTIC (Mengaktifkan Rasa Ingin Tahu Tinggi untuk Struktur Kosmik!)");
-            ceo_engine.switch_mode(SimulationMode::Probabilistic);
-        } else {
-            ceo_engine.switch_mode(SimulationMode::StrictVSA);
-        }
-
-        // ADVANCED PASS (SNAPSHOT FALLBACK):
-        // Jika Fast Pass gagal menemukan Ground State (Energy 0.0, prob = 1.0),
-        // kita jalankan deep MCTS dengan seluruh aksioma kosmis (Geometry, Spawn, Crop, dll)
-        if best_rule.is_none() || max_prob < 0.99 {
-            println!(
-                "   [Rust MCTS] Fast Pass gagal. Memulai ADVANCED PASS (Depth 2, All Physics)..."
-            );
-
-            // Filter aksioma berdasarkan confidence. HGM menghasilkan similarity > 0.85, Hebbian biasa lebih rendah.
-            let high_confidence_axioms: Vec<WaveNode> = seed_axioms
-                .into_iter()
-                .filter(|a| a.probability >= 0.3) // Allow sub-part heuristics (Tier 0) to enter advanced pass
-                .collect();
-
-            println!(
-                "   🧠 Advanced Pass Axioms Generated (Sim >= 0.3): {}",
-                high_confidence_axioms.len()
-            );
-            for (i, ax) in high_confidence_axioms.iter().enumerate().take(30) {
-                println!(
-                    "      [{}] {:?} | sim: {:.3} | tier: {} | dx: {} dy: {}",
-                    i, ax.axiom_type, ax.probability, ax.physics_tier, ax.delta_x, ax.delta_y
-                );
+        loop {
+            loop_counter += 1;
+            if loop_counter > max_loops {
+                println!("🧠 [Metakognisi] Batas loop kognitif tercapai (Infinite Loop Protection). Simulasi dihentikan paksa.");
+                break;
             }
 
-            // Iterative Deepening: Beam Width 3 -> 5 -> 10 -> 20
-            let depths = vec![2, 5, 10, 20];
+            let bottleneck = self.self_reflection.assess_current_bottleneck();
 
-            for (attempt, &take_n) in depths.iter().enumerate() {
-                println!(
-                    "   🔍 Search Attempt {}: Exploring top {} advanced axioms...",
-                    attempt + 1,
-                    take_n
-                );
-
-                // Menggunakan GroverDiffusionSystem untuk Pre-Filter Aksioma Terbaik tanpa deep cloning
-                // secara terus-menerus ke semua cabang, sehingga menghemat memory MCTS!
-                let mut candidates = Vec::new();
-                for ax in high_confidence_axioms.iter().take(take_n) {
-                    candidates.push(GroverCandidate {
-                        energy: ax.probability,                 // warm start base
-                        tensor_rule: ax.tensor_spatial.clone(), // Menggunakan tensor spasial untuk filtering
-                        condition_tensor: ax.condition_tensor.clone(),
-                        delta_x: ax.delta_x,
-                        delta_y: ax.delta_y,
-                        physics_tier: ax.physics_tier,
-                        axiom_type: ax
-                            .axiom_type
-                            .last()
-                            .cloned()
-                            .unwrap_or_else(|| "".to_string()),
-                    });
+            match bottleneck {
+                Bottleneck::Solved => {
+                    println!("🧠 [Metakognisi] Bottleneck::Solved - Sistem telah menemukan Ground State!");
+                    break;
                 }
-
-                // Konversi train_states menjadi format Oracle Grover
-                let mut grover_train_states = Vec::new();
-                for (i, (man_in, _man_out)) in train_states.iter().enumerate() {
-                    grover_train_states.push(TrainState {
-                        in_state: man_in.clone(),
-                        expected_grid: expected_grids[i].clone(),
-                    });
+                Bottleneck::Exhausted => {
+                    println!("🧠 [Metakognisi] Bottleneck::Exhausted - Kelelahan. Pencarian dihentikan. Membutuhkan Tidur REM.");
+                    break;
                 }
+                Bottleneck::Blindness => {
+                    println!("🧠 [Metakognisi] Bottleneck::Blindness - Saya tidak memahami struktur. (Fallback ke MCTS Advanced Pass).");
+                    self.self_reflection.best_energy = 5.0; // Turunkan energy
+                    self.self_reflection.last_failure_mode = FailureMode::None;
+                }
+                Bottleneck::PrecisionError => {
+                    println!("🧠 [Metakognisi] Bottleneck::PrecisionError - Meleset sedikit. (Fallback ke MCTS Advanced Pass).");
+                    self.self_reflection.last_failure_mode = FailureMode::None;
+                }
+                Bottleneck::CombinatorialExplosion => {
+                    println!("🧠 [Metakognisi] Bottleneck::CombinatorialExplosion - Terlalu banyak kemungkinan. (Fallback ke MCTS Advanced Pass).");
+                    self.self_reflection.wave_entropy = 0.0;
+                }
+                Bottleneck::LocalOptimum(_stuck_energy) => {
+                    println!("🧠 [Metakognisi] Bottleneck::LocalOptimum - MCTS mentok. Beralih ke ADVANCED PASS (Iterative Deepening MCTS / Grover)...");
+                    let mut ceo_engine = DeepActiveInferenceEngine::new();
+                    ceo_engine.switch_mode(SimulationMode::Probabilistic);
 
-                let mut sandbox = MultiverseSandbox::new();
-                let config = GroverConfig {
-                    dimensions: crate::core::config::GLOBAL_DIMENSION,
-                    search_space_size: candidates.len(),
-                    temperature: 0.5,
-                    free_energy_threshold: 0.0,
-                    max_iterations: 2, // 2 iterations Cukup untuk 20 node
-                };
-
-                let mut grover = GroverDiffusionSystem::new(&mut sandbox, config);
-                let best_grover_idx =
-                    grover.search(&candidates, &grover_train_states, &ceo_engine.current_mode);
-
-                // Jika Grover menemukan pemenang yang meyakinkan, kita bisa langsung pakai
-                if let Some(idx) = best_grover_idx {
-                    if grover.energies[idx] <= 0.001 {
+                    let depths = vec![2, 5, 10, 20];
+                    for (attempt, &take_n) in depths.iter().enumerate() {
                         println!(
-                            "   ✅ Grover Diffusion menemukan solusi eksak! Index: {}",
-                            idx
+                            "   🔍 Search Attempt {}: Exploring top {} advanced axioms...",
+                            attempt + 1,
+                            take_n
                         );
-                        // Convert to WaveNode
-                        let winner = &candidates[idx];
-                        let mut w_node = WaveNode::new(
-                            winner.axiom_type.clone(),
-                            winner.condition_tensor.clone(),
-                            winner.tensor_rule.clone(),
-                            winner.tensor_rule.clone(),
-                            winner.delta_x,
-                            winner.delta_y,
-                            winner.physics_tier,
-                            std::sync::Arc::new(
-                                train_states
-                                    .iter()
-                                    .map(|(m, _)| m.clone())
-                                    .collect::<Vec<_>>(),
+
+                        let mut candidates = Vec::new();
+                        for ax in high_confidence_axioms.iter().take(take_n) {
+                            candidates.push(GroverCandidate {
+                                energy: ax.probability,
+                                tensor_rule: ax.tensor_spatial.clone(),
+                                condition_tensor: ax.condition_tensor.clone(),
+                                delta_x: ax.delta_x,
+                                delta_y: ax.delta_y,
+                                physics_tier: ax.physics_tier,
+                                axiom_type: ax
+                                    .axiom_type
+                                    .last()
+                                    .cloned()
+                                    .unwrap_or_else(|| "".to_string()),
+                            });
+                        }
+
+                        let mut grover_train_states = Vec::new();
+                        for (i, (man_in, _man_out)) in train_states.iter().enumerate() {
+                            grover_train_states.push(TrainState {
+                                in_state: man_in.clone(),
+                                expected_grid: expected_grids[i].clone(),
+                            });
+                        }
+
+                        let mut sandbox = MultiverseSandbox::new();
+                        let config = GroverConfig {
+                            dimensions: crate::core::config::GLOBAL_DIMENSION,
+                            search_space_size: candidates.len(),
+                            temperature: 0.5,
+                            free_energy_threshold: 0.0,
+                            max_iterations: 2,
+                        };
+
+                        let mut grover = GroverDiffusionSystem::new(&mut sandbox, config);
+                        let best_grover_idx = grover.search(
+                            &candidates,
+                            &grover_train_states,
+                            &ceo_engine.current_mode,
+                        );
+
+                        if let Some(idx) = best_grover_idx {
+                            if grover.energies[idx] <= 0.001 {
+                                println!(
+                                    "   ✅ Grover Diffusion menemukan solusi eksak! Index: {}",
+                                    idx
+                                );
+                                let winner = &candidates[idx];
+                                let mut w_node = WaveNode::new(
+                                    winner.axiom_type.clone(),
+                                    winner.condition_tensor.clone(),
+                                    winner.tensor_rule.clone(),
+                                    winner.tensor_rule.clone(),
+                                    winner.delta_x,
+                                    winner.delta_y,
+                                    winner.physics_tier,
+                                    std::sync::Arc::new(
+                                        train_states
+                                            .iter()
+                                            .map(|(m, _)| m.clone())
+                                            .collect::<Vec<_>>(),
+                                    ),
+                                    None,
+                                );
+                                w_node.probability = 1.0;
+                                best_rule = Some(w_node);
+                                max_prob = 1.0;
+                                self.self_reflection
+                                    .update_metrics(0.0, 0.0, FailureMode::None);
+                                break; // Selesai
+                            }
+                        }
+
+                        // JALANKAN MCTS DEEP SEARCH
+                        let mut id_tensor =
+                            ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION);
+                        if crate::core::config::GLOBAL_DIMENSION > 0 {
+                            id_tensor[0] = 1.0;
+                            id_tensor[crate::core::config::GLOBAL_DIMENSION - 1] = 1.0;
+                        }
+
+                        let initial_manifolds_adv = std::sync::Arc::new(
+                            train_states
+                                .iter()
+                                .map(|(m, _)| m.clone())
+                                .collect::<Vec<_>>(),
+                        );
+
+                        let initial_wave = WaveNode {
+                            axiom_type: vec!["ROOT_START".to_string()],
+                            static_background: std::sync::Arc::new(
+                                crate::core::infinite_detail::CoarseData {
+                                    regions: std::sync::Arc::new(vec![]),
+                                    signatures: std::sync::Arc::new(vec![]),
+                                },
                             ),
-                            None,
+                            state_manifolds: std::sync::Arc::clone(&initial_manifolds_adv),
+                            condition_tensor: Some(id_tensor.clone()),
+                            tensor_spatial: id_tensor.clone(),
+                            tensor_semantic: id_tensor.clone(),
+                            probability: 1.0,
+                            delta_x: 0.0,
+                            delta_y: 0.0,
+                            physics_tier: 0,
+                            depth: 0,
+                            state_modified: false,
+                        };
+
+                        let mut all_clone: Vec<WaveNode> = high_confidence_axioms.clone();
+                        all_clone.dedup_by(|a, b| a.axiom_type == b.axiom_type);
+
+                        let (test_target_h, test_target_w) = expected_grids
+                            .first()
+                            .map(|grid| {
+                                (
+                                    grid.len() as f32,
+                                    if grid.is_empty() {
+                                        0.0
+                                    } else {
+                                        grid[0].len() as f32
+                                    },
+                                )
+                            })
+                            .unwrap_or((0.0, 0.0));
+
+                        for c in all_clone.iter_mut() {
+                            let probability_boost = match c.physics_tier {
+                                7 => 5.0,
+                                6 => 3.0,
+                                4..=5 => 2.0,
+                                _ => 0.0,
+                            };
+
+                            if c.physics_tier == 7 {
+                                c.probability = probability_boost;
+                                if test_target_w > 0.0 && test_target_h > 0.0 {
+                                    c.delta_x = test_target_w;
+                                    c.delta_y = test_target_h;
+                                }
+                            } else {
+                                c.probability += probability_boost;
+                            }
+                        }
+
+                        all_clone.sort_by(|a, b| {
+                            b.probability
+                                .partial_cmp(&a.probability)
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                                .then_with(|| a.depth.cmp(&b.depth))
+                        });
+
+                        println!(
+                            "   ⚡ Memulai MCTS dari ROOT ZERO-POINT dengan {} amunisi unik...",
+                            all_clone.len()
                         );
-                        w_node.probability = 1.0;
-                        best_rule = Some(w_node);
-                        break; // Selesai!
+                        let search =
+                            std::sync::Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 2));
+                        let s_clone = std::sync::Arc::clone(&search);
+
+                        pollster::block_on(async move {
+                            s_clone
+                                .propagate_wave(initial_wave, initial_manifolds_adv, all_clone)
+                                .await;
+                        });
+
+                        let ground_states = search.ground_states.read().unwrap();
+                        for state in ground_states.iter() {
+                            if state.probability > max_prob {
+                                max_prob = state.probability;
+                                best_rule = Some(state.clone());
+                            }
+                        }
+
+                        if max_prob >= 0.95 {
+                            println!(
+                                "   ✅ Advanced Pass Selesai Berkat Grover/MCTS! (Prob: {:.3})",
+                                max_prob
+                            );
+                            self.self_reflection
+                                .update_metrics(0.0, 0.0, FailureMode::None);
+                            break;
+                        }
+
+                        if take_n >= high_confidence_axioms.len() {
+                            break;
+                        }
+                    }
+
+                    if max_prob < 0.95 {
+                        self.self_reflection.total_iterations = 9999; // Paksa Exhausted pada siklus berikutnya
+                        self.self_reflection.update_metrics(
+                            50.0,
+                            1.0,
+                            FailureMode::DimensionMismatch,
+                        );
                     }
                 }
+                Bottleneck::Exploring => {
+                    println!("🧠 [Metakognisi] Mode::Exploring - FAST PASS MCTS (Depth 1)");
 
-                // 1. Buat Tensor Identitas (Keadaan Diam / Tidak ada fisika yang berubah)
-                let mut id_tensor = ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION);
-                if crate::core::config::GLOBAL_DIMENSION > 0 {
-                    id_tensor[0] = 1.0;
-                    id_tensor[crate::core::config::GLOBAL_DIMENSION - 1] = 1.0;
-                }
-
-                // Kita butuh initial state_manifolds
-                let initial_manifolds_adv = std::sync::Arc::new(
-                    train_states
+                    let fast_pass_axioms: Vec<WaveNode> = seed_axioms
                         .iter()
-                        .map(|(m, _)| m.clone())
-                        .collect::<Vec<_>>(),
-                );
+                        .filter(|a| a.physics_tier <= 2)
+                        .cloned()
+                        .take(3)
+                        .collect();
 
-                // 2. ROOT ZERO-POINT (Memulai MCTS dari Depth 0, bukan Depth 1)
-                let initial_wave = WaveNode {
-                    axiom_type: vec!["ROOT_START".to_string()],
-                    static_background: std::sync::Arc::new(
-                        crate::core::infinite_detail::CoarseData {
-                            regions: std::sync::Arc::new(vec![]),
-                            signatures: std::sync::Arc::new(vec![]),
-                        },
-                    ),
-                    state_manifolds: std::sync::Arc::clone(&initial_manifolds_adv),
-                    condition_tensor: Some(id_tensor.clone()),
-                    tensor_spatial: id_tensor.clone(),
-                    tensor_semantic: id_tensor.clone(),
-                    probability: 1.0,
-                    delta_x: 0.0,
-                    delta_y: 0.0,
-                    physics_tier: 0,
-                    depth: 0,
-                    state_modified: false,
-                };
-
-                // 3. Masukkan SEMUA kandidat Grover sebagai amunisi untuk Depth 1, 2, dst.
-                let mut all_clone: Vec<WaveNode> = high_confidence_axioms.clone();
-
-                // BERSIHKAN AMUNISI DARI DUPLIKAT!
-                // MCTS akan mencoba semua `all_clone`, jika terlalu banyak CROP yang sama, ia akan OOM / buang-buang energi.
-                all_clone.dedup_by(|a, b| a.axiom_type == b.axiom_type);
-
-                // Type aliasing for strict invariant enforcement
-                type PhysicsTier = u8;
-                const DIM_PHYSICS_TIER: PhysicsTier = 7;
-                const GRID_OPS_TIER: PhysicsTier = 6;
-                const GEOMETRY_TIER_MIN: PhysicsTier = 4;
-                const GEOMETRY_TIER_MAX: PhysicsTier = 5;
-
-                let all_clone_count = all_clone.len();
-
-                // 🌟 VIP PASS: ORACLE INJECTION (OPSI A: Tactical Fallback) 🌟
-                // TODO: Ganti ke Opsi B (Template Detection di HierarchicalGestalt)
-                // di mana `TopDownAxiomator` yang menyadari ukuran frame/marker
-                // dari input (misal kotak abu-abu 6x6) lalu mengirimkannya sebagai delta_x/y.
-
-                // HACK SEMENTARA: Kita pasok target MCTS (Test Set Output) sebagai `delta_x/y`
-                // hanya agar CROP tahu berapa besar jendela yang harus dipotong,
-                // karena Sandbox dilarang menebak-nebak ukurannya dari konten global.
-                let (test_target_h, test_target_w) = expected_grids
-                    .first()
-                    .map(|grid| {
-                        (
-                            grid.len() as f32,
-                            if grid.is_empty() {
-                                0.0
-                            } else {
-                                grid[0].len() as f32
-                            },
-                        )
-                    })
-                    .unwrap_or((0.0, 0.0));
-
-                for c in all_clone.iter_mut() {
-                    let probability_boost = match c.physics_tier {
-                        DIM_PHYSICS_TIER => 5.0,
-                        GRID_OPS_TIER => 3.0,
-                        GEOMETRY_TIER_MIN..=GEOMETRY_TIER_MAX => 2.0,
-                        _ => 0.0,
+                    let search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 1));
+                    let initial_manifolds_fast = if let Some(first) = fast_pass_axioms.first() {
+                        Arc::clone(&first.state_manifolds)
+                    } else {
+                        Arc::new(vec![])
                     };
 
-                    if c.physics_tier == DIM_PHYSICS_TIER {
-                        c.probability = probability_boost; // Absolute VIP
+                    for axiom_node in fast_pass_axioms {
+                        let s_clone = Arc::clone(&search);
+                        let init_clone = Arc::clone(&initial_manifolds_fast);
+                        pollster::block_on(async move {
+                            s_clone.propagate_wave(axiom_node, init_clone, vec![]).await;
+                        });
+                    }
 
-                        // Inject Oracle target WxH
-                        if test_target_w > 0.0 && test_target_h > 0.0 {
-                            c.delta_x = test_target_w;
-                            c.delta_y = test_target_h;
+                    let ground_states = search.ground_states.read().unwrap();
+                    for state in ground_states.iter() {
+                        if state.probability > max_prob {
+                            max_prob = state.probability;
+                            best_rule = Some(state.clone());
                         }
+                    }
+
+                    if max_prob >= 0.99 {
+                        self.self_reflection
+                            .update_metrics(0.0, 0.0, FailureMode::None);
                     } else {
-                        c.probability += probability_boost;
+                        self.self_reflection.update_metrics(
+                            50.0,
+                            0.5,
+                            FailureMode::PositionMismatch,
+                        );
+                        self.self_reflection.iterations_without_improvement += 350;
+                        // Paksa iterasi selanjutnya menjadi LocalOptimum
                     }
-                }
-
-                // Stable deterministic sort
-                all_clone.sort_by(|a, b| {
-                    b.probability
-                        .partial_cmp(&a.probability)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                        .then_with(|| a.depth.cmp(&b.depth)) // Break ties with depth
-                });
-
-                // Invariant Assertions
-                debug_assert!(
-                    all_clone.len() == all_clone_count,
-                    "Candidate count altered during VIP pass"
-                );
-                debug_assert!(
-                    all_clone.iter().all(|h| !h.probability.is_nan()),
-                    "NaN detected in final probabilities"
-                );
-
-                println!(
-                    "   ⚡ Memulai MCTS dari ROOT ZERO-POINT (Depth 0) dengan {} amunisi unik...",
-                    all_clone.len()
-                );
-
-                search = std::sync::Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 2)); // Buka batas Horizon: Depth 2
-                let s_clone = std::sync::Arc::clone(&search);
-
-                // 4. Eksekusi MCTS dari akar!
-                pollster::block_on(async move {
-                    s_clone
-                        .propagate_wave(initial_wave, initial_manifolds_adv, all_clone)
-                        .await;
-                });
-
-                let ground_states = search.ground_states.read().unwrap();
-                max_prob = -1.0;
-                for state in ground_states.iter() {
-                    if state.probability > max_prob {
-                        max_prob = state.probability;
-                        best_rule = Some(state.clone());
-                    }
-                }
-
-                // Jika Ground State ditemukan (prob mendekati 1.0, error 0.0), break dari Iterative Deepening!
-                if max_prob >= 0.95 {
-                    println!(
-                        "   ✅ Advanced Pass Selesai Berkat Grover! (Prob: {:.3})",
-                        max_prob
-                    );
-                    break;
-                }
-
-                // Jika jumlah aksioma yang diambil sudah mencakup seluruh aksioma yang tersedia, stop
-                if take_n >= high_confidence_axioms.len() {
-                    break;
                 }
             }
         }
