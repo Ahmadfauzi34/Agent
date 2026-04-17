@@ -474,6 +474,27 @@ impl RrmAgent {
             let bottleneck = self.self_reflection.assess_current_bottleneck();
 
             match bottleneck {
+                Bottleneck::AllocationThrashing => {
+                    println!("🧠 [Metakognisi] Bottleneck::AllocationThrashing - Nyeri Alokasi Memori (Heap Thrashing) Terdeteksi!");
+                    println!("   📝 MENULIS LOG ARCHITECTURE KE SISTEM: Terjadi {} alokasi dinamis (Vec::push) di hot path MCTS.", self.self_reflection.heap_allocation_count);
+
+                    if let Ok(mut file) = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open("knowledge/architecture_lint.md")
+                    {
+                        use std::io::Write;
+                        let _ = writeln!(
+                            file,
+                            "ARCHITECTURAL PAIN: Agent detected {} dynamic heap allocations exceeding MCTS buffer capacity. This thrashes the OS allocator and destroys SIMD throughput. Please implement a bump allocator (bumpalo) or reuse object pools.",
+                            self.self_reflection.heap_allocation_count
+                        );
+                    }
+
+                    // Kita asumsikan agen mentolerirnya untuk saat ini agar tidak crash, reset metriknya
+                    self.self_reflection.heap_allocation_count = 0;
+                    self.self_reflection.last_failure_mode = FailureMode::None;
+                }
                 Bottleneck::MemoryBloat => {
                     println!("🧠 [Metakognisi] Bottleneck::MemoryBloat - Pelanggaran Copy-on-Write (CoW) Terdeteksi!");
                     println!("   📝 MENULIS LOG ARCHITECTURE KE SISTEM: MCTS melakukan {} Deep Copy dan {} Shallow Clone. Ini menghancurkan cache L1/L2.", self.self_reflection.deep_copy_count, self.self_reflection.shallow_clone_count);
@@ -1009,6 +1030,8 @@ impl RrmAgent {
                         let arena = search.arena.read().unwrap();
                         self.self_reflection.deep_copy_count += arena.tracked_deep_copies;
                         self.self_reflection.shallow_clone_count += arena.tracked_shallow_clones;
+                        self.self_reflection.heap_allocation_count +=
+                            arena.tracked_heap_allocations;
 
                         if max_prob >= 0.95 {
                             if (max_prob - 0.99).abs() < 0.005 {
@@ -1091,6 +1114,7 @@ impl RrmAgent {
                     let arena = search.arena.read().unwrap();
                     self.self_reflection.deep_copy_count += arena.tracked_deep_copies;
                     self.self_reflection.shallow_clone_count += arena.tracked_shallow_clones;
+                    self.self_reflection.heap_allocation_count += arena.tracked_heap_allocations;
 
                     if max_prob >= 0.99 {
                         self.self_reflection
@@ -1114,6 +1138,8 @@ impl RrmAgent {
 
                     if self.self_reflection.deep_copy_count > 100 {
                         self.self_reflection.last_failure_mode = FailureMode::ExcessiveDeepCopy;
+                    } else if self.self_reflection.heap_allocation_count > 50 {
+                        self.self_reflection.last_failure_mode = FailureMode::HeapThrashing;
                     }
                 }
             }

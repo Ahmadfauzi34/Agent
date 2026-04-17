@@ -14,6 +14,7 @@ pub enum FailureMode {
     CollisionDetected, // Terjadi tabrakan dengan rintangan saat mencoba bergerak
     PhysicsNotImplemented, // Pikiran (Tensor) sangat yakin, tapi Tubuh (Grid) tidak bisa mengeksekusi
     ExcessiveDeepCopy,     // Deteksi Memory Bloat karena CoW Violation
+    HeapThrashing,         // Terlalu banyak alokasi dinamis (Vec::push) di Hot Path MCTS
 }
 
 /// Status Bottleneck Kognitif RRM
@@ -24,9 +25,10 @@ pub enum Bottleneck {
     LocalOptimum(f32),
     CombinatorialExplosion,
     PrecisionError,
-    ObstacleStuck,  // Agen menyadari pergerakannya terhalang rintangan
+    ObstacleStuck,       // Agen menyadari pergerakannya terhalang rintangan
     BodyLimitation, // Agen sadar ia kekurangan kapabilitas fisik (membutuhkan upgrade kode manusia)
     MemoryBloat,    // Mengeluh karena Deep Copy Arrays berlebihan
+    AllocationThrashing, // Agen merasakan nyeri karena "alloc/malloc" dinamis (Heap) berlebihan
     Solved,
     Exhausted,
     Exploring,
@@ -45,6 +47,7 @@ pub struct SelfReflection {
     pub active_saliency_ratio: f32, // Rasio area grid yang benar-benar berubah (0.0 - 1.0)
     pub deep_copy_count: usize, // Pelacakan rasa sakit memori (CoW violations)
     pub shallow_clone_count: usize,
+    pub heap_allocation_count: usize, // Pelacakan alokasi heap (push dinamis melebihi kapasitas awal)
     pub last_failure_mode: FailureMode,
     pub total_iterations: usize,
 }
@@ -85,6 +88,7 @@ impl SelfReflection {
             active_saliency_ratio: 1.0,
             deep_copy_count: 0,
             shallow_clone_count: 0,
+            heap_allocation_count: 0,
             last_failure_mode: FailureMode::None,
             total_iterations: 0,
         }
@@ -100,6 +104,7 @@ impl SelfReflection {
         self.active_saliency_ratio = 1.0; // Default: seluruh area penting
         self.deep_copy_count = 0;
         self.shallow_clone_count = 0;
+        self.heap_allocation_count = 0;
         self.last_failure_mode = FailureMode::None;
         self.total_iterations = 0;
     }
@@ -130,6 +135,11 @@ impl SelfReflection {
         if self.time_spent_ms > 30_000 || self.total_iterations > 5000 {
             // Jika sudah telalu lama, menyerah
             return Bottleneck::Exhausted;
+        }
+
+        if self.last_failure_mode == FailureMode::HeapThrashing {
+            // Nyeri akibat Heap Memory Allocation
+            return Bottleneck::AllocationThrashing;
         }
 
         if self.last_failure_mode == FailureMode::ExcessiveDeepCopy {

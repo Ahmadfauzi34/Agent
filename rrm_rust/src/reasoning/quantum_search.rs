@@ -117,6 +117,7 @@ pub struct FractalArena {
     // Metrik Pelacakan CoW (Copy-on-Write)
     pub tracked_deep_copies: usize,
     pub tracked_shallow_clones: usize,
+    pub tracked_heap_allocations: usize, // Pelacak jumlah `Vec::push` di luar batas memori buffer
 
     // Extracted fields for logical grouping
     pub perception_sensory: Vec<Array1<f32>>,
@@ -153,6 +154,7 @@ impl FractalArena {
 
             tracked_deep_copies: 0,
             tracked_shallow_clones: 0,
+            tracked_heap_allocations: 0,
 
             perception_sensory: Vec::with_capacity(capacity),
             reasoning_pragmatic: Vec::with_capacity(capacity),
@@ -214,7 +216,12 @@ impl FractalArena {
             return Some(idx);
         }
 
+        // Simulasi jika RRM terpaksa melewati kapasitas arena (Ini merepresentasikan "Memory Bloat" / Heap Allocation yang sesungguhnya)
         if self.active_count >= self.capacity {
+            self.tracked_heap_allocations += 1;
+            // Kita HARUS menghentikan spawning atau mendelegasikan ke GC di sini
+            // Untuk menghindari Panic saat pengaksesan index (Out of Bounds), kita return None.
+            // RRM secara otonom akan membaca `tracked_heap_allocations` dan menghentikan MCTS sebelum crash terjadi.
             return None;
         }
 
