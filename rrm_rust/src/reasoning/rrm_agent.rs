@@ -543,8 +543,72 @@ impl RrmAgent {
                     }
                 }
                 Bottleneck::PrecisionError => {
-                    println!("🧠 [Metakognisi] Bottleneck::PrecisionError - Meleset sedikit. (Fallback ke MCTS Advanced Pass).");
+                    println!("🧠 [Metakognisi] Bottleneck::PrecisionError - Meleset sedikit. Menembakkan Counterfactual Engine (Femto Scale)...");
+
+                    // Kita gunakan CounterfactualEngine untuk mencari deviasi posisi yang eksak antara hasil tebakan terbaik dan target
+                    if let Some(ref mut rule) = best_rule {
+                        let mut engine =
+                            crate::reasoning::counterfactual_engine::CounterfactualEngine::new();
+
+                        // Konversi WaveNode menjadi Axiom sementara untuk disimulasikan
+                        let mut temp_axiom = crate::reasoning::structures::Axiom::identity();
+                        temp_axiom.name = rule
+                            .axiom_type
+                            .last()
+                            .cloned()
+                            .unwrap_or_else(|| "TempAxiom".to_string());
+                        temp_axiom.condition_tensor = rule.condition_tensor.clone();
+                        temp_axiom.delta_spatial = rule.tensor_spatial.clone();
+                        temp_axiom.delta_semantic = rule.tensor_semantic.clone();
+                        temp_axiom.delta_x = rule.delta_x;
+                        temp_axiom.delta_y = rule.delta_y;
+                        temp_axiom.tier = rule.physics_tier;
+
+                        // Uji satu pasang train state untuk mendapatkan gradient geseran
+                        if let Some((man_in, expected_out)) = train_states.iter().next() {
+                            let result = engine.what_if(&temp_axiom, man_in, expected_out);
+
+                            if !result.is_success {
+                                if let Some(ref failure) = result.failure {
+                                    match failure {
+                                        crate::reasoning::counterfactual_engine::FailureMode::HighEnergyState {
+                                            gradient_x, gradient_y, ..
+                                        } => {
+                                            println!("   🎯 [Femto Surgeon] Menemukan deviasi absolut: dx={}, dy={}", gradient_x.to_f32(), gradient_y.to_f32());
+
+                                            if let Some(corrections) = engine.suggest_correction(failure) {
+                                                if let Some(correction) = corrections.first() {
+                                                    println!("   🎯 [Femto Surgeon] Memutar fasa tensor secara analitis ke target eksak!");
+
+                                                    // Perbarui WaveNode terbaik kita dengan tensor koreksi
+                                                    rule.tensor_spatial = correction.delta_spatial.clone();
+                                                    rule.delta_x = correction.delta_x;
+                                                    rule.delta_y = correction.delta_y;
+                                                    rule.axiom_type.push("FEMTO_CORRECTION".to_string());
+
+                                                    // Set probability maksimal karena ini kalkulus eksak
+                                                    max_prob = 1.0;
+                                                    rule.probability = 1.0;
+
+                                                    // Tandai Sukses agar keluar loop
+                                                    self.self_reflection.update_metrics(
+                                                        0.0,
+                                                        0.0,
+                                                        FailureMode::None,
+                                                    );
+                                                    continue;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Jika gagal memperbaiki posisi (mungkin karena struktur rusak parah)
                     self.self_reflection.last_failure_mode = FailureMode::None;
+                    self.self_reflection.iterations_without_improvement += 350; // Paksa masuk LocalOptimum
                 }
                 Bottleneck::CombinatorialExplosion => {
                     println!("🧠 [Metakognisi] Bottleneck::CombinatorialExplosion - Terlalu banyak kemungkinan. (Fallback ke MCTS Advanced Pass).");
@@ -752,13 +816,16 @@ impl RrmAgent {
                     }
 
                     if max_prob < 0.95 {
-                        // Membiarkan iterasi natural berlanjut agar kondisi Blindness
-                        // dapat dipicu oleh DimensionMismatch tanpa ter-override oleh Exhausted
-                        self.self_reflection.update_metrics(
-                            60.0,
-                            1.0,
-                            FailureMode::DimensionMismatch,
-                        );
+                        let fallback_energy = if max_prob >= 0.8 { 4.0 } else { 60.0 };
+                        let failure_mode = if max_prob >= 0.8 {
+                            FailureMode::PositionMismatch
+                        } else {
+                            FailureMode::DimensionMismatch
+                        };
+
+                        // Membiarkan iterasi natural berlanjut agar kondisi sesuai dapat dipicu
+                        self.self_reflection
+                            .update_metrics(fallback_energy, 1.0, failure_mode);
                     }
                 }
                 Bottleneck::Exploring => {
@@ -798,13 +865,17 @@ impl RrmAgent {
                         self.self_reflection
                             .update_metrics(0.0, 0.0, FailureMode::None);
                     } else {
+                        // Jika max_prob sangat tinggi (>= 0.8) tapi tidak 1.0, berarti ini masalah posisi minor
+                        // Jika max_prob rendah, berarti ini memang LocalOptimum/Blindness biasa
+                        let simulated_energy = if max_prob >= 0.8 { 4.0 } else { 50.0 };
+
                         self.self_reflection.update_metrics(
-                            50.0,
+                            simulated_energy,
                             0.5,
                             FailureMode::PositionMismatch,
                         );
                         self.self_reflection.iterations_without_improvement += 350;
-                        // Paksa iterasi selanjutnya menjadi LocalOptimum
+                        // Paksa iterasi selanjutnya menjadi LocalOptimum atau PrecisionError sesuai energi
                     }
                 }
             }
