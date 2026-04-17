@@ -15,6 +15,7 @@ pub enum FailureMode {
     PhysicsNotImplemented, // Pikiran (Tensor) sangat yakin, tapi Tubuh (Grid) tidak bisa mengeksekusi
     ExcessiveDeepCopy,     // Deteksi Memory Bloat karena CoW Violation
     HeapThrashing,         // Terlalu banyak alokasi dinamis (Vec::push) di Hot Path MCTS
+    GhostStateDetected, // Banyaknya entitas bermassa 0.0 (Dark Matter) di dalam array EntityManifold
 }
 
 /// Status Bottleneck Kognitif RRM
@@ -29,6 +30,7 @@ pub enum Bottleneck {
     BodyLimitation, // Agen sadar ia kekurangan kapabilitas fisik (membutuhkan upgrade kode manusia)
     MemoryBloat,    // Mengeluh karena Deep Copy Arrays berlebihan
     AllocationThrashing, // Agen merasakan nyeri karena "alloc/malloc" dinamis (Heap) berlebihan
+    CognitiveGarbage, // RRM mengeluh Array penuh sampah/Ghost State yang memperlambat iterasi SIMD
     Solved,
     Exhausted,
     Exploring,
@@ -45,6 +47,7 @@ pub struct SelfReflection {
     pub iterations_without_improvement: usize,
     pub wave_entropy: f32, // Semakin tinggi = probabilitas menyebar (tebakan buta)
     pub active_saliency_ratio: f32, // Rasio area grid yang benar-benar berubah (0.0 - 1.0)
+    pub dark_matter_ratio: f32, // Rasio entitas dengan massa 0 (sampah / ghost state) vs total active_count (0.0 - 1.0)
     pub deep_copy_count: usize, // Pelacakan rasa sakit memori (CoW violations)
     pub shallow_clone_count: usize,
     pub heap_allocation_count: usize, // Pelacakan alokasi heap (push dinamis melebihi kapasitas awal)
@@ -86,6 +89,7 @@ impl SelfReflection {
             iterations_without_improvement: 0,
             wave_entropy: 0.0,
             active_saliency_ratio: 1.0,
+            dark_matter_ratio: 0.0,
             deep_copy_count: 0,
             shallow_clone_count: 0,
             heap_allocation_count: 0,
@@ -102,6 +106,7 @@ impl SelfReflection {
         self.iterations_without_improvement = 0;
         self.wave_entropy = 0.0;
         self.active_saliency_ratio = 1.0; // Default: seluruh area penting
+        self.dark_matter_ratio = 0.0;
         self.deep_copy_count = 0;
         self.shallow_clone_count = 0;
         self.heap_allocation_count = 0;
@@ -135,6 +140,14 @@ impl SelfReflection {
         if self.time_spent_ms > 30_000 || self.total_iterations > 5000 {
             // Jika sudah telalu lama, menyerah
             return Bottleneck::Exhausted;
+        }
+
+        if self.last_failure_mode == FailureMode::GhostStateDetected
+            || self.dark_matter_ratio >= 0.5
+        {
+            // Jika lebih dari 50% dari iterasi array agent (active_count) hanyalah entitas bermassa 0.0 ("Dark Matter"),
+            // berarti SIMD dan Cache L1 terbuang percuma untuk branching 'if mass == 0.0 { continue }'
+            return Bottleneck::CognitiveGarbage;
         }
 
         if self.last_failure_mode == FailureMode::HeapThrashing {

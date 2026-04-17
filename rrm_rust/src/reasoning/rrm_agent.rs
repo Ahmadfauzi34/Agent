@@ -425,6 +425,19 @@ impl RrmAgent {
         let mut loop_counter = 0;
         let max_loops = 6;
 
+        let calculate_dark_matter = |manifold: &EntityManifold| -> f32 {
+            if manifold.active_count == 0 {
+                return 0.0;
+            }
+            let mut zero_mass_count = 0;
+            for i in 0..manifold.active_count {
+                if manifold.masses[i] == 0.0 {
+                    zero_mass_count += 1;
+                }
+            }
+            zero_mass_count as f32 / manifold.active_count as f32
+        };
+
         let mut best_rule: Option<WaveNode> = None;
         let mut seed_axioms: Vec<WaveNode> = Vec::new();
 
@@ -434,6 +447,23 @@ impl RrmAgent {
                 println!("🧠 [Metakognisi] Batas loop kognitif tercapai (Infinite Loop Protection). Simulasi dihentikan paksa.");
                 break;
             }
+
+            // Cek persentase dark matter di siklus ini
+            let mut sum_ratio = 0.0;
+            let mut count = 0;
+            for (man_in, man_out) in train_states.iter() {
+                sum_ratio += calculate_dark_matter(man_in);
+                sum_ratio += calculate_dark_matter(man_out);
+                count += 2;
+            }
+            sum_ratio += calculate_dark_matter(&test_manifold);
+            count += 1;
+
+            self.self_reflection.dark_matter_ratio = if count > 0 {
+                sum_ratio / count as f32
+            } else {
+                0.0
+            };
 
             // 2. RESONATE (Regenerasi Axioms jika kosong, biarkan jika sudah diset oleh Micro-Steps/ObstacleStuck)
             if seed_axioms.is_empty() {
@@ -474,6 +504,63 @@ impl RrmAgent {
             let bottleneck = self.self_reflection.assess_current_bottleneck();
 
             match bottleneck {
+                Bottleneck::CognitiveGarbage => {
+                    println!("🧠 [Metakognisi] Bottleneck::CognitiveGarbage - Polusi Dark Matter terdeteksi di memori spasial!");
+                    println!("   📝 MENULIS LOG ARCHITECTURE KE SISTEM: Terdeteksi {}% entitas adalah 'Ghost State' dengan mass = 0.0.", (self.self_reflection.dark_matter_ratio * 100.0).round());
+
+                    if let Ok(mut file) = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open("knowledge/architecture_lint.md")
+                    {
+                        use std::io::Write;
+                        let _ = writeln!(
+                            file,
+                            "ARCHITECTURAL PAIN: Agent detected {:.1}% of entities in EntityManifold are inactive (mass = 0.0). Iterating over this 'Dark Matter' destroys CPU branch predictors and cache locality. Please implement swap-remove or periodic array compaction.",
+                            self.self_reflection.dark_matter_ratio * 100.0
+                        );
+                    }
+
+                    // Aksi Otonom: Memadatkan (Compacting) Entity Manifold untuk membuang sampah
+                    println!("   🧹 [Auto-Fix] Agen secara otonom memadatkan (compacting) array EntityManifold...");
+                    let compact_manifold = |m: &mut EntityManifold| {
+                        let mut new_idx = 0;
+                        for i in 0..m.active_count {
+                            if m.masses[i] > 0.0 {
+                                if i != new_idx {
+                                    let mass = m.masses[i];
+                                    let tok = m.tokens[i];
+                                    let cx = m.centers_x[i];
+                                    let cy = m.centers_y[i];
+                                    let sx = m.spans_x[i];
+                                    let sy = m.spans_y[i];
+                                    let es = m.entanglement_status[i];
+
+                                    Arc::make_mut(&mut m.masses)[new_idx] = mass;
+                                    Arc::make_mut(&mut m.tokens)[new_idx] = tok;
+                                    Arc::make_mut(&mut m.centers_x)[new_idx] = cx;
+                                    Arc::make_mut(&mut m.centers_y)[new_idx] = cy;
+                                    Arc::make_mut(&mut m.spans_x)[new_idx] = sx;
+                                    Arc::make_mut(&mut m.spans_y)[new_idx] = sy;
+                                    Arc::make_mut(&mut m.entanglement_status)[new_idx] = es;
+                                }
+                                new_idx += 1;
+                            }
+                        }
+                        m.active_count = new_idx;
+                    };
+
+                    compact_manifold(&mut test_manifold);
+                    for (man_in, man_out) in train_states.iter_mut() {
+                        compact_manifold(man_in);
+                        compact_manifold(man_out);
+                    }
+
+                    self.self_reflection.dark_matter_ratio = 0.0;
+                    self.self_reflection.last_failure_mode = FailureMode::None;
+
+                    continue; // Skip siklus untuk me-restart dengan memori yang lebih padat (SIMD friendly)
+                }
                 Bottleneck::AllocationThrashing => {
                     println!("🧠 [Metakognisi] Bottleneck::AllocationThrashing - Nyeri Alokasi Memori (Heap Thrashing) Terdeteksi!");
                     println!("   📝 MENULIS LOG ARCHITECTURE KE SISTEM: Terjadi {} alokasi dinamis (Vec::push) di hot path MCTS.", self.self_reflection.heap_allocation_count);
