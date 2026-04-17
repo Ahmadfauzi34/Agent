@@ -611,8 +611,44 @@ impl RrmAgent {
                     self.self_reflection.iterations_without_improvement += 350; // Paksa masuk LocalOptimum
                 }
                 Bottleneck::CombinatorialExplosion => {
-                    println!("🧠 [Metakognisi] Bottleneck::CombinatorialExplosion - Terlalu banyak kemungkinan. (Fallback ke MCTS Advanced Pass).");
+                    println!("🧠 [Metakognisi] Bottleneck::CombinatorialExplosion - Terlalu banyak kombinasi piksel yang bergerak. Mengaktifkan Swarm & Wave Dynamics (Hebbian Insting)...");
+
+                    // Kita memanggil WaveDynamics untuk membangkitkan EntanglementGraph antar partikel (mencari relasi seperti warna sama atau posisi dekat)
+                    let mut wave_engine = crate::reasoning::wave_dynamics::WaveDynamics::new();
+                    wave_engine.initialize_entities(&test_manifold);
+                    wave_engine.evolve_entanglement(&test_manifold, 0.5);
+
+                    println!("   🌊 [Swarm Physics] Entanglement Graph terbentuk. Mensimulasikan 'Gravity Drop' ke arah tebakan terbaik saat ini...");
+
+                    // Jika ada best_rule, kita coba terapkan Swarm Gravity (semua entitas ditarik ke arah delta_x/delta_y secara bersamaan, dgn mempertimbangkan tabrakan)
+                    if let Some(ref rule) = best_rule {
+                        if rule.delta_x.abs() > 0.0 || rule.delta_y.abs() > 0.0 {
+                            crate::reasoning::swarm_dynamics::SwarmDynamics::apply_swarm_gravity(
+                                &mut test_manifold,
+                                rule.delta_x,
+                                rule.delta_y,
+                            );
+
+                            // Terapkan hal yang sama ke train_states agar pandangan agen konsisten ke depannya
+                            for (man_in, _man_out) in train_states.iter_mut() {
+                                crate::reasoning::swarm_dynamics::SwarmDynamics::apply_swarm_gravity(
+                                    man_in,
+                                    rule.delta_x,
+                                    rule.delta_y
+                                );
+                            }
+
+                            println!("   🌊 [Swarm Physics] Partikel telah mengalir secara organik. Mengulang evaluasi struktur...");
+                        } else {
+                            println!("   🌊 [Swarm Physics] Tidak ada arah gravitasi dominan. Wave Collapse dibatalkan.");
+                        }
+                    }
+
+                    // Reset entropy untuk mensimulasikan gelombang telah runtuh (Wave Function Collapse) menjadi satu kepastian
                     self.self_reflection.wave_entropy = 0.0;
+                    // Reset iterasi stagnan agar MCTS mencoba mengeksplorasi dari state baru yang sudah digabungkan secara fisik
+                    self.self_reflection.iterations_without_improvement = 0;
+                    self.self_reflection.best_energy = 5.0; // Turunkan energy
                 }
                 Bottleneck::LocalOptimum(_stuck_energy) => {
                     println!("🧠 [Metakognisi] Bottleneck::LocalOptimum - MCTS mentok. Beralih ke ADVANCED PASS (Iterative Deepening MCTS / Grover)...");
@@ -865,17 +901,20 @@ impl RrmAgent {
                         self.self_reflection
                             .update_metrics(0.0, 0.0, FailureMode::None);
                     } else {
+                        // Mensimulasikan deteksi entropy. Jika probabilitas maksimum saja sangat rendah, berarti ruang tersebar.
+                        let simulated_entropy = if max_prob < 0.2 { 0.9 } else { 0.5 };
+
                         // Jika max_prob sangat tinggi (>= 0.8) tapi tidak 1.0, berarti ini masalah posisi minor
-                        // Jika max_prob rendah, berarti ini memang LocalOptimum/Blindness biasa
+                        // Jika max_prob rendah, berarti ini memang LocalOptimum/Blindness/Combinatorial biasa
                         let simulated_energy = if max_prob >= 0.8 { 4.0 } else { 50.0 };
 
                         self.self_reflection.update_metrics(
                             simulated_energy,
-                            0.5,
+                            simulated_entropy,
                             FailureMode::PositionMismatch,
                         );
                         self.self_reflection.iterations_without_improvement += 350;
-                        // Paksa iterasi selanjutnya menjadi LocalOptimum atau PrecisionError sesuai energi
+                        // Paksa iterasi selanjutnya menjadi LocalOptimum, PrecisionError, atau CombinatorialExplosion sesuai energi & entropy
                     }
                 }
             }

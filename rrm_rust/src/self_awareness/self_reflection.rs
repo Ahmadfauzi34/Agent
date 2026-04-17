@@ -126,9 +126,9 @@ impl SelfReflection {
             return Bottleneck::LocalOptimum(self.best_energy);
         }
 
-        if self.wave_entropy > 0.8 && self.total_iterations > 100 {
-            // Tebakan terlalu acak, probabilitas sangat tersebar.
-            // Kita butuh Wave/Swarm Dynamics.
+        if self.wave_entropy > 0.8 && self.total_iterations > 1 {
+            // Tebakan terlalu acak, probabilitas sangat tersebar pada awal pencarian.
+            // Kita butuh Wave/Swarm Dynamics untuk meruntuhkannya secara organik.
             return Bottleneck::CombinatorialExplosion;
         }
 
