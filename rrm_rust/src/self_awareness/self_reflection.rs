@@ -12,6 +12,7 @@ pub enum FailureMode {
     TopologyMismatch,
     PositionMismatch,
     CollisionDetected, // Terjadi tabrakan dengan rintangan saat mencoba bergerak
+    PhysicsNotImplemented, // Pikiran (Tensor) sangat yakin, tapi Tubuh (Grid) tidak bisa mengeksekusi
 }
 
 /// Status Bottleneck Kognitif RRM
@@ -22,7 +23,8 @@ pub enum Bottleneck {
     LocalOptimum(f32),
     CombinatorialExplosion,
     PrecisionError,
-    ObstacleStuck, // Agen menyadari pergerakannya terhalang rintangan
+    ObstacleStuck,  // Agen menyadari pergerakannya terhalang rintangan
+    BodyLimitation, // Agen sadar ia kekurangan kapabilitas fisik (membutuhkan upgrade kode manusia)
     Solved,
     Exhausted,
     Exploring,
@@ -127,6 +129,11 @@ impl SelfReflection {
             // Jika area yang benar-benar berubah (aktif) sangat kecil dibanding total grid,
             // agen sadar bahwa ia sedang "Distracted" oleh background yang membuang CPU.
             return Bottleneck::Distracted;
+        }
+
+        if self.last_failure_mode == FailureMode::PhysicsNotImplemented {
+            // Agen menyadari ada diskoneksi antara pikiran logis (Tensor) dan kemampuan fisik (Sandbox)
+            return Bottleneck::BodyLimitation;
         }
 
         if self.last_failure_mode == FailureMode::CollisionDetected {

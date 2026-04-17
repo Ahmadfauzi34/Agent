@@ -327,6 +327,14 @@ impl FractalArena {
                 SimdEnergyCalculator::calculate_epistemic(&*manifold_read, &initial_read);
         }
 
+        // 🌟 CAPABILITY AWARENESS: MIND-BODY DISCONNECT DETECTOR 🌟
+        // Jika Mind (Tensor Similarity/Probabilitas asal dari axiom) sangat yakin (>90% / amplitude awal besar),
+        // TETAPI setelah dieksekusi di Sandbox tubuh, "Tubuh" sama sekali tidak mengubah state
+        // sehingga Pragmatic Error masih sangat tinggi (Sama dengan Pragmatic Error benda asli sebelum diubah).
+        // Kita bisa menyimulasikan penalaran ini dengan membatasi Amplitude tidak turun drastis, tapi
+        // memberikan penanda khusus. Dalam MCTS ini, kita asumsikan jika `expected_free_energy` == `total_pragmatic_error` persis,
+        // dan tidak ada perubahan sama sekali, kita tahan nilainya sebagai anomali.
+
         self.reasoning_pragmatic[idx] = total_pragmatic_error;
         self.reasoning_epistemic[idx] = total_epistemic_value;
 
@@ -338,7 +346,16 @@ impl FractalArena {
         self.amplitudes[idx] = if total_pragmatic_error <= 0.0 {
             1.0
         } else {
-            0.99 - (expected_free_energy / 50000.0).clamp(0.0, 0.95)
+            let mut penalty = (expected_free_energy / 50000.0).clamp(0.0, 0.95);
+            // Mind-Body Disconnect Indicator:
+            // Jika agent mendapat probabilitas tinggi dari rule awal, tapi energi pragmatisnya super tinggi
+            // (karena physics_tier gagal menerjemahkannya di Sandbox), kita tahan amplitudonya agar tidak terbuang/prune
+            // sehingga metakognisi bisa mendeteksinya di `rrm_agent.rs` sebagai PhysicsNotImplemented.
+            if total_pragmatic_error > 100.0 && total_epistemic_value < 1.0 {
+                // Beri anomali flag probabilitas: 0.9999 (Sangat spesifik agar terbaca oleh agent)
+                penalty = 0.0;
+            }
+            0.99 - penalty
         };
 
         // Switch cognitive mode berdasarkan posisi (Mandelbrot Boundary logic)

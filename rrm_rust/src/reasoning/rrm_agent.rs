@@ -474,6 +474,27 @@ impl RrmAgent {
             let bottleneck = self.self_reflection.assess_current_bottleneck();
 
             match bottleneck {
+                Bottleneck::BodyLimitation => {
+                    println!("🧠 [Metakognisi] Bottleneck::BodyLimitation - Mind-Body Disconnect terdeteksi!");
+                    println!("   Pikiran logis (Tensor) sangat yakin, namun tubuh fisik (Sandbox) gagal mengeksekusi.");
+                    println!("   📝 MENULIS LOG ERROR KE SISTEM: 'SAYA KEKURANGAN ALAT FISIK. Tolong upgrade `apply_axiom` di Sandbox.'");
+
+                    // Menulis log manual agar sistem terstruktur (pengembang dapat melihat log dan mengembangkan physics_tier).
+                    if let Ok(mut file) = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open("knowledge/execution_log.md")
+                    {
+                        use std::io::Write;
+                        let _ = writeln!(
+                            file,
+                            "SELF-AWARENESS: Causal reasoning found a highly probable solution tensor, but Sandbox physics engine lacks implementation to move pixels. Please upgrade `apply_axiom`."
+                        );
+                    }
+
+                    // Kita tidak bisa melanjutkan jika tubuh tidak mendukung. Hentikan simulasi.
+                    break;
+                }
                 Bottleneck::ObstacleStuck => {
                     println!("🧠 [Metakognisi] Bottleneck::ObstacleStuck - Rute terhalang rintangan. Mengubah aksioma dari Translasi Absolut ke Pathfinding (Micro-Steps)...");
 
@@ -519,6 +540,8 @@ impl RrmAgent {
                     self.self_reflection.last_failure_mode = FailureMode::None;
                     self.self_reflection.iterations_without_improvement = 350; // Paksa masuk LocalOptimum
                     self.self_reflection.best_energy = 5.0;
+
+                    continue; // Skip ke iterasi berikutnya agar Advanced Pass menerima update seed_axioms ini
                 }
                 Bottleneck::Distracted => {
                     println!("🧠 [Metakognisi] Bottleneck::Distracted - Saliency ratio terlalu rendah (Background dominan). Melakukan Zoom-In (Saliency Crop)!");
@@ -573,6 +596,8 @@ impl RrmAgent {
                     // Supaya tidak terjebak loop yang sama
                     self.self_reflection.active_saliency_ratio = 1.0;
                     self.self_reflection.best_energy = 5.0; // Turunkan energy agar bisa lanjut mencari pola
+
+                    continue; // Sama seperti ObstacleStuck, lanjutkan ke siklus berikutnya untuk memproses manifold hasil filter
                 }
                 Bottleneck::Solved => {
                     println!("🧠 [Metakognisi] Bottleneck::Solved - Sistem telah menemukan Ground State!");
@@ -653,6 +678,8 @@ impl RrmAgent {
                         self.self_reflection.best_energy = 5.0; // Turunkan energy agar lolos dari blok Blindness
                         self.self_reflection.last_failure_mode = FailureMode::None;
                         self.self_reflection.iterations_without_improvement = 0;
+
+                        continue; // Lewati siklus iterasi ini agar Advanced Pass mendapat manifold terbaru
                     } else {
                         // Jika Gestalt juga tidak bisa menemukan bentuk berarti, anggap agen kelelahan.
                         println!(
@@ -768,6 +795,8 @@ impl RrmAgent {
                     // Reset iterasi stagnan agar MCTS mencoba mengeksplorasi dari state baru yang sudah digabungkan secara fisik
                     self.self_reflection.iterations_without_improvement = 0;
                     self.self_reflection.best_energy = 5.0; // Turunkan energy
+
+                    continue; // Skip the rest of the loop to restart search with new swarm-influenced manifolds
                 }
                 Bottleneck::LocalOptimum(_stuck_energy) => {
                     println!("🧠 [Metakognisi] Bottleneck::LocalOptimum - MCTS mentok. Beralih ke ADVANCED PASS (Iterative Deepening MCTS / Grover)...");
@@ -956,13 +985,17 @@ impl RrmAgent {
                         }
 
                         if max_prob >= 0.95 {
-                            println!(
-                                "   ✅ Advanced Pass Selesai Berkat Grover/MCTS! (Prob: {:.3})",
-                                max_prob
-                            );
-                            self.self_reflection
-                                .update_metrics(0.0, 0.0, FailureMode::None);
-                            break;
+                            if (max_prob - 0.99).abs() < 0.005 {
+                                println!("   ⚠️  Sinyal Anomali Mind-Body Disconnect terdeteksi selama Advanced Pass.");
+                            } else {
+                                println!(
+                                    "   ✅ Advanced Pass Selesai Berkat Grover/MCTS! (Prob: {:.3})",
+                                    max_prob
+                                );
+                                self.self_reflection
+                                    .update_metrics(0.0, 0.0, FailureMode::None);
+                                break;
+                            }
                         }
 
                         if take_n >= high_confidence_axioms.len() {
@@ -970,14 +1003,20 @@ impl RrmAgent {
                         }
                     }
 
-                    if max_prob < 0.95 {
-                        let fallback_energy = if max_prob >= 0.8 { 4.0 } else { 60.0 };
+                    // max_prob = 0.99 adalah penanda fallback (anomali) dari quantum_search (bukan pure success)
+                    if max_prob < 0.95 || (max_prob - 0.99).abs() < 0.005 {
+                        let mut fallback_energy = if max_prob >= 0.8 { 4.0 } else { 60.0 };
 
                         // Menyimulasikan penalti energi dari `quantum_search`
                         // MCTS memberikan penalti energi jika ada `Collision`, menyebabkan max_prob merosot.
                         // Jika `max_prob` rendah, kita peluang acak jika itu adalah Collision atau hanya Mismatch biasa.
                         // (Untuk POC ini, kita anggap probabilitas yang sangat hancur tapi tidak nol adalah tabrakan).
-                        let failure_mode = if max_prob >= 0.8 {
+                        let failure_mode = if (max_prob - 0.99).abs() < 0.005 {
+                            // Ini adalah sinyal anomali dari quantum_search bahwa ada MIND-BODY DISCONNECT
+                            // Mind sangat yakin (Prob = 0.99) tapi Pragmatic Error > 100
+                            fallback_energy = 999.0;
+                            FailureMode::PhysicsNotImplemented
+                        } else if max_prob >= 0.8 {
                             FailureMode::PositionMismatch
                         } else if max_prob > 0.05 && max_prob < 0.3 {
                             FailureMode::CollisionDetected
