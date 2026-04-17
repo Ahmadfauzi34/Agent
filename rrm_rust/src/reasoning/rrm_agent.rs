@@ -426,6 +426,7 @@ impl RrmAgent {
         let max_loops = 6;
 
         let mut best_rule: Option<WaveNode> = None;
+        let mut seed_axioms: Vec<WaveNode> = Vec::new();
 
         loop {
             loop_counter += 1;
@@ -434,30 +435,31 @@ impl RrmAgent {
                 break;
             }
 
-            // 2. RESONATE (Regenerasi Axioms, diletakkan di dalam loop agar bisa menyesuaikan jika ada Paradigm Shift / Gestalt)
-            let mut seed_axioms: Vec<WaveNode> = Vec::new();
-            if let Some((man_in, man_out)) = train_states.iter().next() {
-                let mut matches = TopDownAxiomator::generate_axioms(man_in, man_out);
-                matches.extend(TopologicalAligner::align(man_in, man_out));
-                matches.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap());
+            // 2. RESONATE (Regenerasi Axioms jika kosong, biarkan jika sudah diset oleh Micro-Steps/ObstacleStuck)
+            if seed_axioms.is_empty() {
+                if let Some((man_in, man_out)) = train_states.iter().next() {
+                    let mut matches = TopDownAxiomator::generate_axioms(man_in, man_out);
+                    matches.extend(TopologicalAligner::align(man_in, man_out));
+                    matches.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap());
 
-                for m in matches {
-                    let initial_manifolds: Arc<Vec<EntityManifold>> =
-                        Arc::new(train_states.iter().map(|s| s.0.clone()).collect());
+                    for m in matches {
+                        let initial_manifolds: Arc<Vec<EntityManifold>> =
+                            Arc::new(train_states.iter().map(|s| s.0.clone()).collect());
 
-                    let mut node = WaveNode::new(
-                        m.axiom_type,
-                        m.condition_tensor,
-                        m.delta_spatial,
-                        m.delta_semantic,
-                        m.delta_x,
-                        m.delta_y,
-                        m.physics_tier,
-                        initial_manifolds,
-                        None,
-                    );
-                    node.probability = m.similarity;
-                    seed_axioms.push(node);
+                        let mut node = WaveNode::new(
+                            m.axiom_type,
+                            m.condition_tensor,
+                            m.delta_spatial,
+                            m.delta_semantic,
+                            m.delta_x,
+                            m.delta_y,
+                            m.physics_tier,
+                            initial_manifolds,
+                            None,
+                        );
+                        node.probability = m.similarity;
+                        seed_axioms.push(node);
+                    }
                 }
             }
 
@@ -472,6 +474,52 @@ impl RrmAgent {
             let bottleneck = self.self_reflection.assess_current_bottleneck();
 
             match bottleneck {
+                Bottleneck::ObstacleStuck => {
+                    println!("🧠 [Metakognisi] Bottleneck::ObstacleStuck - Rute terhalang rintangan. Mengubah aksioma dari Translasi Absolut ke Pathfinding (Micro-Steps)...");
+
+                    // Kita membuang tebakan aksioma Translasi "Jauh" yang lama.
+                    // Menyiapkan aksioma "Micro-Step" (Gerak 1-piksel ke Atas, Bawah, Kiri, Kanan)
+                    // Nantinya MCTS akan mengevaluasinya sebagai rute labirin.
+                    let x_seed = crate::core::core_seeds::CoreSeeds::x_axis_seed();
+                    let y_seed = crate::core::core_seeds::CoreSeeds::y_axis_seed();
+
+                    seed_axioms.clear(); // Hapus aksioma tebakan lurus (hanya buang-buang waktu)
+
+                    let micro_steps = vec![
+                        ("STEP_UP", 0.0, -1.0),
+                        ("STEP_DOWN", 0.0, 1.0),
+                        ("STEP_LEFT", -1.0, 0.0),
+                        ("STEP_RIGHT", 1.0, 0.0),
+                    ];
+
+                    let initial_manifolds: Arc<Vec<EntityManifold>> =
+                        Arc::new(train_states.iter().map(|s| s.0.clone()).collect());
+
+                    for (name, dx, dy) in micro_steps {
+                        let tensor_spatial =
+                            crate::core::fhrr::FHRR::fractional_bind_2d(&x_seed, dx, &y_seed, dy);
+                        let mut node = WaveNode::new(
+                            name.to_string(),
+                            None,
+                            tensor_spatial.clone(),
+                            ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION),
+                            dx,
+                            dy,
+                            1, // Micro step adalah spatial shift (Tier 1) tapi harus ditaruh sebagai list khusus agar MCTS Iterative Deepening bisa merayap
+                            initial_manifolds.clone(),
+                            None,
+                        );
+                        node.probability = 0.99; // Set ke confidence tinggi
+                        seed_axioms.push(node);
+                    }
+
+                    println!("   🧱 [Obstacle Awareness] Aksioma pencarian telah diubah menjadi Micro-Steps.");
+
+                    // Escape hatch: Lanjut iterasi untuk dicoba oleh Advanced Pass
+                    self.self_reflection.last_failure_mode = FailureMode::None;
+                    self.self_reflection.iterations_without_improvement = 350; // Paksa masuk LocalOptimum
+                    self.self_reflection.best_energy = 5.0;
+                }
                 Bottleneck::Distracted => {
                     println!("🧠 [Metakognisi] Bottleneck::Distracted - Saliency ratio terlalu rendah (Background dominan). Melakukan Zoom-In (Saliency Crop)!");
 
@@ -518,6 +566,9 @@ impl RrmAgent {
                     }
 
                     println!("   👁️ [Saliency Engine] Grid telah dibersihkan dari noise. Perhatian kini terfokus pada objek aktif.");
+
+                    // Kosongkan seed_axioms agar regenerasi axiom melihat piksel baru yang lebih bersih
+                    seed_axioms.clear();
 
                     // Supaya tidak terjebak loop yang sama
                     self.self_reflection.active_saliency_ratio = 1.0;
@@ -594,6 +645,9 @@ impl RrmAgent {
                     }
 
                     if macro_found {
+                        // Kosongkan seed_axioms agar diregenerasi di awal loop menggunakan paradigma makro yang baru
+                        seed_axioms.clear();
+
                         // Jika berhasil mengelompokkan, kita reset metrik agar MCTS / Grover berjalan lagi
                         println!("   👁️ [Gestalt Vision] Pandangan dipulihkan. Mengulang pencarian dengan paradigma makro...");
                         self.self_reflection.best_energy = 5.0; // Turunkan energy agar lolos dari blok Blindness
@@ -918,8 +972,15 @@ impl RrmAgent {
 
                     if max_prob < 0.95 {
                         let fallback_energy = if max_prob >= 0.8 { 4.0 } else { 60.0 };
+
+                        // Menyimulasikan penalti energi dari `quantum_search`
+                        // MCTS memberikan penalti energi jika ada `Collision`, menyebabkan max_prob merosot.
+                        // Jika `max_prob` rendah, kita peluang acak jika itu adalah Collision atau hanya Mismatch biasa.
+                        // (Untuk POC ini, kita anggap probabilitas yang sangat hancur tapi tidak nol adalah tabrakan).
                         let failure_mode = if max_prob >= 0.8 {
                             FailureMode::PositionMismatch
+                        } else if max_prob > 0.05 && max_prob < 0.3 {
+                            FailureMode::CollisionDetected
                         } else {
                             FailureMode::DimensionMismatch
                         };

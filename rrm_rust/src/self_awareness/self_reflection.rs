@@ -11,6 +11,7 @@ pub enum FailureMode {
     ColorMismatch,
     TopologyMismatch,
     PositionMismatch,
+    CollisionDetected, // Terjadi tabrakan dengan rintangan saat mencoba bergerak
 }
 
 /// Status Bottleneck Kognitif RRM
@@ -21,6 +22,7 @@ pub enum Bottleneck {
     LocalOptimum(f32),
     CombinatorialExplosion,
     PrecisionError,
+    ObstacleStuck, // Agen menyadari pergerakannya terhalang rintangan
     Solved,
     Exhausted,
     Exploring,
@@ -125,6 +127,11 @@ impl SelfReflection {
             // Jika area yang benar-benar berubah (aktif) sangat kecil dibanding total grid,
             // agen sadar bahwa ia sedang "Distracted" oleh background yang membuang CPU.
             return Bottleneck::Distracted;
+        }
+
+        if self.last_failure_mode == FailureMode::CollisionDetected {
+            // Agen mencoba bergeser tapi menabrak dinding / rintangan. Harus mencari celah.
+            return Bottleneck::ObstacleStuck;
         }
 
         if self.last_failure_mode == FailureMode::DimensionMismatch && self.best_energy >= 50.0 {

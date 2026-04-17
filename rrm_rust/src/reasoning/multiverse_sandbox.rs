@@ -21,6 +21,7 @@ impl MultiverseSandbox {
     }
 
     /// Terapkan Dual-Axiom (Translasi Spasial + Mutasi Semantik + Geometri) ke Universe
+    /// Mengembalikan true jika pergeseran menabrak batas atau entitas lain (Collision)
     pub fn apply_axiom(
         u: &mut EntityManifold,
         condition_tensor: &Option<Array1<f32>>,
@@ -30,7 +31,8 @@ impl MultiverseSandbox {
         delta_y: f32,
         physics_tier: u8,
         axiom_type: &str, // Digunakan untuk parsing operator geometri jika Tier 4
-    ) {
+    ) -> bool {
+        let mut collision_detected = false;
         // 🌟 FISIKA TIER 8: REKURSI MACRO (Interpreter Siklus Otot/Skill) 🌟
         if physics_tier == 8 {
             if axiom_type.starts_with("MACRO:") {
@@ -79,7 +81,7 @@ impl MultiverseSandbox {
                     );
                 }
             }
-            return;
+            return false;
         }
 
         let base_abs_dx = delta_x.round();
@@ -200,7 +202,7 @@ impl MultiverseSandbox {
                 }
             }
             // Karena ini operasi SPAWN murni, kita bisa langsung return dari fungsi.
-            return;
+            return false;
         }
 
         // 🌟 FISIKA TIER 7: CROP / PEMOTONGAN DIMENSI (FULL OPTIMIZED) 🌟
@@ -284,7 +286,7 @@ impl MultiverseSandbox {
                 };
 
                 Self::crop_to_quadrant(u, anchor_color, mask, mode, 0.0);
-                return;
+                return false;
             } else if axiom_type.starts_with("CROP_TO_COLOR(") {
                 let start = axiom_type.find('(').unwrap() + 1;
                 let end = axiom_type.find(')').unwrap();
@@ -352,7 +354,7 @@ impl MultiverseSandbox {
                     }
                 }
             }
-            return;
+            return false;
         }
 
         // Hitung bounding box universe jika ada operasi geometri
@@ -503,8 +505,20 @@ impl MultiverseSandbox {
                         apply_dy
                     };
 
-                    Arc::make_mut(&mut u.centers_x)[e] += real_dx;
-                    Arc::make_mut(&mut u.centers_y)[e] += real_dy;
+                    let new_cx = u.centers_x[e] + real_dx;
+                    let new_cy = u.centers_y[e] + real_dy;
+
+                    // Simple collision checks (Out of bounds or hitting another object loosely)
+                    if new_cx < 0.0
+                        || new_cx >= u.global_width
+                        || new_cy < 0.0
+                        || new_cy >= u.global_height
+                    {
+                        collision_detected = true;
+                    }
+
+                    Arc::make_mut(&mut u.centers_x)[e] = new_cx;
+                    Arc::make_mut(&mut u.centers_y)[e] = new_cy;
                 }
 
                 // MURNI UNTUK SWARM: Update token untuk Decoder
@@ -519,6 +533,8 @@ impl MultiverseSandbox {
                 }
             }
         }
+
+        collision_detected
     }
 
     // === Tier 7.5: QUADRANT CROP SYSTEM (Hukum 2, 4, 5, 6) ===

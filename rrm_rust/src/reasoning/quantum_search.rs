@@ -437,8 +437,9 @@ impl AsyncWaveSearch {
                 let action_tier = arena.action_tier[current_idx];
 
                 let states_mut = Arc::make_mut(&mut arena.states[current_idx]);
+                let mut any_collision = false;
                 for manifold in states_mut.iter_mut() {
-                    MultiverseSandbox::apply_axiom(
+                    let collided = MultiverseSandbox::apply_axiom(
                         &mut *manifold,
                         &action_condition,
                         &action_spatial,
@@ -448,10 +449,19 @@ impl AsyncWaveSearch {
                         action_tier,
                         &current_axiom_str,
                     );
+                    if collided {
+                        any_collision = true;
+                    }
                 }
 
                 // Reasoning (Free Energy)
                 arena.reason(current_idx, &self.expected_grids, &initial_manifolds);
+
+                // Tambahkan penalti energi jika menabrak rintangan
+                if any_collision {
+                    arena.reasoning_pragmatic[current_idx] += 10.0;
+                    arena.amplitudes[current_idx] *= 0.5; // Mengurangi probabilitas secara drastis
+                }
 
                 let pragmatic_error = arena.reasoning_pragmatic[current_idx];
                 let epistemic_value = arena.reasoning_epistemic[current_idx];
