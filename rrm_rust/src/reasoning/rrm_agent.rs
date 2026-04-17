@@ -407,6 +407,20 @@ impl RrmAgent {
 
         let expected_grids: Vec<Vec<Vec<i32>>> = train_out.clone();
 
+        // Cek Saliency Ratio: Seberapa besar porsi grid yang benar-benar aktif dibanding keseluruhan?
+        // Menghitung berdasarkan massa total entitas aktif (jumlah piksel)
+        if let Some((man_in, _)) = train_states.iter().next() {
+            let mut total_active_mass = 0.0;
+            for i in 0..man_in.active_count {
+                if man_in.tokens[i] != 0 {
+                    total_active_mass += man_in.masses[i];
+                }
+            }
+
+            let total_area = (man_in.global_width * man_in.global_height).max(1.0);
+            self.self_reflection.active_saliency_ratio = total_active_mass / total_area;
+        }
+
         // 3. COGNITIVE STATE-MACHINE LOOP (MCTS + Grover)
         let mut loop_counter = 0;
         let max_loops = 6;
@@ -458,6 +472,57 @@ impl RrmAgent {
             let bottleneck = self.self_reflection.assess_current_bottleneck();
 
             match bottleneck {
+                Bottleneck::Distracted => {
+                    println!("🧠 [Metakognisi] Bottleneck::Distracted - Saliency ratio terlalu rendah (Background dominan). Melakukan Zoom-In (Saliency Crop)!");
+
+                    // Kita membuang piksel background dengan memfilter manifold
+                    let filter_saliency = |manifold: &mut EntityManifold| {
+                        let mut active_indices = Vec::new();
+                        for i in 0..manifold.active_count {
+                            // Anggap background adalah massa 0 atau token 0
+                            if manifold.masses[i] > 0.0 && manifold.tokens[i] != 0 {
+                                active_indices.push(i);
+                            }
+                        }
+
+                        // Geser entitas yang aktif ke depan array agar kompak, namun kita TIDAK MENGUBAH UKURAN GLOBAL GRID
+                        // Hanya saja, kita bisa mensimulasikan "Fokus" dengan menonaktifkan yang lainnya.
+                        let mut new_idx = 0;
+                        for old_idx in active_indices {
+                            if new_idx != old_idx {
+                                let m = manifold.masses[old_idx];
+                                let t = manifold.tokens[old_idx];
+                                let cx = manifold.centers_x[old_idx];
+                                let cy = manifold.centers_y[old_idx];
+                                let sx = manifold.spans_x[old_idx];
+                                let sy = manifold.spans_y[old_idx];
+                                let es = manifold.entanglement_status[old_idx];
+
+                                Arc::make_mut(&mut manifold.masses)[new_idx] = m;
+                                Arc::make_mut(&mut manifold.tokens)[new_idx] = t;
+                                Arc::make_mut(&mut manifold.centers_x)[new_idx] = cx;
+                                Arc::make_mut(&mut manifold.centers_y)[new_idx] = cy;
+                                Arc::make_mut(&mut manifold.spans_x)[new_idx] = sx;
+                                Arc::make_mut(&mut manifold.spans_y)[new_idx] = sy;
+                                Arc::make_mut(&mut manifold.entanglement_status)[new_idx] = es;
+                            }
+                            new_idx += 1;
+                        }
+                        manifold.active_count = new_idx;
+                    };
+
+                    filter_saliency(&mut test_manifold);
+                    for (man_in, man_out) in train_states.iter_mut() {
+                        filter_saliency(man_in);
+                        filter_saliency(man_out);
+                    }
+
+                    println!("   👁️ [Saliency Engine] Grid telah dibersihkan dari noise. Perhatian kini terfokus pada objek aktif.");
+
+                    // Supaya tidak terjebak loop yang sama
+                    self.self_reflection.active_saliency_ratio = 1.0;
+                    self.self_reflection.best_energy = 5.0; // Turunkan energy agar bisa lanjut mencari pola
+                }
                 Bottleneck::Solved => {
                     println!("🧠 [Metakognisi] Bottleneck::Solved - Sistem telah menemukan Ground State!");
                     break;

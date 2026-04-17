@@ -16,6 +16,7 @@ pub enum FailureMode {
 /// Status Bottleneck Kognitif RRM
 #[derive(Debug, Clone, PartialEq)]
 pub enum Bottleneck {
+    Distracted, // Agen menyadari 90% CPU terbuang untuk memproses background mati
     Blindness,
     LocalOptimum(f32),
     CombinatorialExplosion,
@@ -35,6 +36,7 @@ pub struct SelfReflection {
     pub best_energy: f32,
     pub iterations_without_improvement: usize,
     pub wave_entropy: f32, // Semakin tinggi = probabilitas menyebar (tebakan buta)
+    pub active_saliency_ratio: f32, // Rasio area grid yang benar-benar berubah (0.0 - 1.0)
     pub last_failure_mode: FailureMode,
     pub total_iterations: usize,
 }
@@ -72,6 +74,7 @@ impl SelfReflection {
             best_energy: f32::MAX,
             iterations_without_improvement: 0,
             wave_entropy: 0.0,
+            active_saliency_ratio: 1.0,
             last_failure_mode: FailureMode::None,
             total_iterations: 0,
         }
@@ -84,6 +87,7 @@ impl SelfReflection {
         self.best_energy = f32::MAX;
         self.iterations_without_improvement = 0;
         self.wave_entropy = 0.0;
+        self.active_saliency_ratio = 1.0; // Default: seluruh area penting
         self.last_failure_mode = FailureMode::None;
         self.total_iterations = 0;
     }
@@ -114,6 +118,13 @@ impl SelfReflection {
         if self.time_spent_ms > 30_000 || self.total_iterations > 5000 {
             // Jika sudah telalu lama, menyerah
             return Bottleneck::Exhausted;
+        }
+
+        if self.active_saliency_ratio < 0.2 && self.total_iterations <= 1 {
+            // Evaluasi Saliency di awal pencarian:
+            // Jika area yang benar-benar berubah (aktif) sangat kecil dibanding total grid,
+            // agen sadar bahwa ia sedang "Distracted" oleh background yang membuang CPU.
+            return Bottleneck::Distracted;
         }
 
         if self.last_failure_mode == FailureMode::DimensionMismatch && self.best_energy >= 50.0 {
