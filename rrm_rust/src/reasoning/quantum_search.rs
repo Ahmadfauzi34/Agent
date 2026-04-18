@@ -107,6 +107,7 @@ pub struct FractalArena {
     pub ids: Vec<FractalId>,
     pub parents: Vec<Option<usize>>,
     pub children_ranges: Vec<(usize, u8)>,
+    pub average_iteration_time_ns: u64,
     pub tolerances: Vec<EnergyTolerance>,
     pub static_backgrounds: Vec<Arc<crate::core::infinite_detail::CoarseData>>,
     pub amplitudes: Vec<f32>,
@@ -152,6 +153,7 @@ impl FractalArena {
             states: Vec::with_capacity(capacity),
             modified_flags: Vec::with_capacity(capacity),
 
+            average_iteration_time_ns: 0,
             tracked_deep_copies: 0,
             tracked_shallow_clones: 0,
             tracked_heap_allocations: 0,
@@ -478,7 +480,12 @@ impl AsyncWaveSearch {
 
                 let states_mut = Arc::make_mut(&mut arena.states[current_idx]);
                 let mut any_collision = false;
+
+                let start_axiom = std::time::Instant::now();
+                let mut total_active_count = 0;
+
                 for manifold in states_mut.iter_mut() {
+                    total_active_count += manifold.active_count;
                     let collided = MultiverseSandbox::apply_axiom(
                         &mut *manifold,
                         &action_condition,
@@ -491,6 +498,18 @@ impl AsyncWaveSearch {
                     );
                     if collided {
                         any_collision = true;
+                    }
+                }
+
+                let elapsed_ns = start_axiom.elapsed().as_nanos() as u64;
+                if total_active_count > 0 {
+                    let avg_ns = elapsed_ns / total_active_count as u64;
+                    // Exponential moving average for iteration time
+                    if arena.average_iteration_time_ns == 0 {
+                        arena.average_iteration_time_ns = avg_ns;
+                    } else {
+                        arena.average_iteration_time_ns =
+                            (arena.average_iteration_time_ns * 3 + avg_ns) / 4;
                     }
                 }
 

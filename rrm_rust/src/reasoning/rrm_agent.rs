@@ -504,6 +504,26 @@ impl RrmAgent {
             let bottleneck = self.self_reflection.assess_current_bottleneck();
 
             match bottleneck {
+                Bottleneck::FalseSharing => {
+                    println!("🧠 [Metakognisi] Bottleneck::FalseSharing - Amnesia Singkat (Cache Miss) Terdeteksi!");
+                    println!("   📝 MENULIS LOG ARCHITECTURE KE SISTEM: Iterasi iterasi EntityManifold lambat rata-rata {} ns per entitas. Kecepatan ini 3x lipat dari limit AVX2.", self.self_reflection.average_iteration_time_ns);
+
+                    if let Ok(mut file) = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open("knowledge/architecture_lint.md")
+                    {
+                        use std::io::Write;
+                        let _ = writeln!(
+                            file,
+                            "ARCHITECTURAL PAIN: Agent detected iteration times of {} ns per entity. This suggests severe L1 cache misses and fragmented memory structures. Please review struct padding, ensure EntityManifold is tightly packed, and reduce pointer indirections during hot loops.",
+                            self.self_reflection.average_iteration_time_ns
+                        );
+                    }
+
+                    self.self_reflection.average_iteration_time_ns = 0; // reset
+                    self.self_reflection.last_failure_mode = FailureMode::None;
+                }
                 Bottleneck::CognitiveGarbage => {
                     println!("🧠 [Metakognisi] Bottleneck::CognitiveGarbage - Polusi Dark Matter terdeteksi di memori spasial!");
                     println!("   📝 MENULIS LOG ARCHITECTURE KE SISTEM: Terdeteksi {}% entitas adalah 'Ghost State' dengan mass = 0.0.", (self.self_reflection.dark_matter_ratio * 100.0).round());
@@ -1119,6 +1139,12 @@ impl RrmAgent {
                         self.self_reflection.shallow_clone_count += arena.tracked_shallow_clones;
                         self.self_reflection.heap_allocation_count +=
                             arena.tracked_heap_allocations;
+
+                        // Sync average iteration time
+                        if arena.average_iteration_time_ns > 0 {
+                            self.self_reflection.average_iteration_time_ns =
+                                arena.average_iteration_time_ns;
+                        }
 
                         if max_prob >= 0.95 {
                             if (max_prob - 0.99).abs() < 0.005 {

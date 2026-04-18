@@ -31,6 +31,7 @@ pub enum Bottleneck {
     MemoryBloat,    // Mengeluh karena Deep Copy Arrays berlebihan
     AllocationThrashing, // Agen merasakan nyeri karena "alloc/malloc" dinamis (Heap) berlebihan
     CognitiveGarbage, // RRM mengeluh Array penuh sampah/Ghost State yang memperlambat iterasi SIMD
+    FalseSharing,   // Amnesia Singkat (Cache Misses parah)
     Solved,
     Exhausted,
     Exploring,
@@ -43,6 +44,7 @@ pub struct SelfReflection {
     // Metrik Pemantauan Diri (Cognitive Metrics)
     pub start_time: Instant,
     pub time_spent_ms: u64,
+    pub average_iteration_time_ns: u64, // Waktu rata-rata iterasi entity manifold (Cache miss estimation)
     pub best_energy: f32,
     pub iterations_without_improvement: usize,
     pub wave_entropy: f32, // Semakin tinggi = probabilitas menyebar (tebakan buta)
@@ -85,6 +87,7 @@ impl SelfReflection {
             current_context: None,
             start_time: Instant::now(),
             time_spent_ms: 0,
+            average_iteration_time_ns: 0,
             best_energy: f32::MAX,
             iterations_without_improvement: 0,
             wave_entropy: 0.0,
@@ -102,6 +105,7 @@ impl SelfReflection {
     pub fn reset_metrics(&mut self) {
         self.start_time = Instant::now();
         self.time_spent_ms = 0;
+        self.average_iteration_time_ns = 0;
         self.best_energy = f32::MAX;
         self.iterations_without_improvement = 0;
         self.wave_entropy = 0.0;
@@ -158,6 +162,14 @@ impl SelfReflection {
         if self.last_failure_mode == FailureMode::ExcessiveDeepCopy {
             // Agen merasakan nyeri alokasi memori berlebih
             return Bottleneck::MemoryBloat;
+        }
+
+        if self.average_iteration_time_ns > 500
+            && self.last_failure_mode != FailureMode::GhostStateDetected
+        {
+            // Jika iterasi per piksel memakan waktu > 500 ns (ini sangat lambat untuk standar CPU 3GHz yang butuh ~0.3ns per instruksi)
+            // Sistem mendeteksi adanya "Amnesia Singkat" (Cache Misses yang parah).
+            return Bottleneck::FalseSharing;
         }
 
         if self.active_saliency_ratio < 0.2 && self.total_iterations <= 1 {
