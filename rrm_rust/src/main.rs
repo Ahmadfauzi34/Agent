@@ -15,9 +15,9 @@ use std::fs;
 use std::time::Instant;
 
 fn distill_yaml_skills() {
-    use crate::core::fhrr::FHRR;
     use crate::core::config::GLOBAL_DIMENSION;
     use crate::core::core_seeds::CoreSeeds;
+    use crate::core::fhrr::FHRR;
     use ndarray::Array1;
     use std::fs;
 
@@ -48,7 +48,7 @@ fn distill_yaml_skills() {
         }
 
         // Pastikan nilainya tidak pernah meledak! Kita normalkan agar L2 Norm = 1.0 atau batasnya stabil.
-                let mut sum_sq = 0.0;
+        let mut sum_sq = 0.0;
         for i in 0..GLOBAL_DIMENSION {
             sum_sq += skill_tensor[i] * skill_tensor[i];
         }
@@ -69,7 +69,11 @@ fn distill_yaml_skills() {
 
         let yaml_doc = format!("\n# Tensor Driven Macro: {id}\n\n```yaml\nid: MACRO:{id}\ntier: 6\ndescription: Generated tensor skill\nsequence:\n  - axiom_type: TENSOR_DRIVEN_BIND\n    physics_tier: 6\n    delta_x: {dx:.1}\n    delta_y: {dy:.1}\n    tensor_spatial: [{yaml_arr}]\n```\n");
 
-        fs::write(format!("knowledge/grammar/{}.md", id.to_lowercase()), yaml_doc).unwrap();
+        fs::write(
+            format!("knowledge/grammar/{}.md", id.to_lowercase()),
+            yaml_doc,
+        )
+        .unwrap();
     };
 
     generate_yaml("SHIFT_RIGHT", 1.0, 0.0, false, false);
