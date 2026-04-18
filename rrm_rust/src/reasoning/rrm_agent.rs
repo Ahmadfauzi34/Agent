@@ -407,6 +407,19 @@ impl RrmAgent {
 
         let expected_grids: Vec<Vec<Vec<i32>>> = train_out.clone();
 
+        // 1.5 ORIENTASI PRE-EMPTIVE (Membaca Niat Task)
+        println!("🧠 [Orientasi Pre-emptive] Membaca Niat Task...");
+        let mut pre_emptive_delta = None;
+        if let Some((man_in, man_out)) = train_states.iter().next() {
+            let delta = StructuralAnalyzer::analyze(man_in, man_out);
+            let report = self.self_reflection.assess_situation(&delta);
+            println!(
+                "   -> Niat / Klasifikasi Masalah: {}",
+                report.situation_assessment
+            );
+            pre_emptive_delta = Some(delta);
+        }
+
         // Cek Saliency Ratio: Seberapa besar porsi grid yang benar-benar aktif dibanding keseluruhan?
         // Menghitung berdasarkan massa total entitas aktif (jumlah piksel)
         if let Some((man_in, _)) = train_states.iter().next() {
@@ -471,6 +484,16 @@ impl RrmAgent {
                     let mut matches = TopDownAxiomator::generate_axioms(man_in, man_out);
                     matches.extend(TopologicalAligner::align(man_in, man_out));
                     matches.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap());
+
+                    // Zero-Shot Context Pruning:
+                    // Jika klasifikasi masalah BUKAN RelationalRearrangement, kurangi aksioma geometri (seperti mirror/rotate).
+                    if let Some(ref delta) = pre_emptive_delta {
+                        let class = StructuralAnalyzer::classify_task_class(delta);
+                        if class != crate::perception::structural_analyzer::TaskClass::PureGeometry
+                           && class != crate::perception::structural_analyzer::TaskClass::RelationalRearrangement {
+                            matches.retain(|m| !m.axiom_type.contains("GLOBAL_ROTATE") && !m.axiom_type.contains("GLOBAL_MIRROR"));
+                        }
+                    }
 
                     for m in matches {
                         let initial_manifolds: Arc<Vec<EntityManifold>> =
@@ -948,8 +971,16 @@ impl RrmAgent {
 
                     continue; // Skip the rest of the loop to restart search with new swarm-influenced manifolds
                 }
-                Bottleneck::LocalOptimum(_stuck_energy) => {
-                    println!("🧠 [Metakognisi] Bottleneck::LocalOptimum - MCTS mentok. Beralih ke ADVANCED PASS (Iterative Deepening MCTS / Grover)...");
+                Bottleneck::FastFail(_stuck_energy) | Bottleneck::LocalOptimum(_stuck_energy) => {
+                    if bottleneck == Bottleneck::FastFail(_stuck_energy) {
+                        println!("🧠 [Metakognisi] Bottleneck::FastFail - Gradient Energy dE/dt sangat lambat. MCTS dihentikan lebih awal!");
+                    } else {
+                        println!("🧠 [Metakognisi] Bottleneck::LocalOptimum - MCTS mentok.");
+                    }
+                    println!(
+                        "   -> Beralih ke ADVANCED PASS (Iterative Deepening MCTS / Grover)..."
+                    );
+
                     let mut ceo_engine = DeepActiveInferenceEngine::new();
                     ceo_engine.switch_mode(SimulationMode::Probabilistic);
 
