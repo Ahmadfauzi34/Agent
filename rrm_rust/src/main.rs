@@ -81,6 +81,14 @@ fn distill_yaml_skills() {
     generate_yaml("MIRROR_X", 0.0, 0.0, true, false);
     generate_yaml("ROTATE_90", 0.0, 0.0, false, true);
 
+    // Tambahan Grammar Topologi Kuantum (Semantic / Topology)
+    // Di dunia FHRR, kita memberikan tensor "noise" stabil spesifik untuk membedakannya
+    // Di saat runtime, MCTS/Grover akan menemukan pola ini dan mengirimkannya ke MultiverseSandbox
+    generate_yaml("CROP_TO_COLOR", 0.0, 0.0, false, false);
+    generate_yaml("FLOOD_FILL", 0.0, 0.0, false, false);
+    generate_yaml("EXTRACT_ANOMALY", 0.0, 0.0, false, false);
+    generate_yaml("SCALE_UP", 0.0, 0.0, false, false);
+
     println!("--- DISTILLATION TO YAML COMPLETED ---");
 }
 fn main() {
