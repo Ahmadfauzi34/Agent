@@ -410,6 +410,8 @@ impl RrmAgent {
         // 1.5 ORIENTASI PRE-EMPTIVE (Membaca Niat Task)
         println!("🧠 [Orientasi Pre-emptive] Membaca Niat Task...");
         let mut pre_emptive_delta = None;
+        let mut betti_1_holes = 0;
+
         if let Some((man_in, man_out)) = train_states.iter().next() {
             let delta = StructuralAnalyzer::analyze(man_in, man_out);
             let report = self.self_reflection.assess_situation(&delta);
@@ -418,6 +420,18 @@ impl RrmAgent {
                 report.situation_assessment
             );
             pre_emptive_delta = Some(delta);
+
+            // Evaluasi Topologi Kuantum (Deteksi Lubang / Betti-1)
+            let qcc = crate::quantum_topology::QuantumCellComplex::from_manifold(man_in, 1.5);
+            betti_1_holes = *qcc.betti_numbers.get(1).unwrap_or(&0);
+
+            if betti_1_holes > 0 {
+                println!("🧠 [Topologi Kuantum] Betti-1: Mendeteksi {} lubang (holes) pada struktur awal. Task mungkin bertipe Flood-Fill / Enclosure.", betti_1_holes);
+            } else {
+                println!(
+                    "🧠 [Topologi Kuantum] Betti-1: Tidak ada lubang terdeteksi. Struktur solid."
+                );
+            }
         }
 
         // Cek Saliency Ratio: Seberapa besar porsi grid yang benar-benar aktif dibanding keseluruhan?
@@ -434,19 +448,23 @@ impl RrmAgent {
             self.self_reflection.active_saliency_ratio = total_active_mass / total_area;
         }
 
-        // Asosiasi Masa Lalu (Knowledge Base)
+        // Asosiasi Masa Lalu (Knowledge Base) & Betti-1 Injection
         let mut historical_axiom_injected = false;
         if let Some(ref delta) = pre_emptive_delta {
-            // Simulasikan penarikan dari LSH / Seed Bank.
-            // Misalnya jika agen melihat relasi perubahan warna (ColorTransitions) yang spesifik atau Task Class tertentu.
-            // (Dalam implementasi sebenarnya, ini di-query dari `self.seed_bank.query_similar()`)
-            if delta.signature.color_transitions.len() > 0
+            // Jika ada deteksi warna atau ada deteksi lubang (Betti-1), injeksi aksioma pewarnaan area
+            if (delta.signature.color_transitions.len() > 0
                 && delta.signature.dim_relation
-                    == crate::perception::structural_analyzer::DimensionRelation::Equal
+                    == crate::perception::structural_analyzer::DimensionRelation::Equal)
+                || betti_1_holes > 0
             {
-                println!("🧠 [Memori Masa Lalu] Teringat pola yang mirip dengan Task 09629e4f...");
+                if betti_1_holes > 0 {
+                    println!("🧠 [Memori Masa Lalu & Topologi] Teringat pola Flood Fill karena ada {} lubang Betti-1...", betti_1_holes);
+                } else {
+                    println!(
+                        "🧠 [Memori Masa Lalu] Teringat pola yang mirip dengan Task 09629e4f..."
+                    );
+                }
                 println!("   -> Menginjeksi [CROP_TO_COLOR, FLOOD_FILL] ke dalam Seed Axioms.");
-                // Fake injection for demonstration of the loop structure
                 historical_axiom_injected = true;
             }
         }

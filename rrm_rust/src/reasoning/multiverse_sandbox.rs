@@ -479,7 +479,7 @@ impl MultiverseSandbox {
 
                     if axiom_type.starts_with("SCALE_UP") {
                         let scale_factor = 2.0; // Hardcoded untuk contoh saat ini
-                        // Scaling dilakukan dari pusat universe
+                                                // Scaling dilakukan dari pusat universe
                         let center_x = (min_x + max_x) / 2.0;
                         let center_y = (min_y + max_y) / 2.0;
                         let rx = cx - center_x;
