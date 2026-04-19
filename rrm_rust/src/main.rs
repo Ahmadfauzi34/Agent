@@ -88,7 +88,8 @@ fn distill_yaml_skills() {
     generate_yaml("CROP_TO_COLOR", 0.0, 0.0, false, false);
     generate_yaml("FLOOD_FILL", 0.0, 0.0, false, false);
     generate_yaml("EXTRACT_ANOMALY", 0.0, 0.0, false, false);
-    generate_yaml("SCALE_UP", 0.0, 0.0, false, false);
+    generate_yaml("SCALE_UP(2)", 0.0, 0.0, false, false);
+    generate_yaml("SCALE_UP(3)", 0.0, 0.0, false, false);
 
     println!("--- DISTILLATION TO YAML COMPLETED ---");
 }

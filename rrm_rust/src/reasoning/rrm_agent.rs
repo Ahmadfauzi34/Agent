@@ -569,11 +569,11 @@ impl RrmAgent {
                             matches.retain(|m| !m.axiom_type.starts_with("SHIFT"));
                             // Inject Scale_Up as a high priority guess
                             if loop_counter == 1 {
-                                let fractal_match =
+                                let fractal_match_2 =
                                     crate::reasoning::topological_aligner::TopologicalMatch {
                                         source_index: 0,
                                         target_index: 0,
-                                        axiom_type: "SCALE_UP".to_string(),
+                                        axiom_type: "SCALE_UP(2)".to_string(),
                                         similarity: 0.96,
                                         condition_tensor: None,
                                         delta_spatial: ndarray::Array1::zeros(
@@ -586,8 +586,26 @@ impl RrmAgent {
                                         delta_y: 0.0,
                                         physics_tier: 4,
                                     };
-                                matches.push(fractal_match);
-                                println!("🧠 [Topologi Kuantum] Curvature > 1.0. Memangkas SHIFT dan menginjeksi aksioma SCALE_UP.");
+                                let fractal_match_3 =
+                                    crate::reasoning::topological_aligner::TopologicalMatch {
+                                        source_index: 0,
+                                        target_index: 0,
+                                        axiom_type: "SCALE_UP(3)".to_string(),
+                                        similarity: 0.95,
+                                        condition_tensor: None,
+                                        delta_spatial: ndarray::Array1::zeros(
+                                            crate::core::config::GLOBAL_DIMENSION,
+                                        ),
+                                        delta_semantic: ndarray::Array1::zeros(
+                                            crate::core::config::GLOBAL_DIMENSION,
+                                        ),
+                                        delta_x: 0.0,
+                                        delta_y: 0.0,
+                                        physics_tier: 4,
+                                    };
+                                matches.push(fractal_match_2);
+                                matches.push(fractal_match_3);
+                                println!("🧠 [Topologi Kuantum] Curvature > 1.0. Memangkas SHIFT dan menginjeksi aksioma SCALE_UP dinamis.");
                             }
                         }
 
