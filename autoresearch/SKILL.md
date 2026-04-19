@@ -1,6 +1,6 @@
 ---
 name: autoresearch
-description: Use when user types /autoresearch, /autoresearch:plan, /autoresearch:debug, /autoresearch:fix, /autoresearch:security, /autoresearch:ship, /autoresearch:scenario, /autoresearch:predict, /autoresearch:learn, /autoresearch:reason, or /autoresearch:research, or mentions "autoresearch" with a goal/metric. Autonomous Goal-directed Iteration — apply Karpathy's autoresearch principles to ANY task: modify, verify, keep/discard, repeat. Supports bounded mode via Iterations: N inline config.
+description: Use when user types /autoresearch, /autoresearch:plan, /autoresearch:debug, /autoresearch:fix, /autoresearch:security, /autoresearch:ship, /autoresearch:scenario, /autoresearch:predict, /autoresearch:learn, /autoresearch:reason, /autoresearch:research, or /autoresearch:bolt, or mentions "autoresearch" with a goal/metric. Autonomous Goal-directed Iteration — apply Karpathy's autoresearch principles to ANY task: modify, verify, keep/discard, repeat. Supports bounded mode via Iterations: N inline config.
 version: 1.9.12
 ---
 
@@ -14,7 +14,7 @@ Inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch).
 
 **CRITICAL — READ THIS FIRST BEFORE ANY ACTION:**
 
-For ALL commands (`/autoresearch`, `/autoresearch:plan`, `/autoresearch:debug`, `/autoresearch:fix`, `/autoresearch:security`, `/autoresearch:ship`, `/autoresearch:scenario`, `/autoresearch:predict`, `/autoresearch:learn`, `/autoresearch:reason`, `/autoresearch:research`):
+For ALL commands (`/autoresearch`, `/autoresearch:plan`, `/autoresearch:debug`, `/autoresearch:fix`, `/autoresearch:security`, `/autoresearch:ship`, `/autoresearch:scenario`, `/autoresearch:predict`, `/autoresearch:learn`, `/autoresearch:reason`, `/autoresearch:research`, `/autoresearch:bolt`):
 
 1. **Check if the user provided ALL required context inline** (Goal, Scope, Metric, flags, etc.)
 2. **If ANY required context is missing → you MUST use `AskUserQuestion` to collect it BEFORE proceeding to any execution phase.** DO NOT skip this step. DO NOT proceed without user input.
@@ -51,6 +51,13 @@ For ALL commands (`/autoresearch`, `/autoresearch:plan`, `/autoresearch:debug`, 
 | `/autoresearch:learn` | Autonomous codebase documentation engine: scout, learn, generate/update docs with validation-fix loop |
 | `/autoresearch:reason` | Adversarial refinement for subjective domains: isolated multi-agent generate→critique→synthesize→blind judge loop until convergence |
 | `/autoresearch:research` | Autonomous internet browsing and research engine to gather up-to-date documentation and apply it to the codebase |
+| `/autoresearch:bolt` | Performance-obsessed agent mode ("Bolt ⚡") that hunts for measurable performance bottlenecks and implements low-risk optimizations. |
+
+### /autoresearch:bolt — Performance Optimizer
+
+Activates "Bolt" ⚡ - a performance-obsessed agent that hunts for and implements measurable performance optimizations (frontend, backend, or systems level) without sacrificing readability.
+
+Load: `references/bolt-workflow.md` for full protocol and philosophy.
 
 ### /autoresearch:research — Autonomous Internet Research
 
@@ -546,6 +553,8 @@ After the wizard completes, the user gets a ready-to-paste `/autoresearch` invoc
 - User says "reason through this", "adversarial refinement", "debate and converge", "iterative argument", "blind judging", "multi-agent critique" → run the reason loop
 - User invokes `/autoresearch:research` → run the research workflow
 - User says "search the internet", "research this topic", "find documentation online", "what are the latest updates on" → run the research workflow
+- User invokes `/autoresearch:bolt` → run the bolt performance workflow
+- User says "optimize performance", "make it faster", "find a bottleneck", or addresses the agent as "Bolt" → run the bolt performance workflow
 - User says "work autonomously", "iterate until done", "keep improving", "run overnight" → run the loop
 - Any task requiring repeated iteration cycles with measurable outcomes → run the loop
 
