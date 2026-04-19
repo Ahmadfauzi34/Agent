@@ -478,17 +478,41 @@ impl MultiverseSandbox {
                     let cy = u.centers_y[e];
 
                     if axiom_type.starts_with("SCALE_UP") {
-                        let scale_factor = 2.0; // Hardcoded untuk contoh saat ini
-                        // Scaling dilakukan dari pusat universe
+                        // Parsing scale_factor dinamik dari format SCALE_UP(N) atau SCALE_UP(N,M)
+                        let mut scale_x = 2.0; // Fallback
+                        let mut scale_y = 2.0; // Fallback
+
+                        let start_idx = axiom_type.find('(').unwrap_or(0);
+                        let end_idx = axiom_type.find(')').unwrap_or(axiom_type.len());
+                        if start_idx > 0 && end_idx > start_idx {
+                            let params_str = &axiom_type[start_idx + 1..end_idx];
+                            let params: Vec<&str> = params_str.split(',').collect();
+                            if params.len() == 1 {
+                                if let Ok(s) = params[0].trim().parse::<f32>() {
+                                    scale_x = s;
+                                    scale_y = s;
+                                }
+                            } else if params.len() == 2 {
+                                if let (Ok(sx), Ok(sy)) = (
+                                    params[0].trim().parse::<f32>(),
+                                    params[1].trim().parse::<f32>(),
+                                ) {
+                                    scale_x = sx;
+                                    scale_y = sy;
+                                }
+                            }
+                        }
+
+                        // Scaling dilakukan dari pusat universe (Barycenter makro)
                         let center_x = (min_x + max_x) / 2.0;
                         let center_y = (min_y + max_y) / 2.0;
                         let rx = cx - center_x;
                         let ry = cy - center_y;
-                        Arc::make_mut(&mut u.centers_x)[e] = center_x + (rx * scale_factor);
-                        Arc::make_mut(&mut u.centers_y)[e] = center_y + (ry * scale_factor);
+                        Arc::make_mut(&mut u.centers_x)[e] = center_x + (rx * scale_x);
+                        Arc::make_mut(&mut u.centers_y)[e] = center_y + (ry * scale_y);
                         // Perbesar juga ukuran bounding box objeknya
-                        Arc::make_mut(&mut u.spans_x)[e] *= scale_factor;
-                        Arc::make_mut(&mut u.spans_y)[e] *= scale_factor;
+                        Arc::make_mut(&mut u.spans_x)[e] *= scale_x;
+                        Arc::make_mut(&mut u.spans_y)[e] *= scale_y;
                     } else if axiom_type.contains("MIRROR_X") {
                         // Mirror horizontal: flip sumbu X
                         // x_baru = max_x - (cx - min_x)

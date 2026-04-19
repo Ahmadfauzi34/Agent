@@ -445,6 +445,11 @@ impl AsyncWaveSearch {
             // Queue iteratif untuk simulasi Tree-Search Zero-GC
             let mut frontier = vec![root_idx];
 
+            // Memindahkan syscall Instant::now ke level batch untuk menghindari overhead OS
+            let batch_start_time = std::time::Instant::now();
+            let mut batch_total_active_count: usize = 0;
+            let mut batch_iterations: usize = 0;
+
             while let Some(current_idx) = frontier.pop() {
                 // Cooperative Yield untuk async runtime compatibility
                 future::yield_now().await;
@@ -481,11 +486,11 @@ impl AsyncWaveSearch {
                 let states_mut = Arc::make_mut(&mut arena.states[current_idx]);
                 let mut any_collision = false;
 
-                let start_axiom = std::time::Instant::now();
-                let mut total_active_count = 0;
+                let mut local_active_count = 0;
+                batch_iterations += 1;
 
                 for manifold in states_mut.iter_mut() {
-                    total_active_count += manifold.active_count;
+                    local_active_count += manifold.active_count;
                     let collided = MultiverseSandbox::apply_axiom(
                         &mut *manifold,
                         &action_condition,
@@ -500,18 +505,7 @@ impl AsyncWaveSearch {
                         any_collision = true;
                     }
                 }
-
-                let elapsed_ns = start_axiom.elapsed().as_nanos() as u64;
-                if total_active_count > 0 {
-                    let avg_ns = elapsed_ns / total_active_count as u64;
-                    // Exponential moving average for iteration time
-                    if arena.average_iteration_time_ns == 0 {
-                        arena.average_iteration_time_ns = avg_ns;
-                    } else {
-                        arena.average_iteration_time_ns =
-                            (arena.average_iteration_time_ns * 3 + avg_ns) / 4;
-                    }
-                }
+                batch_total_active_count += local_active_count;
 
                 // Reasoning (Free Energy)
                 arena.reason(current_idx, &self.expected_grids, &initial_manifolds);
@@ -678,6 +672,19 @@ impl AsyncWaveSearch {
                             frontier.push(child_idx);
                         }
                     }
+                }
+            }
+
+            // Hitung rata-rata waktu eksekusi batch per entitas manifold
+            let elapsed_batch_ns = batch_start_time.elapsed().as_nanos() as u64;
+            let mut arena = self.arena.write().unwrap();
+            if batch_total_active_count > 0 {
+                let avg_ns = elapsed_batch_ns / batch_total_active_count as u64;
+                if arena.average_iteration_time_ns == 0 {
+                    arena.average_iteration_time_ns = avg_ns;
+                } else {
+                    arena.average_iteration_time_ns =
+                        (arena.average_iteration_time_ns * 3 + avg_ns) / 4;
                 }
             }
         })
