@@ -1,6 +1,6 @@
 ---
 name: autoresearch
-description: Use when user types /autoresearch, /autoresearch:plan, /autoresearch:debug, /autoresearch:fix, /autoresearch:security, /autoresearch:ship, /autoresearch:scenario, /autoresearch:predict, /autoresearch:learn, or /autoresearch:reason, or mentions "autoresearch" with a goal/metric. Autonomous Goal-directed Iteration — apply Karpathy's autoresearch principles to ANY task: modify, verify, keep/discard, repeat. Supports bounded mode via Iterations: N inline config.
+description: Use when user types /autoresearch, /autoresearch:plan, /autoresearch:debug, /autoresearch:fix, /autoresearch:security, /autoresearch:ship, /autoresearch:scenario, /autoresearch:predict, /autoresearch:learn, /autoresearch:reason, or /autoresearch:research, or mentions "autoresearch" with a goal/metric. Autonomous Goal-directed Iteration — apply Karpathy's autoresearch principles to ANY task: modify, verify, keep/discard, repeat. Supports bounded mode via Iterations: N inline config.
 version: 1.9.12
 ---
 
@@ -14,7 +14,7 @@ Inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch).
 
 **CRITICAL — READ THIS FIRST BEFORE ANY ACTION:**
 
-For ALL commands (`/autoresearch`, `/autoresearch:plan`, `/autoresearch:debug`, `/autoresearch:fix`, `/autoresearch:security`, `/autoresearch:ship`, `/autoresearch:scenario`, `/autoresearch:predict`, `/autoresearch:learn`, `/autoresearch:reason`):
+For ALL commands (`/autoresearch`, `/autoresearch:plan`, `/autoresearch:debug`, `/autoresearch:fix`, `/autoresearch:security`, `/autoresearch:ship`, `/autoresearch:scenario`, `/autoresearch:predict`, `/autoresearch:learn`, `/autoresearch:reason`, `/autoresearch:research`):
 
 1. **Check if the user provided ALL required context inline** (Goal, Scope, Metric, flags, etc.)
 2. **If ANY required context is missing → you MUST use `AskUserQuestion` to collect it BEFORE proceeding to any execution phase.** DO NOT skip this step. DO NOT proceed without user input.
@@ -32,6 +32,7 @@ For ALL commands (`/autoresearch`, `/autoresearch:plan`, `/autoresearch:debug`, 
 | `/autoresearch:predict` | Scope, Goal | 3-4 batched questions per `references/predict-workflow.md` |
 | `/autoresearch:learn` | Mode, Scope | 4 batched questions per `references/learn-workflow.md` |
 | `/autoresearch:reason` | Task, Domain | 3-5 adaptive questions per `references/reason-workflow.md` |
+| `/autoresearch:research` | Goal/Topic | 3 batched questions per `references/research-workflow.md` |
 
 **YOU MUST NOT start any loop, phase, or execution without completing interactive setup when context is missing. This is a BLOCKING prerequisite.**
 
@@ -49,6 +50,13 @@ For ALL commands (`/autoresearch`, `/autoresearch:plan`, `/autoresearch:debug`, 
 | `/autoresearch:predict` | Multi-persona swarm prediction: pre-analyze code from multiple expert perspectives before acting |
 | `/autoresearch:learn` | Autonomous codebase documentation engine: scout, learn, generate/update docs with validation-fix loop |
 | `/autoresearch:reason` | Adversarial refinement for subjective domains: isolated multi-agent generate→critique→synthesize→blind judge loop until convergence |
+| `/autoresearch:research` | Autonomous internet browsing and research engine to gather up-to-date documentation and apply it to the codebase |
+
+### /autoresearch:research — Autonomous Internet Research
+
+Searches the internet, fetches web content, synthesizes findings, and produces a research report to ground code changes in external knowledge.
+
+Load: `references/research-workflow.md` for full protocol.
 
 ### /autoresearch:security — Autonomous Security Audit
 
@@ -536,6 +544,8 @@ After the wizard completes, the user gets a ready-to-paste `/autoresearch` invoc
 - User says "predict", "multi-perspective", "swarm analysis", "what do multiple experts think", "analyze from different angles" → run the predict workflow
 - User invokes `/autoresearch:reason` → run the reason loop
 - User says "reason through this", "adversarial refinement", "debate and converge", "iterative argument", "blind judging", "multi-agent critique" → run the reason loop
+- User invokes `/autoresearch:research` → run the research workflow
+- User says "search the internet", "research this topic", "find documentation online", "what are the latest updates on" → run the research workflow
 - User says "work autonomously", "iterate until done", "keep improving", "run overnight" → run the loop
 - Any task requiring repeated iteration cycles with measurable outcomes → run the loop
 
