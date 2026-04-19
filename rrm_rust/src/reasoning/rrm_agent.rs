@@ -1330,6 +1330,13 @@ impl RrmAgent {
                                         } else {
                                             println!("   🧠 [Topologi Kuantum] Sheaf Gluing Valid! Solusi stabil di seluruh patch lokal.");
                                         }
+
+            // Evaluasi Curvature Topologi (Membantu Pruning di MCTS)
+            let bundle = crate::quantum_topology::SkillFiberBundle::from_manifold(man_in);
+            curvature_norm = bundle.curvature.iter().map(|&x| x * x).sum::<f32>().sqrt();
+            if curvature_norm > 1.0 {
+                println!("🧠 [Topologi Kuantum] Fiber Curvature: {:.4}. (Non-Linear / Rotasi / Fraktal Terdeteksi)", curvature_norm);
+            }
                                     }
                                 }
 
