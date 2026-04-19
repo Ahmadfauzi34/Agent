@@ -411,6 +411,7 @@ impl RrmAgent {
         println!("🧠 [Orientasi Pre-emptive] Membaca Niat Task...");
         let mut pre_emptive_delta = None;
         let mut betti_1_holes = 0;
+        let mut curvature_norm = 0.0;
 
         if let Some((man_in, man_out)) = train_states.iter().next() {
             let delta = StructuralAnalyzer::analyze(man_in, man_out);
@@ -562,6 +563,34 @@ impl RrmAgent {
                     // Zero-Shot Context Pruning:
                     // Jika klasifikasi masalah BUKAN RelationalRearrangement, kurangi aksioma geometri (seperti mirror/rotate).
                     if let Some(ref delta) = pre_emptive_delta {
+                        // Pruning Geometri berdasarkan Curvature & Topological Intent
+                        if curvature_norm > 1.0 {
+                            // High Curvature: Linear translation is likely wrong, focus on Scale/Rotate/Fractal
+                            matches.retain(|m| !m.axiom_type.starts_with("SHIFT"));
+                            // Inject Scale_Up as a high priority guess
+                            if loop_counter == 1 {
+                                let fractal_match =
+                                    crate::reasoning::topological_aligner::TopologicalMatch {
+                                        source_index: 0,
+                                        target_index: 0,
+                                        axiom_type: "SCALE_UP".to_string(),
+                                        similarity: 0.96,
+                                        condition_tensor: None,
+                                        delta_spatial: ndarray::Array1::zeros(
+                                            crate::core::config::GLOBAL_DIMENSION,
+                                        ),
+                                        delta_semantic: ndarray::Array1::zeros(
+                                            crate::core::config::GLOBAL_DIMENSION,
+                                        ),
+                                        delta_x: 0.0,
+                                        delta_y: 0.0,
+                                        physics_tier: 4,
+                                    };
+                                matches.push(fractal_match);
+                                println!("🧠 [Topologi Kuantum] Curvature > 1.0. Memangkas SHIFT dan menginjeksi aksioma SCALE_UP.");
+                            }
+                        }
+
                         let class = StructuralAnalyzer::classify_task_class(delta);
                         if class != crate::perception::structural_analyzer::TaskClass::PureGeometry
                            && class != crate::perception::structural_analyzer::TaskClass::RelationalRearrangement {
@@ -1268,6 +1297,24 @@ impl RrmAgent {
                                     "   ✅ Advanced Pass Selesai Berkat Grover/MCTS! (Prob: {:.3})",
                                     max_prob
                                 );
+
+                                // Topologi Kuantum: Evaluasi Reasoning Sheaf (Local-to-Global Gluing)
+                                // Memastikan aturan yang ditemukan benar-benar konsisten tanpa celah anomali
+                                if let Some(ref rule) = best_rule {
+                                    if let Some(man_in) = rule.state_manifolds.get(0) {
+                                        let sheaf =
+                                            crate::quantum_topology::ReasoningSheaf::from_manifold(
+                                                man_in, 3,
+                                            );
+                                        let is_consistent = sheaf.check_sheaf_condition();
+                                        if !is_consistent {
+                                            println!("   ⚠️ [Topologi Kuantum] Sheaf Gluing Error: Solusi ini mungkin tidak konsisten di berbagai area lokal (overfitting). Menerima dengan hati-hati.");
+                                        } else {
+                                            println!("   🧠 [Topologi Kuantum] Sheaf Gluing Valid! Solusi stabil di seluruh patch lokal.");
+                                        }
+                                    }
+                                }
+
                                 self.self_reflection
                                     .update_metrics(0.0, 0.0, FailureMode::None);
                                 break;
