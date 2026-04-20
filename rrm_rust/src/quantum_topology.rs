@@ -39,16 +39,17 @@ impl QuantumCellComplex {
             for j in (i + 1)..n {
                 let dx = manifold.centers_x[i] - manifold.centers_x[j];
                 let dy = manifold.centers_y[i] - manifold.centers_y[j];
-                let dist = (dx * dx + dy * dy).sqrt();
-                dist_matrix[[i, j]] = dist;
-                dist_matrix[[j, i]] = dist;
+                let dist_sq = dx * dx + dy * dy;
+                dist_matrix[[i, j]] = dist_sq;
+                dist_matrix[[j, i]] = dist_sq;
             }
         }
 
+        let epsilon_sq = epsilon * epsilon;
         let mut edges = Vec::new();
         for i in 0..n {
             for j in (i + 1)..n {
-                if dist_matrix[[i, j]] <= epsilon {
+                if dist_matrix[[i, j]] <= epsilon_sq {
                     edges.push((i, j));
                 }
             }
@@ -57,7 +58,7 @@ impl QuantumCellComplex {
         let mut triangles = Vec::new();
         for &(i, j) in &edges {
             for k in (j + 1)..n {
-                if dist_matrix[[i, k]] <= epsilon && dist_matrix[[j, k]] <= epsilon {
+                if dist_matrix[[i, k]] <= epsilon_sq && dist_matrix[[j, k]] <= epsilon_sq {
                     triangles.push((i, j, k));
                 }
             }
@@ -146,12 +147,12 @@ impl QuantumCellComplex {
         &mut self,
         dist_matrix: &Array2<f32>,
         edges: &[(usize, usize)],
-        triangles: &[(usize, usize, usize)],
+        _triangles: &[(usize, usize, usize)],
     ) {
         let mut edge_filtration: Vec<(f32, usize)> = edges
             .iter()
             .enumerate()
-            .map(|(idx, &(i, j))| (dist_matrix[[i, j]], idx))
+            .map(|(idx, &(i, j))| (dist_matrix[[i, j]].sqrt(), idx))
             .collect();
         edge_filtration.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
 
@@ -292,16 +293,16 @@ impl SkillFiberBundle {
         // Greedy geodesic following (gradient navigation)
         while current != end {
             let mut best_next = current;
-            let mut best_dist = f32::INFINITY;
+            let mut best_dist_sq = f32::INFINITY;
 
             for next in 0..self.base.active_count {
                 if next != current && self.connection[[current, next]] > 0.0 {
                     let dx = self.base.centers_x[end] - self.base.centers_x[next];
                     let dy = self.base.centers_y[end] - self.base.centers_y[next];
-                    let dist = (dx * dx + dy * dy).sqrt();
+                    let dist_sq = dx * dx + dy * dy;
                     // Branchless min selection
-                    let is_better = (dist < best_dist) as i32 as f32;
-                    best_dist = best_dist * (1.0 - is_better) + dist * is_better;
+                    let is_better = (dist_sq < best_dist_sq) as i32 as f32;
+                    best_dist_sq = best_dist_sq * (1.0 - is_better) + dist_sq * is_better;
                     best_next = ((best_next as f32) * (1.0 - is_better) + (next as f32) * is_better)
                         as usize;
                 }
@@ -377,18 +378,18 @@ impl ReasoningSheaf {
         centers.push(0); // Start dari index 0
 
         for _ in 1..num_centers {
-            let mut max_dist = -1.0f32;
+            let mut max_dist_sq = -1.0f32;
             let mut max_idx = 0;
             for i in 0..n {
-                let mut min_dist = f32::INFINITY;
+                let mut min_dist_sq = f32::INFINITY;
                 for &c in &centers {
                     let dx = manifold.centers_x[i] - manifold.centers_x[c];
                     let dy = manifold.centers_y[i] - manifold.centers_y[c];
-                    let dist = (dx * dx + dy * dy).sqrt();
-                    min_dist = min_dist.min(dist);
+                    let dist_sq = dx * dx + dy * dy;
+                    min_dist_sq = min_dist_sq.min(dist_sq);
                 }
-                if min_dist > max_dist {
-                    max_dist = min_dist;
+                if min_dist_sq > max_dist_sq {
+                    max_dist_sq = min_dist_sq;
                     max_idx = i;
                 }
             }
@@ -398,14 +399,14 @@ impl ReasoningSheaf {
         // Voronoi decomposition sebagai open cover
         let mut cover: Vec<Vec<usize>> = vec![Vec::new(); num_centers];
         for i in 0..n {
-            let mut min_dist = f32::INFINITY;
+            let mut min_dist_sq = f32::INFINITY;
             let mut nearest = 0;
             for (c_idx, &c) in centers.iter().enumerate() {
                 let dx = manifold.centers_x[i] - manifold.centers_x[c];
                 let dy = manifold.centers_y[i] - manifold.centers_y[c];
-                let dist = (dx * dx + dy * dy).sqrt();
-                if dist < min_dist {
-                    min_dist = dist;
+                let dist_sq = dx * dx + dy * dy;
+                if dist_sq < min_dist_sq {
+                    min_dist_sq = dist_sq;
                     nearest = c_idx;
                 }
             }
@@ -538,15 +539,20 @@ impl SpectralEmbedding {
         }
 
         // Normalized Laplacian: L = I - D^{-1/2} W D^{-1/2}
+        let mut d_inv_sqrt = vec![0.0; n];
+        for i in 0..n {
+            d_inv_sqrt[i] = 1.0 / d[i].sqrt().max(1e-10);
+        }
+
         let mut laplacian = Array2::<f32>::zeros((n, n));
         for i in 0..n {
+            let di = d_inv_sqrt[i];
             for j in 0..n {
-                let d_inv_sqrt = 1.0 / d[i].sqrt().max(1e-10);
-                let d_j_inv_sqrt = 1.0 / d[j].sqrt().max(1e-10);
+                let dj = d_inv_sqrt[j];
                 if i == j {
-                    laplacian[[i, j]] = 1.0 - w[[i, j]] * d_inv_sqrt * d_j_inv_sqrt;
+                    laplacian[[i, j]] = 1.0 - w[[i, j]] * di * dj;
                 } else {
-                    laplacian[[i, j]] = -w[[i, j]] * d_inv_sqrt * d_j_inv_sqrt;
+                    laplacian[[i, j]] = -w[[i, j]] * di * dj;
                 }
             }
         }
