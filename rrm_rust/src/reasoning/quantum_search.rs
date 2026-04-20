@@ -452,7 +452,8 @@ impl AsyncWaveSearch {
 
             // Map LSH untuk mendeteksi Cross-Branch Interference
             // Menyimpan hash state manifold ke daftar ID node
-            let mut state_hashes: std::collections::HashMap<u64, Vec<usize>> = std::collections::HashMap::new();
+            let mut state_hashes: std::collections::HashMap<u64, Vec<usize>> =
+                std::collections::HashMap::new();
 
             while let Some(current_idx) = frontier.pop() {
                 // Cooperative Yield untuk async runtime compatibility
@@ -531,7 +532,10 @@ impl AsyncWaveSearch {
                         arena.phases[current_idx] = 0.0; // Reset phase to align
                     }
                 }
-                state_hashes.entry(state_hash).or_insert_with(Vec::new).push(current_idx);
+                state_hashes
+                    .entry(state_hash)
+                    .or_insert_with(Vec::new)
+                    .push(current_idx);
 
                 // Reasoning (Free Energy)
                 arena.reason(current_idx, &self.expected_grids, &initial_manifolds);
@@ -603,7 +607,8 @@ impl AsyncWaveSearch {
                     // Resonansi Topologis: Pastikan Gluing Mulus sebelum Ground State disahkan
                     let mut topological_resonance = 1.0;
                     if let Some(man_in) = arena.states[current_idx].get(0) {
-                        let sheaf = crate::quantum_topology::ReasoningSheaf::from_manifold(man_in, 3);
+                        let sheaf =
+                            crate::quantum_topology::ReasoningSheaf::from_manifold(man_in, 3);
                         if !sheaf.check_sheaf_condition() {
                             topological_resonance = 0.5; // Redam amplitudo karena kontradiksi lokal
                             println!("   ⚠️ [Topological Resonance] Ground state terdeteksi tetapi Sheaf Gluing gagal. Meredam probabilitas.");
