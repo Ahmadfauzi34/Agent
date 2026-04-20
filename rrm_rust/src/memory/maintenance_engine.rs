@@ -26,6 +26,7 @@ impl MaintenanceEngine {
 
     /// 🌀 QUANTUM ANNEALING (Termodinamika Kuantum)
     /// Memastikan semua vektor Seed 100% Ortogonal (Tegak Lurus).
+    #[inline(always)]
     pub fn anneal_memory(
         &self,
         tensors: &mut Vec<Array1<f32>>,
