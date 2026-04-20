@@ -1331,12 +1331,17 @@ impl RrmAgent {
                                             println!("   🧠 [Topologi Kuantum] Sheaf Gluing Valid! Solusi stabil di seluruh patch lokal.");
                                         }
 
-            // Evaluasi Curvature Topologi (Membantu Pruning di MCTS)
-            let bundle = crate::quantum_topology::SkillFiberBundle::from_manifold(man_in);
-            curvature_norm = bundle.curvature.iter().map(|&x| x * x).sum::<f32>().sqrt();
-            if curvature_norm > 1.0 {
-                println!("🧠 [Topologi Kuantum] Fiber Curvature: {:.4}. (Non-Linear / Rotasi / Fraktal Terdeteksi)", curvature_norm);
-            }
+                                        // Evaluasi Curvature Topologi (Membantu Pruning di MCTS)
+                                        let bundle = crate::quantum_topology::SkillFiberBundle::from_manifold(man_in);
+                                        curvature_norm = bundle
+                                            .curvature
+                                            .iter()
+                                            .map(|&x| x * x)
+                                            .sum::<f32>()
+                                            .sqrt();
+                                        if curvature_norm > 1.0 {
+                                            println!("🧠 [Topologi Kuantum] Fiber Curvature: {:.4}. (Non-Linear / Rotasi / Fraktal Terdeteksi)", curvature_norm);
+                                        }
                                     }
                                 }
 
@@ -1508,40 +1513,62 @@ impl RrmAgent {
             // since the actual `dead_waves` isn't fully exposed in this block.
             use crate::reasoning::quantum_search::WaveNode;
 
-            let dummy_a = WaveNode {
-                axiom_type: vec!["FAILED_TRANS_X_5".to_string()],
-                condition_tensor: None,
-                tensor_spatial: ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION) * 0.1,
-                tensor_semantic: ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION) * 0.1,
-                delta_x: 5.0,
-                delta_y: 0.0,
-                physics_tier: 1,
-                static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData {
-                    regions: std::sync::Arc::new(vec![]),
-                    signatures: std::sync::Arc::new(vec![]),
-                }),
-                state_manifolds: std::sync::Arc::new(vec![]),
-                state_modified: false,
-                depth: 1,
-                probability: 0.5,
-            };
-            let dummy_b = WaveNode {
-                axiom_type: vec!["FAILED_TRANS_Y_2".to_string()],
-                condition_tensor: None,
-                tensor_spatial: ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION) * -0.2,
-                tensor_semantic: ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION)
-                    * -0.2,
-                delta_x: 0.0,
-                delta_y: 2.0,
-                physics_tier: 1,
-                static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData {
-                    regions: std::sync::Arc::new(vec![]),
-                    signatures: std::sync::Arc::new(vec![]),
-                }),
-                state_manifolds: std::sync::Arc::new(vec![]),
-                state_modified: false,
-                depth: 1,
-                probability: 0.5,
+            // Mengambil 2 WaveNode dari kegagalan seed_axioms yang ada di loop ini
+            // Jika kosong, pakai dummy tensor FHRR asli dari CoreSeeds
+            let (dummy_a, dummy_b) = if seed_axioms.len() >= 2 {
+                (seed_axioms[0].clone(), seed_axioms[1].clone())
+            } else {
+                let x_seed = crate::core::core_seeds::CoreSeeds::x_axis_seed();
+                let y_seed = crate::core::core_seeds::CoreSeeds::y_axis_seed();
+
+                (
+                    WaveNode {
+                        axiom_type: vec!["FAILED_TRANS_X_5".to_string()],
+                        condition_tensor: None,
+                        tensor_spatial: crate::core::fhrr::FHRR::fractional_bind_2d(
+                            &x_seed, 5.0, &y_seed, 0.0,
+                        ),
+                        tensor_semantic: ndarray::Array1::ones(
+                            crate::core::config::GLOBAL_DIMENSION,
+                        ) * 0.1,
+                        delta_x: 5.0,
+                        delta_y: 0.0,
+                        physics_tier: 1,
+                        static_background: std::sync::Arc::new(
+                            crate::core::infinite_detail::CoarseData {
+                                regions: std::sync::Arc::new(vec![]),
+                                signatures: std::sync::Arc::new(vec![]),
+                            },
+                        ),
+                        state_manifolds: std::sync::Arc::new(vec![]),
+                        state_modified: false,
+                        depth: 1,
+                        probability: 0.5,
+                    },
+                    WaveNode {
+                        axiom_type: vec!["FAILED_TRANS_Y_2".to_string()],
+                        condition_tensor: None,
+                        tensor_spatial: crate::core::fhrr::FHRR::fractional_bind_2d(
+                            &x_seed, 0.0, &y_seed, 2.0,
+                        ),
+                        tensor_semantic: ndarray::Array1::ones(
+                            crate::core::config::GLOBAL_DIMENSION,
+                        ) * -0.2,
+                        delta_x: 0.0,
+                        delta_y: 2.0,
+                        physics_tier: 1,
+                        static_background: std::sync::Arc::new(
+                            crate::core::infinite_detail::CoarseData {
+                                regions: std::sync::Arc::new(vec![]),
+                                signatures: std::sync::Arc::new(vec![]),
+                            },
+                        ),
+                        state_manifolds: std::sync::Arc::new(vec![]),
+                        state_modified: false,
+                        depth: 1,
+                        probability: 0.6,
+                    },
+                )
             };
 
             // We retrieve the dynamically created Axiom (Brain generated physics law)
@@ -1555,7 +1582,6 @@ impl RrmAgent {
                 println!("🧬 [Quantum Inference] Menjalankan Axiom Tensor '{skill_id}' secara dinamis di Multiverse Sandbox...");
 
                 // Coba mengujinya pada state 'test_in' kita (man_in pertama saja sebagai simulasi)
-
                 let mut stream_test = std::collections::HashMap::new();
                 self.encode_grid(test_in, &mut stream_test);
                 let mut dream_sandbox = crate::core::entity_manifold::EntityManifold::new();
@@ -1577,18 +1603,30 @@ impl RrmAgent {
                     &novel_axiom.name,
                 );
                 println!("🧬 [Quantum Inference] Wave propagation selesai. (Simulasi internal berhasil).");
-            }
 
-            let new_page = crate::self_awareness::executable_wiki::WikiPage {
-                id: format!("synthesized_{}", chrono::Utc::now().format("%Y%m%d%H%M%S")),
-                page_type: "synthesized_crossover".to_string(),
-                tier: 8,
-                confidence: 0.50,
-                parent: Some("mcts_fallback".to_string()),
-                content: "## Origin\nAuto-generated skill from Catastrophic Failure in MCTS\n\n```rust\n// Novel spatial tensor bound\n```\n".to_string(),
-                code_blocks: vec![],
-            };
-            let _ = wiki.create_skill(new_page);
+                // Format tensor spatial ke bentuk string array f32 untuk YAML
+                let mut yaml_arr = String::new();
+                let spatial_tensor = &novel_axiom.delta_spatial;
+                for i in 0..crate::core::config::GLOBAL_DIMENSION {
+                    yaml_arr.push_str(&format!("{:.6}", spatial_tensor[i]));
+                    if i < crate::core::config::GLOBAL_DIMENSION - 1 {
+                        yaml_arr.push_str(", ");
+                    }
+                }
+
+                let yaml_doc = format!("\n# Tensor Driven Macro: {skill_id}\n\n```yaml\nid: MACRO:{skill_id}\ntier: 6\ndescription: Generated tensor skill via Autopoietic Crossover\nsequence:\n  - axiom_type: TENSOR_DRIVEN_BIND\n    physics_tier: 6\n    delta_x: {:.1}\n    delta_y: {:.1}\n    tensor_spatial: [{yaml_arr}]\n```\n", novel_axiom.delta_x, novel_axiom.delta_y);
+
+                let new_page = crate::self_awareness::executable_wiki::WikiPage {
+                    id: skill_id.clone(),
+                    page_type: "synthesized_crossover".to_string(),
+                    tier: 8,
+                    confidence: 0.50,
+                    parent: Some("mcts_fallback".to_string()),
+                    content: yaml_doc,
+                    code_blocks: vec![],
+                };
+                let _ = wiki.create_skill(new_page);
+            }
         }
 
         let test_width = if test_manifold.global_width > 0.0 {

@@ -450,6 +450,11 @@ impl AsyncWaveSearch {
             let mut batch_total_active_count: usize = 0;
             let mut batch_iterations: usize = 0;
 
+            // Map LSH untuk mendeteksi Cross-Branch Interference
+            // Menyimpan hash state manifold ke daftar ID node
+            let mut state_hashes: std::collections::HashMap<u64, Vec<usize>> =
+                std::collections::HashMap::new();
+
             while let Some(current_idx) = frontier.pop() {
                 // Cooperative Yield untuk async runtime compatibility
                 future::yield_now().await;
@@ -506,6 +511,31 @@ impl AsyncWaveSearch {
                     }
                 }
                 batch_total_active_count += local_active_count;
+
+                // Cross-Branch Interference
+                // Hitung hash simpel dari manifold state untuk melihat apakah state ini pernah dicapai oleh cabang lain
+                let mut state_hash: u64 = 0;
+                for m in arena.states[current_idx].iter() {
+                    for i in 0..m.active_count {
+                        if m.masses[i] > 0.0 {
+                            state_hash = state_hash.wrapping_add((m.centers_x[i] * 100.0) as u64);
+                            state_hash = state_hash.wrapping_add((m.centers_y[i] * 100.0) as u64);
+                            state_hash = state_hash.wrapping_add(m.tokens[i] as u64);
+                        }
+                    }
+                }
+
+                // Jika ada cabang lain yang mendarat di hash yang sama, berikan bonus amplitudo (Constructive Interference)
+                if let Some(siblings) = state_hashes.get(&state_hash) {
+                    if siblings.len() > 0 {
+                        arena.amplitudes[current_idx] *= 1.2; // Amplification bonus
+                        arena.phases[current_idx] = 0.0; // Reset phase to align
+                    }
+                }
+                state_hashes
+                    .entry(state_hash)
+                    .or_insert_with(Vec::new)
+                    .push(current_idx);
 
                 // Reasoning (Free Energy)
                 arena.reason(current_idx, &self.expected_grids, &initial_manifolds);
@@ -574,6 +604,20 @@ impl AsyncWaveSearch {
 
                 // Cek Ground State
                 if is_ground_state {
+                    // Resonansi Topologis: Pastikan Gluing Mulus sebelum Ground State disahkan
+                    let mut topological_resonance = 1.0;
+                    if let Some(man_in) = arena.states[current_idx].get(0) {
+                        let sheaf =
+                            crate::quantum_topology::ReasoningSheaf::from_manifold(man_in, 3);
+                        if !sheaf.check_sheaf_condition() {
+                            topological_resonance = 0.5; // Redam amplitudo karena kontradiksi lokal
+                            println!("   ⚠️ [Topological Resonance] Ground state terdeteksi tetapi Sheaf Gluing gagal. Meredam probabilitas.");
+                        } else {
+                            topological_resonance = 1.2; // Boost amplitudo
+                        }
+                    }
+                    arena.amplitudes[current_idx] *= topological_resonance;
+
                     let result_wave = WaveNode {
                         axiom_type: arena.axiom_path[current_idx].clone(),
                         condition_tensor: arena.action_condition[current_idx].clone(),
@@ -613,21 +657,27 @@ impl AsyncWaveSearch {
                     break;
                 }
 
-                // Pruning Checks
-                if amplitude < 0.05 {
-                    arena.kill_node(current_idx);
-                    continue;
-                }
-
+                // Quantum Tunneling & Ghost Amplitudes (Dynamic Pruning)
+                // Jika amplitudo rendah atau energi memburuk, jangan dibunuh (0.0). Beri Phase Shift (Amplitudo Hantu)
                 let predicted_min_energy =
                     pragmatic_error * 0.9f32.powi((self.max_depth as i32) - (current_depth as i32));
+
+                let mut should_branch = amplitude > 0.1;
+
                 if predicted_min_energy > 5.0 && current_depth >= 2 {
-                    arena.kill_node(current_idx);
-                    continue;
+                    // Kasus jalan buntu: Ubah jadi ghost amplitude (contoh: 0.01) dengan fase terbalik
+                    arena.amplitudes[current_idx] = 0.01;
+                    arena.phases[current_idx] = std::f32::consts::PI; // Shift 180 degrees
+                    should_branch = false; // Biarkan menjalar tapi jangan beranak banyak
+                } else if amplitude < 0.05 {
+                    // Kasus probabilitas rendah tapi energi mungkin oke
+                    arena.amplitudes[current_idx] = 0.02;
+                    arena.phases[current_idx] += std::f32::consts::FRAC_PI_2; // Shift 90 degrees
+                    should_branch = true; // Biarkan menjalar
                 }
 
                 // Branching Logic (Iteratif)
-                if amplitude > 0.1 && current_depth < self.max_depth {
+                if should_branch && current_depth < self.max_depth {
                     let max_branches = if current_depth == 0 { 20 } else { 2 };
                     let mut branch_count = 0;
 
