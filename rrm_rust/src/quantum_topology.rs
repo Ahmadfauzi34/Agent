@@ -723,3 +723,153 @@ impl QuantumTensorNetwork {
         current
     }
 }
+
+// ============================================================================
+// PHASE 1: HARMONIC ANALYSIS (FOURIER NEURAL OPERATOR)
+// ============================================================================
+
+use rustfft::{num_complex::Complex, FftPlanner};
+
+pub struct FourierSkillOperator {
+    pub modes: usize,
+}
+
+impl FourierSkillOperator {
+    pub fn new(modes: usize) -> Self {
+        Self { modes }
+    }
+
+    /// Transformasi Grid Piksel ke Domain Frekuensi (2D FFT)
+    pub fn transform(&self, grid: &Vec<Vec<i32>>) -> Vec<Vec<Complex<f32>>> {
+        let height = grid.len();
+        if height == 0 {
+            return vec![];
+        }
+        let width = grid[0].len();
+        if width == 0 {
+            return vec![];
+        }
+
+        let mut planner = FftPlanner::<f32>::new();
+        let fft_row = planner.plan_fft_forward(width);
+        let fft_col = planner.plan_fft_forward(height);
+
+        // Konversi ke format flat complex row-major
+        let mut buffer: Vec<Complex<f32>> = Vec::with_capacity(width * height);
+        for row in grid {
+            for &val in row {
+                buffer.push(Complex {
+                    re: val as f32,
+                    im: 0.0,
+                });
+            }
+        }
+
+        // 1. FFT per Baris (Rows)
+        for y in 0..height {
+            let row_start = y * width;
+            let row_slice = &mut buffer[row_start..row_start + width];
+            fft_row.process(row_slice);
+        }
+
+        // 2. Transpose, lalu FFT per Kolom (Cols)
+        let mut transposed_buffer: Vec<Complex<f32>> =
+            vec![Complex { re: 0.0, im: 0.0 }; width * height];
+        for y in 0..height {
+            for x in 0..width {
+                transposed_buffer[x * height + y] = buffer[y * width + x];
+            }
+        }
+
+        for x in 0..width {
+            let col_start = x * height;
+            let col_slice = &mut transposed_buffer[col_start..col_start + height];
+            fft_col.process(col_slice);
+        }
+
+        // 3. Transpose kembali ke urutan semula
+        let mut final_spectral = vec![vec![Complex { re: 0.0, im: 0.0 }; width]; height];
+        for x in 0..width {
+            for y in 0..height {
+                final_spectral[y][x] = transposed_buffer[x * height + y];
+            }
+        }
+
+        // 4. Pruning frekuensi tinggi (Low-Pass Filter) -> simpan hanya 'modes' terendah
+        let mode_limit = self.modes;
+        for y in 0..height {
+            for x in 0..width {
+                if x >= mode_limit && y >= mode_limit {
+                    final_spectral[y][x] = Complex { re: 0.0, im: 0.0 };
+                }
+            }
+        }
+
+        final_spectral
+    }
+
+    /// Transformasi Domain Frekuensi kembali ke Grid Spasial (2D IFFT)
+    pub fn inverse_transform(&self, spectral: &Vec<Vec<Complex<f32>>>) -> Vec<Vec<i32>> {
+        let height = spectral.len();
+        if height == 0 {
+            return vec![];
+        }
+        let width = spectral[0].len();
+        if width == 0 {
+            return vec![];
+        }
+
+        let mut planner = FftPlanner::<f32>::new();
+        let ifft_row = planner.plan_fft_inverse(width);
+        let ifft_col = planner.plan_fft_inverse(height);
+
+        let mut buffer: Vec<Complex<f32>> = Vec::with_capacity(width * height);
+        for row in spectral {
+            for &val in row {
+                buffer.push(val);
+            }
+        }
+
+        // 1. IFFT per Baris
+        for y in 0..height {
+            let row_start = y * width;
+            let row_slice = &mut buffer[row_start..row_start + width];
+            ifft_row.process(row_slice);
+        }
+
+        // 2. Transpose, lalu IFFT per Kolom
+        let mut transposed_buffer: Vec<Complex<f32>> =
+            vec![Complex { re: 0.0, im: 0.0 }; width * height];
+        for y in 0..height {
+            for x in 0..width {
+                transposed_buffer[x * height + y] = buffer[y * width + x];
+            }
+        }
+
+        for x in 0..width {
+            let col_start = x * height;
+            let col_slice = &mut transposed_buffer[col_start..col_start + height];
+            ifft_col.process(col_slice);
+        }
+
+        // 3. Normalisasi hasil IFFT & Transpose kembali
+        let norm_factor = 1.0 / ((width * height) as f32);
+        let mut final_grid = vec![vec![0; width]; height];
+        for x in 0..width {
+            for y in 0..height {
+                let val = transposed_buffer[x * height + y].re * norm_factor;
+                // Pembulatan ke token terdekat (ARC range 0-9)
+                let mut token = val.round() as i32;
+                if token < 0 {
+                    token = 0;
+                }
+                if token > 9 {
+                    token = 9;
+                }
+                final_grid[y][x] = token;
+            }
+        }
+
+        final_grid
+    }
+}
