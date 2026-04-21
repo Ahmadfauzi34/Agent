@@ -1,4 +1,4 @@
-import { TensorVector, GLOBAL_DIMENSION } from '../core/config.js';
+import { GLOBAL_DIMENSION } from '../core/config.js';
 import { EntityManifold } from '../core/EntityManifold.js';
 import { UniversalManifold } from './UniversalManifold.js';
 
