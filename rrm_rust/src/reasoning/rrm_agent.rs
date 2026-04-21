@@ -9,7 +9,6 @@ use crate::reasoning::global_blackboard::GlobalBlackboard;
 use crate::reasoning::grover_diffusion_system::{
     GroverCandidate, GroverConfig, GroverDiffusionSystem, TrainState,
 };
-use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
 use crate::reasoning::hierarchical_inference::{DeepActiveInferenceEngine, SimulationMode};
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
 use crate::reasoning::quantum_search::{AsyncWaveSearch, WaveNode};
@@ -25,22 +24,18 @@ use std::sync::Arc;
 pub struct RrmAgent {
     perceiver: UniversalManifold,
     decoder: HologramDecoder,
-    pruner: HamiltonianPruner, // Akan di-deprecate
     seed_bank: LogicSeedBank,
 
     // Self-Awareness Layer
     ontology: SkillOntology,
     self_reflection: SelfReflection,
-    structural_analyzer: StructuralAnalyzer,
 
     // Reasoning
     counterfactual_engine: crate::reasoning::counterfactual_engine::CounterfactualEngine,
     causal_reasoner: CausalReasoner,
-    hierarchical_planner: crate::reasoning::hierarchical_planner::HierarchicalPlanner,
 
     // Memory
     mental_replay: crate::memory::mental_replay::MentalReplay,
-    skill_composer: crate::reasoning::skill_composer::SkillComposer,
 }
 
 impl Default for RrmAgent {
@@ -51,58 +46,19 @@ impl Default for RrmAgent {
 
 impl RrmAgent {
     pub fn new() -> Self {
-        use crate::perception::structural_analyzer::{
-            DimensionRelation, ObjectDelta, ObjectStatistics, StructuralDelta, StructuralSignature,
-            SymmetryChange, TopologyHint,
-        };
-        use std::collections::HashSet;
-
         let ontology = SkillOntology::initialize();
         let self_reflection = SelfReflection::new(ontology.clone());
 
         Self {
             perceiver: UniversalManifold::new(),
             decoder: HologramDecoder::new(),
-            pruner: HamiltonianPruner::new(),
             seed_bank: LogicSeedBank::new(),
             ontology,
             self_reflection,
-            structural_analyzer: StructuralAnalyzer,
             counterfactual_engine:
                 crate::reasoning::counterfactual_engine::CounterfactualEngine::new(),
             causal_reasoner: CausalReasoner::new(),
-            hierarchical_planner:
-                crate::reasoning::hierarchical_planner::HierarchicalPlanner::from_delta(
-                    &StructuralDelta {
-                        signature: StructuralSignature {
-                            dim_relation: DimensionRelation::Equal,
-                            object_delta: ObjectDelta::SameCount,
-                            color_transitions: vec![],
-                            topology_in: TopologyHint::Scatter,
-                            topology_out: TopologyHint::Scatter,
-                            has_template_frame: false,
-                            symmetry_change: SymmetryChange::Preserved,
-                        },
-                        input_stats: ObjectStatistics {
-                            count: 0,
-                            colors: HashSet::new(),
-                            bounding_box: (0, 0),
-                            total_pixels: 0,
-                            density: 0.0,
-                        },
-                        output_stats: ObjectStatistics {
-                            count: 0,
-                            colors: HashSet::new(),
-                            bounding_box: (0, 0),
-                            total_pixels: 0,
-                            density: 0.0,
-                        },
-                        per_object_changes: vec![],
-                    },
-                    &SkillOntology::initialize(),
-                ), // Will be recreated properly inside solve_task_v2
             mental_replay: crate::memory::mental_replay::MentalReplay::new(),
-            skill_composer: crate::reasoning::skill_composer::SkillComposer::new(),
         }
     }
 

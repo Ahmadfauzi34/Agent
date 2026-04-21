@@ -1,7 +1,7 @@
 use rrm_rust::core::entity_manifold::EntityManifold;
 use rrm_rust::quantum_topology::QuantumCellComplex;
-use std::time::Instant;
 use std::sync::Arc;
+use std::time::Instant;
 
 #[test]
 fn bench_from_manifold() {
