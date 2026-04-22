@@ -91,6 +91,9 @@ fn distill_yaml_skills() {
     generate_yaml("SCALE_UP(2)", 0.0, 0.0, false, false);
     generate_yaml("SCALE_UP(3)", 0.0, 0.0, false, false);
 
+    // Tambahan Harmonic Analysis (Fourier Neural Operator)
+    generate_yaml("FOURIER_PATTERN", 0.0, 0.0, false, false);
+
     println!("--- DISTILLATION TO YAML COMPLETED ---");
 }
 fn main() {

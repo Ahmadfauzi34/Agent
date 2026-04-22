@@ -388,6 +388,41 @@ impl MultiverseSandbox {
                 }
                 return false;
             }
+            if axiom_type.starts_with("FOURIER_PATTERN") {
+                // Menjalankan Fourier Neural Operator (Harmonic Analysis)
+                let modes = 5; // Default low-pass mode
+                let fno = crate::quantum_topology::FourierSkillOperator::new(modes);
+
+                // Reconstruct temporary grid dari manifold
+                let width = u.global_width as usize;
+                let height = u.global_height as usize;
+                let mut temp_grid = vec![vec![0; width.max(1)]; height.max(1)];
+                for e in 0..u.active_count {
+                    if u.masses[e] > 0.0 {
+                        let cx = u.centers_x[e].round() as usize;
+                        let cy = u.centers_y[e].round() as usize;
+                        if cx < temp_grid[0].len() && cy < temp_grid.len() {
+                            temp_grid[cy][cx] = u.tokens[e];
+                        }
+                    }
+                }
+
+                // Eksekusi Transformasi Frekuensi -> Inverse
+                let spectral = fno.transform(&temp_grid);
+                let new_grid = fno.inverse_transform(&spectral);
+
+                // Sinkronisasi balik ke manifold
+                for e in 0..u.active_count {
+                    if u.masses[e] > 0.0 {
+                        let cx = u.centers_x[e].round() as usize;
+                        let cy = u.centers_y[e].round() as usize;
+                        if cx < new_grid[0].len() && cy < new_grid.len() {
+                            Arc::make_mut(&mut u.tokens)[e] = new_grid[cy][cx];
+                        }
+                    }
+                }
+                return false;
+            }
         }
 
         // Hitung bounding box universe jika ada operasi geometri

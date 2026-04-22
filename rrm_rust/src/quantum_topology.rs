@@ -39,16 +39,17 @@ impl QuantumCellComplex {
             for j in (i + 1)..n {
                 let dx = manifold.centers_x[i] - manifold.centers_x[j];
                 let dy = manifold.centers_y[i] - manifold.centers_y[j];
-                let dist = (dx * dx + dy * dy).sqrt();
-                dist_matrix[[i, j]] = dist;
-                dist_matrix[[j, i]] = dist;
+                let dist_sq = dx * dx + dy * dy;
+                dist_matrix[[i, j]] = dist_sq;
+                dist_matrix[[j, i]] = dist_sq;
             }
         }
 
+        let epsilon_sq = epsilon * epsilon;
         let mut edges = Vec::new();
         for i in 0..n {
             for j in (i + 1)..n {
-                if dist_matrix[[i, j]] <= epsilon {
+                if dist_matrix[[i, j]] <= epsilon_sq {
                     edges.push((i, j));
                 }
             }
@@ -57,7 +58,7 @@ impl QuantumCellComplex {
         let mut triangles = Vec::new();
         for &(i, j) in &edges {
             for k in (j + 1)..n {
-                if dist_matrix[[i, k]] <= epsilon && dist_matrix[[j, k]] <= epsilon {
+                if dist_matrix[[i, k]] <= epsilon_sq && dist_matrix[[j, k]] <= epsilon_sq {
                     triangles.push((i, j, k));
                 }
             }
@@ -146,12 +147,13 @@ impl QuantumCellComplex {
         &mut self,
         dist_matrix: &Array2<f32>,
         edges: &[(usize, usize)],
-        triangles: &[(usize, usize, usize)],
+        _triangles: &[(usize, usize, usize)],
     ) {
+        // Here dist_matrix holds squared distances, we take the sqrt when pushing to barcode
         let mut edge_filtration: Vec<(f32, usize)> = edges
             .iter()
             .enumerate()
-            .map(|(idx, &(i, j))| (dist_matrix[[i, j]], idx))
+            .map(|(idx, &(i, j))| (dist_matrix[[i, j]].sqrt(), idx))
             .collect();
         edge_filtration.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
 
@@ -292,16 +294,16 @@ impl SkillFiberBundle {
         // Greedy geodesic following (gradient navigation)
         while current != end {
             let mut best_next = current;
-            let mut best_dist = f32::INFINITY;
+            let mut best_dist_sq = f32::INFINITY;
 
             for next in 0..self.base.active_count {
                 if next != current && self.connection[[current, next]] > 0.0 {
                     let dx = self.base.centers_x[end] - self.base.centers_x[next];
                     let dy = self.base.centers_y[end] - self.base.centers_y[next];
-                    let dist = (dx * dx + dy * dy).sqrt();
+                    let dist_sq = dx * dx + dy * dy;
                     // Branchless min selection
-                    let is_better = (dist < best_dist) as i32 as f32;
-                    best_dist = best_dist * (1.0 - is_better) + dist * is_better;
+                    let is_better = (dist_sq < best_dist_sq) as i32 as f32;
+                    best_dist_sq = best_dist_sq * (1.0 - is_better) + dist_sq * is_better;
                     best_next = ((best_next as f32) * (1.0 - is_better) + (next as f32) * is_better)
                         as usize;
                 }
@@ -377,18 +379,18 @@ impl ReasoningSheaf {
         centers.push(0); // Start dari index 0
 
         for _ in 1..num_centers {
-            let mut max_dist = -1.0f32;
+            let mut max_dist_sq = -1.0f32;
             let mut max_idx = 0;
             for i in 0..n {
-                let mut min_dist = f32::INFINITY;
+                let mut min_dist_sq = f32::INFINITY;
                 for &c in &centers {
                     let dx = manifold.centers_x[i] - manifold.centers_x[c];
                     let dy = manifold.centers_y[i] - manifold.centers_y[c];
-                    let dist = (dx * dx + dy * dy).sqrt();
-                    min_dist = min_dist.min(dist);
+                    let dist_sq = dx * dx + dy * dy;
+                    min_dist_sq = min_dist_sq.min(dist_sq);
                 }
-                if min_dist > max_dist {
-                    max_dist = min_dist;
+                if min_dist_sq > max_dist_sq {
+                    max_dist_sq = min_dist_sq;
                     max_idx = i;
                 }
             }
@@ -398,14 +400,14 @@ impl ReasoningSheaf {
         // Voronoi decomposition sebagai open cover
         let mut cover: Vec<Vec<usize>> = vec![Vec::new(); num_centers];
         for i in 0..n {
-            let mut min_dist = f32::INFINITY;
+            let mut min_dist_sq = f32::INFINITY;
             let mut nearest = 0;
             for (c_idx, &c) in centers.iter().enumerate() {
                 let dx = manifold.centers_x[i] - manifold.centers_x[c];
                 let dy = manifold.centers_y[i] - manifold.centers_y[c];
-                let dist = (dx * dx + dy * dy).sqrt();
-                if dist < min_dist {
-                    min_dist = dist;
+                let dist_sq = dx * dx + dy * dy;
+                if dist_sq < min_dist_sq {
+                    min_dist_sq = dist_sq;
                     nearest = c_idx;
                 }
             }
@@ -538,15 +540,20 @@ impl SpectralEmbedding {
         }
 
         // Normalized Laplacian: L = I - D^{-1/2} W D^{-1/2}
+        let mut d_inv_sqrt = vec![0.0; n];
+        for i in 0..n {
+            d_inv_sqrt[i] = 1.0 / d[i].sqrt().max(1e-10);
+        }
+
         let mut laplacian = Array2::<f32>::zeros((n, n));
         for i in 0..n {
+            let di = d_inv_sqrt[i];
             for j in 0..n {
-                let d_inv_sqrt = 1.0 / d[i].sqrt().max(1e-10);
-                let d_j_inv_sqrt = 1.0 / d[j].sqrt().max(1e-10);
+                let dj = d_inv_sqrt[j];
                 if i == j {
-                    laplacian[[i, j]] = 1.0 - w[[i, j]] * d_inv_sqrt * d_j_inv_sqrt;
+                    laplacian[[i, j]] = 1.0 - w[[i, j]] * di * dj;
                 } else {
-                    laplacian[[i, j]] = -w[[i, j]] * d_inv_sqrt * d_j_inv_sqrt;
+                    laplacian[[i, j]] = -w[[i, j]] * di * dj;
                 }
             }
         }
@@ -714,5 +721,155 @@ impl QuantumTensorNetwork {
         }
 
         current
+    }
+}
+
+// ============================================================================
+// PHASE 1: HARMONIC ANALYSIS (FOURIER NEURAL OPERATOR)
+// ============================================================================
+
+use rustfft::{num_complex::Complex, FftPlanner};
+
+pub struct FourierSkillOperator {
+    pub modes: usize,
+}
+
+impl FourierSkillOperator {
+    pub fn new(modes: usize) -> Self {
+        Self { modes }
+    }
+
+    /// Transformasi Grid Piksel ke Domain Frekuensi (2D FFT)
+    pub fn transform(&self, grid: &Vec<Vec<i32>>) -> Vec<Vec<Complex<f32>>> {
+        let height = grid.len();
+        if height == 0 {
+            return vec![];
+        }
+        let width = grid[0].len();
+        if width == 0 {
+            return vec![];
+        }
+
+        let mut planner = FftPlanner::<f32>::new();
+        let fft_row = planner.plan_fft_forward(width);
+        let fft_col = planner.plan_fft_forward(height);
+
+        // Konversi ke format flat complex row-major
+        let mut buffer: Vec<Complex<f32>> = Vec::with_capacity(width * height);
+        for row in grid {
+            for &val in row {
+                buffer.push(Complex {
+                    re: val as f32,
+                    im: 0.0,
+                });
+            }
+        }
+
+        // 1. FFT per Baris (Rows)
+        for y in 0..height {
+            let row_start = y * width;
+            let row_slice = &mut buffer[row_start..row_start + width];
+            fft_row.process(row_slice);
+        }
+
+        // 2. Transpose, lalu FFT per Kolom (Cols)
+        let mut transposed_buffer: Vec<Complex<f32>> =
+            vec![Complex { re: 0.0, im: 0.0 }; width * height];
+        for y in 0..height {
+            for x in 0..width {
+                transposed_buffer[x * height + y] = buffer[y * width + x];
+            }
+        }
+
+        for x in 0..width {
+            let col_start = x * height;
+            let col_slice = &mut transposed_buffer[col_start..col_start + height];
+            fft_col.process(col_slice);
+        }
+
+        // 3. Transpose kembali ke urutan semula
+        let mut final_spectral = vec![vec![Complex { re: 0.0, im: 0.0 }; width]; height];
+        for x in 0..width {
+            for y in 0..height {
+                final_spectral[y][x] = transposed_buffer[x * height + y];
+            }
+        }
+
+        // 4. Pruning frekuensi tinggi (Low-Pass Filter) -> simpan hanya 'modes' terendah
+        let mode_limit = self.modes;
+        for y in 0..height {
+            for x in 0..width {
+                if x >= mode_limit && y >= mode_limit {
+                    final_spectral[y][x] = Complex { re: 0.0, im: 0.0 };
+                }
+            }
+        }
+
+        final_spectral
+    }
+
+    /// Transformasi Domain Frekuensi kembali ke Grid Spasial (2D IFFT)
+    pub fn inverse_transform(&self, spectral: &Vec<Vec<Complex<f32>>>) -> Vec<Vec<i32>> {
+        let height = spectral.len();
+        if height == 0 {
+            return vec![];
+        }
+        let width = spectral[0].len();
+        if width == 0 {
+            return vec![];
+        }
+
+        let mut planner = FftPlanner::<f32>::new();
+        let ifft_row = planner.plan_fft_inverse(width);
+        let ifft_col = planner.plan_fft_inverse(height);
+
+        let mut buffer: Vec<Complex<f32>> = Vec::with_capacity(width * height);
+        for row in spectral {
+            for &val in row {
+                buffer.push(val);
+            }
+        }
+
+        // 1. IFFT per Baris
+        for y in 0..height {
+            let row_start = y * width;
+            let row_slice = &mut buffer[row_start..row_start + width];
+            ifft_row.process(row_slice);
+        }
+
+        // 2. Transpose, lalu IFFT per Kolom
+        let mut transposed_buffer: Vec<Complex<f32>> =
+            vec![Complex { re: 0.0, im: 0.0 }; width * height];
+        for y in 0..height {
+            for x in 0..width {
+                transposed_buffer[x * height + y] = buffer[y * width + x];
+            }
+        }
+
+        for x in 0..width {
+            let col_start = x * height;
+            let col_slice = &mut transposed_buffer[col_start..col_start + height];
+            ifft_col.process(col_slice);
+        }
+
+        // 3. Normalisasi hasil IFFT & Transpose kembali
+        let norm_factor = 1.0 / ((width * height) as f32);
+        let mut final_grid = vec![vec![0; width]; height];
+        for x in 0..width {
+            for y in 0..height {
+                let val = transposed_buffer[x * height + y].re * norm_factor;
+                // Pembulatan ke token terdekat (ARC range 0-9)
+                let mut token = val.round() as i32;
+                if token < 0 {
+                    token = 0;
+                }
+                if token > 9 {
+                    token = 9;
+                }
+                final_grid[y][x] = token;
+            }
+        }
+
+        final_grid
     }
 }
