@@ -21,7 +21,6 @@ impl MultiverseSandbox {
     }
 
     /// Terapkan Dual-Axiom (Translasi Spasial + Mutasi Semantik + Geometri) ke Universe
-    /// Mengembalikan true jika pergeseran menabrak batas atau entitas lain (Collision)
     pub fn apply_axiom(
         u: &mut EntityManifold,
         condition_tensor: &Option<Array1<f32>>,
@@ -31,8 +30,7 @@ impl MultiverseSandbox {
         delta_y: f32,
         physics_tier: u8,
         axiom_type: &str, // Digunakan untuk parsing operator geometri jika Tier 4
-    ) -> bool {
-        let mut collision_detected = false;
+    ) {
         // 🌟 FISIKA TIER 8: REKURSI MACRO (Interpreter Siklus Otot/Skill) 🌟
         if physics_tier == 8 {
             if axiom_type.starts_with("MACRO:") {
@@ -81,7 +79,7 @@ impl MultiverseSandbox {
                     );
                 }
             }
-            return false;
+            return;
         }
 
         let base_abs_dx = delta_x.round();
@@ -202,7 +200,7 @@ impl MultiverseSandbox {
                 }
             }
             // Karena ini operasi SPAWN murni, kita bisa langsung return dari fungsi.
-            return false;
+            return;
         }
 
         // 🌟 FISIKA TIER 7: CROP / PEMOTONGAN DIMENSI (FULL OPTIMIZED) 🌟
@@ -211,8 +209,6 @@ impl MultiverseSandbox {
             let mut max_x = 0.0;
             let mut min_y = 0.0;
             let mut max_y = 0.0;
-            let mut target_w = 0.0;
-            let mut target_h = 0.0;
             let mut found = false;
 
             // 1. Evaluasi logika Bounding-Box atau Anchor-Window untuk mendapatkan min_x, max_x, dsb.
@@ -222,8 +218,8 @@ impl MultiverseSandbox {
                 let anchor_color = axiom_type[start..end].parse::<i32>().unwrap_or(-1);
 
                 // Dikte ukuran (Opsi A) dipatuhi oleh Sandbox dari `delta_x/y`
-                target_w = delta_x;
-                target_h = delta_y;
+                let target_w = delta_x;
+                let target_h = delta_y;
 
                 if anchor_color != -1 {
                     // Cari Center of Mass dari Jangkar (Anchor)
@@ -260,6 +256,12 @@ impl MultiverseSandbox {
                         max_y = min_y + target_h - 1.0;
                     }
                 }
+
+                let _ = min_x;
+                let _ = max_x;
+                let _ = min_y;
+                let _ = max_y;
+                let _ = found;
             } else if axiom_type.starts_with("CROP_TO_QUADRANT_") {
                 let mode = "ANCHOR_COG"; // We default to Anchor CoG for task 2dc579da
                 let mut mask: u8 = 0;
@@ -286,7 +288,7 @@ impl MultiverseSandbox {
                 };
 
                 Self::crop_to_quadrant(u, anchor_color, mask, mode, 0.0);
-                return false;
+                return;
             } else if axiom_type.starts_with("CROP_TO_COLOR(") {
                 let start = axiom_type.find('(').unwrap() + 1;
                 let end = axiom_type.find(')').unwrap();
@@ -354,75 +356,7 @@ impl MultiverseSandbox {
                     }
                 }
             }
-            return false;
-        }
-
-        // Eksekusi Grammar Skill Topologi Kuantum
-        if physics_tier == 3 || physics_tier == 4 || physics_tier == 5 {
-            if axiom_type.starts_with("CROP_TO_COLOR") {
-                // Parsing target warna dari string "CROP_TO_COLOR(N)"
-                let start_idx = axiom_type.find('(').unwrap_or(0);
-                let end_idx = axiom_type.find(')').unwrap_or(axiom_type.len());
-                if start_idx > 0 && end_idx > start_idx {
-                    if let Ok(target_color) = axiom_type[start_idx + 1..end_idx].parse::<i32>() {
-                        for e in 0..u.active_count {
-                            if u.tokens[e] != target_color {
-                                Arc::make_mut(&mut u.masses)[e] = 0.0; // Annihilasi (hilangkan entitas beda warna)
-                            }
-                        }
-                    }
-                }
-                return false; // Crop adalah global operation yang menyaring memori, tidak butuh iterasi individu
-            }
-            if axiom_type.starts_with("FLOOD_FILL") {
-                let start_idx = axiom_type.find('(').unwrap_or(0);
-                let end_idx = axiom_type.find(')').unwrap_or(axiom_type.len());
-                if start_idx > 0 && end_idx > start_idx {
-                    if let Ok(target_color) = axiom_type[start_idx + 1..end_idx].parse::<i32>() {
-                        for e in 0..u.active_count {
-                            if u.masses[e] > 0.0 {
-                                Arc::make_mut(&mut u.tokens)[e] = target_color;
-                            }
-                        }
-                    }
-                }
-                return false;
-            }
-            if axiom_type.starts_with("FOURIER_PATTERN") {
-                // Menjalankan Fourier Neural Operator (Harmonic Analysis)
-                let modes = 5; // Default low-pass mode
-                let fno = crate::quantum_topology::FourierSkillOperator::new(modes);
-
-                // Reconstruct temporary grid dari manifold
-                let width = u.global_width as usize;
-                let height = u.global_height as usize;
-                let mut temp_grid = vec![vec![0; width.max(1)]; height.max(1)];
-                for e in 0..u.active_count {
-                    if u.masses[e] > 0.0 {
-                        let cx = u.centers_x[e].round() as usize;
-                        let cy = u.centers_y[e].round() as usize;
-                        if cx < temp_grid[0].len() && cy < temp_grid.len() {
-                            temp_grid[cy][cx] = u.tokens[e];
-                        }
-                    }
-                }
-
-                // Eksekusi Transformasi Frekuensi -> Inverse
-                let spectral = fno.transform(&temp_grid);
-                let new_grid = fno.inverse_transform(&spectral);
-
-                // Sinkronisasi balik ke manifold
-                for e in 0..u.active_count {
-                    if u.masses[e] > 0.0 {
-                        let cx = u.centers_x[e].round() as usize;
-                        let cy = u.centers_y[e].round() as usize;
-                        if cx < new_grid[0].len() && cy < new_grid.len() {
-                            Arc::make_mut(&mut u.tokens)[e] = new_grid[cy][cx];
-                        }
-                    }
-                }
-                return false;
-            }
+            return;
         }
 
         // Hitung bounding box universe jika ada operasi geometri
@@ -511,44 +445,7 @@ impl MultiverseSandbox {
                 if physics_tier == 4 {
                     let cx = u.centers_x[e];
                     let cy = u.centers_y[e];
-
-                    if axiom_type.starts_with("SCALE_UP") {
-                        // Parsing scale_factor dinamik dari format SCALE_UP(N) atau SCALE_UP(N,M)
-                        let mut scale_x = 2.0; // Fallback
-                        let mut scale_y = 2.0; // Fallback
-
-                        let start_idx = axiom_type.find('(').unwrap_or(0);
-                        let end_idx = axiom_type.find(')').unwrap_or(axiom_type.len());
-                        if start_idx > 0 && end_idx > start_idx {
-                            let params_str = &axiom_type[start_idx + 1..end_idx];
-                            let params: Vec<&str> = params_str.split(',').collect();
-                            if params.len() == 1 {
-                                if let Ok(s) = params[0].trim().parse::<f32>() {
-                                    scale_x = s;
-                                    scale_y = s;
-                                }
-                            } else if params.len() == 2 {
-                                if let (Ok(sx), Ok(sy)) = (
-                                    params[0].trim().parse::<f32>(),
-                                    params[1].trim().parse::<f32>(),
-                                ) {
-                                    scale_x = sx;
-                                    scale_y = sy;
-                                }
-                            }
-                        }
-
-                        // Scaling dilakukan dari pusat universe (Barycenter makro)
-                        let center_x = (min_x + max_x) / 2.0;
-                        let center_y = (min_y + max_y) / 2.0;
-                        let rx = cx - center_x;
-                        let ry = cy - center_y;
-                        Arc::make_mut(&mut u.centers_x)[e] = center_x + (rx * scale_x);
-                        Arc::make_mut(&mut u.centers_y)[e] = center_y + (ry * scale_y);
-                        // Perbesar juga ukuran bounding box objeknya
-                        Arc::make_mut(&mut u.spans_x)[e] *= scale_x;
-                        Arc::make_mut(&mut u.spans_y)[e] *= scale_y;
-                    } else if axiom_type.contains("MIRROR_X") {
+                    if axiom_type.contains("MIRROR_X") {
                         // Mirror horizontal: flip sumbu X
                         // x_baru = max_x - (cx - min_x)
                         Arc::make_mut(&mut u.centers_x)[e] = max_x - (cx - min_x);
@@ -610,20 +507,8 @@ impl MultiverseSandbox {
                         apply_dy
                     };
 
-                    let new_cx = u.centers_x[e] + real_dx;
-                    let new_cy = u.centers_y[e] + real_dy;
-
-                    // Simple collision checks (Out of bounds or hitting another object loosely)
-                    if new_cx < 0.0
-                        || new_cx >= u.global_width
-                        || new_cy < 0.0
-                        || new_cy >= u.global_height
-                    {
-                        collision_detected = true;
-                    }
-
-                    Arc::make_mut(&mut u.centers_x)[e] = new_cx;
-                    Arc::make_mut(&mut u.centers_y)[e] = new_cy;
+                    Arc::make_mut(&mut u.centers_x)[e] += real_dx;
+                    Arc::make_mut(&mut u.centers_y)[e] += real_dy;
                 }
 
                 // MURNI UNTUK SWARM: Update token untuk Decoder
@@ -638,8 +523,6 @@ impl MultiverseSandbox {
                 }
             }
         }
-
-        collision_detected
     }
 
     // === Tier 7.5: QUADRANT CROP SYSTEM (Hukum 2, 4, 5, 6) ===
@@ -650,8 +533,8 @@ impl MultiverseSandbox {
         mode: &str,
         _padding: f32,
     ) {
-        let mut pivot_x = 0.0;
-        let mut pivot_y = 0.0;
+        let pivot_x;
+        let pivot_y;
         let mut _density_w = u.global_width;
         let mut _density_h = u.global_height;
 

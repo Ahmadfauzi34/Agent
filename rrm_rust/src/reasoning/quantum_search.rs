@@ -107,18 +107,12 @@ pub struct FractalArena {
     pub ids: Vec<FractalId>,
     pub parents: Vec<Option<usize>>,
     pub children_ranges: Vec<(usize, u8)>,
-    pub average_iteration_time_ns: u64,
     pub tolerances: Vec<EnergyTolerance>,
     pub static_backgrounds: Vec<Arc<crate::core::infinite_detail::CoarseData>>,
     pub amplitudes: Vec<f32>,
     pub phases: Vec<f32>,
     pub states: Vec<Arc<Vec<EntityManifold>>>,
     pub modified_flags: Vec<bool>,
-
-    // Metrik Pelacakan CoW (Copy-on-Write)
-    pub tracked_deep_copies: usize,
-    pub tracked_shallow_clones: usize,
-    pub tracked_heap_allocations: usize, // Pelacak jumlah `Vec::push` di luar batas memori buffer
 
     // Extracted fields for logical grouping
     pub perception_sensory: Vec<Array1<f32>>,
@@ -153,11 +147,6 @@ impl FractalArena {
             states: Vec::with_capacity(capacity),
             modified_flags: Vec::with_capacity(capacity),
 
-            average_iteration_time_ns: 0,
-            tracked_deep_copies: 0,
-            tracked_shallow_clones: 0,
-            tracked_heap_allocations: 0,
-
             perception_sensory: Vec::with_capacity(capacity),
             reasoning_pragmatic: Vec::with_capacity(capacity),
             reasoning_epistemic: Vec::with_capacity(capacity),
@@ -190,11 +179,7 @@ impl FractalArena {
             self.amplitudes[idx] = 1.0;
             self.phases[idx] = 0.0;
             self.modified_flags[idx] = false;
-
-            // Shallow Clone Tracker
-            self.tracked_shallow_clones += 1;
             self.states[idx] = state;
-
             self.ids[idx] = FractalId {
                 index: idx as u32,
                 path_hash: 0,
@@ -218,12 +203,7 @@ impl FractalArena {
             return Some(idx);
         }
 
-        // Simulasi jika RRM terpaksa melewati kapasitas arena (Ini merepresentasikan "Memory Bloat" / Heap Allocation yang sesungguhnya)
         if self.active_count >= self.capacity {
-            self.tracked_heap_allocations += 1;
-            // Kita HARUS menghentikan spawning atau mendelegasikan ke GC di sini
-            // Untuk menghindari Panic saat pengaksesan index (Out of Bounds), kita return None.
-            // RRM secara otonom akan membaca `tracked_heap_allocations` dan menghentikan MCTS sebelum crash terjadi.
             return None;
         }
 
@@ -347,14 +327,6 @@ impl FractalArena {
                 SimdEnergyCalculator::calculate_epistemic(&*manifold_read, &initial_read);
         }
 
-        // 🌟 CAPABILITY AWARENESS: MIND-BODY DISCONNECT DETECTOR 🌟
-        // Jika Mind (Tensor Similarity/Probabilitas asal dari axiom) sangat yakin (>90% / amplitude awal besar),
-        // TETAPI setelah dieksekusi di Sandbox tubuh, "Tubuh" sama sekali tidak mengubah state
-        // sehingga Pragmatic Error masih sangat tinggi (Sama dengan Pragmatic Error benda asli sebelum diubah).
-        // Kita bisa menyimulasikan penalaran ini dengan membatasi Amplitude tidak turun drastis, tapi
-        // memberikan penanda khusus. Dalam MCTS ini, kita asumsikan jika `expected_free_energy` == `total_pragmatic_error` persis,
-        // dan tidak ada perubahan sama sekali, kita tahan nilainya sebagai anomali.
-
         self.reasoning_pragmatic[idx] = total_pragmatic_error;
         self.reasoning_epistemic[idx] = total_epistemic_value;
 
@@ -366,16 +338,7 @@ impl FractalArena {
         self.amplitudes[idx] = if total_pragmatic_error <= 0.0 {
             1.0
         } else {
-            let mut penalty = (expected_free_energy / 50000.0).clamp(0.0, 0.95);
-            // Mind-Body Disconnect Indicator:
-            // Jika agent mendapat probabilitas tinggi dari rule awal, tapi energi pragmatisnya super tinggi
-            // (karena physics_tier gagal menerjemahkannya di Sandbox), kita tahan amplitudonya agar tidak terbuang/prune
-            // sehingga metakognisi bisa mendeteksinya di `rrm_agent.rs` sebagai PhysicsNotImplemented.
-            if total_pragmatic_error > 100.0 && total_epistemic_value < 1.0 {
-                // Beri anomali flag probabilitas: 0.9999 (Sangat spesifik agar terbaca oleh agent)
-                penalty = 0.0;
-            }
-            0.99 - penalty
+            0.99 - (expected_free_energy / 50000.0).clamp(0.0, 0.95)
         };
 
         // Switch cognitive mode berdasarkan posisi (Mandelbrot Boundary logic)
@@ -445,16 +408,6 @@ impl AsyncWaveSearch {
             // Queue iteratif untuk simulasi Tree-Search Zero-GC
             let mut frontier = vec![root_idx];
 
-            // Memindahkan syscall Instant::now ke level batch untuk menghindari overhead OS
-            let batch_start_time = std::time::Instant::now();
-            let mut batch_total_active_count: usize = 0;
-            let mut batch_iterations: usize = 0;
-
-            // Map LSH untuk mendeteksi Cross-Branch Interference
-            // Menyimpan hash state manifold ke daftar ID node
-            let mut state_hashes: std::collections::HashMap<u64, Vec<usize>> =
-                std::collections::HashMap::new();
-
             while let Some(current_idx) = frontier.pop() {
                 // Cooperative Yield untuk async runtime compatibility
                 future::yield_now().await;
@@ -483,20 +436,9 @@ impl AsyncWaveSearch {
                 let action_dy = arena.action_dy[current_idx];
                 let action_tier = arena.action_tier[current_idx];
 
-                // Hitung Deep Copy Tracker
-                if Arc::strong_count(&arena.states[current_idx]) > 1 {
-                    arena.tracked_deep_copies += 1;
-                }
-
                 let states_mut = Arc::make_mut(&mut arena.states[current_idx]);
-                let mut any_collision = false;
-
-                let mut local_active_count = 0;
-                batch_iterations += 1;
-
                 for manifold in states_mut.iter_mut() {
-                    local_active_count += manifold.active_count;
-                    let collided = MultiverseSandbox::apply_axiom(
+                    MultiverseSandbox::apply_axiom(
                         &mut *manifold,
                         &action_condition,
                         &action_spatial,
@@ -506,45 +448,10 @@ impl AsyncWaveSearch {
                         action_tier,
                         &current_axiom_str,
                     );
-                    if collided {
-                        any_collision = true;
-                    }
                 }
-                batch_total_active_count += local_active_count;
-
-                // Cross-Branch Interference
-                // Hitung hash simpel dari manifold state untuk melihat apakah state ini pernah dicapai oleh cabang lain
-                let mut state_hash: u64 = 0;
-                for m in arena.states[current_idx].iter() {
-                    for i in 0..m.active_count {
-                        if m.masses[i] > 0.0 {
-                            state_hash = state_hash.wrapping_add((m.centers_x[i] * 100.0) as u64);
-                            state_hash = state_hash.wrapping_add((m.centers_y[i] * 100.0) as u64);
-                            state_hash = state_hash.wrapping_add(m.tokens[i] as u64);
-                        }
-                    }
-                }
-
-                // Jika ada cabang lain yang mendarat di hash yang sama, berikan bonus amplitudo (Constructive Interference)
-                if let Some(siblings) = state_hashes.get(&state_hash) {
-                    if siblings.len() > 0 {
-                        arena.amplitudes[current_idx] *= 1.2; // Amplification bonus
-                        arena.phases[current_idx] = 0.0; // Reset phase to align
-                    }
-                }
-                state_hashes
-                    .entry(state_hash)
-                    .or_insert_with(Vec::new)
-                    .push(current_idx);
 
                 // Reasoning (Free Energy)
                 arena.reason(current_idx, &self.expected_grids, &initial_manifolds);
-
-                // Tambahkan penalti energi jika menabrak rintangan
-                if any_collision {
-                    arena.reasoning_pragmatic[current_idx] += 10.0;
-                    arena.amplitudes[current_idx] *= 0.5; // Mengurangi probabilitas secara drastis
-                }
 
                 let pragmatic_error = arena.reasoning_pragmatic[current_idx];
                 let epistemic_value = arena.reasoning_epistemic[current_idx];
@@ -604,20 +511,6 @@ impl AsyncWaveSearch {
 
                 // Cek Ground State
                 if is_ground_state {
-                    // Resonansi Topologis: Pastikan Gluing Mulus sebelum Ground State disahkan
-                    let mut topological_resonance = 1.0;
-                    if let Some(man_in) = arena.states[current_idx].get(0) {
-                        let sheaf =
-                            crate::quantum_topology::ReasoningSheaf::from_manifold(man_in, 3);
-                        if !sheaf.check_sheaf_condition() {
-                            topological_resonance = 0.5; // Redam amplitudo karena kontradiksi lokal
-                            println!("   ⚠️ [Topological Resonance] Ground state terdeteksi tetapi Sheaf Gluing gagal. Meredam probabilitas.");
-                        } else {
-                            topological_resonance = 1.2; // Boost amplitudo
-                        }
-                    }
-                    arena.amplitudes[current_idx] *= topological_resonance;
-
                     let result_wave = WaveNode {
                         axiom_type: arena.axiom_path[current_idx].clone(),
                         condition_tensor: arena.action_condition[current_idx].clone(),
@@ -657,27 +550,21 @@ impl AsyncWaveSearch {
                     break;
                 }
 
-                // Quantum Tunneling & Ghost Amplitudes (Dynamic Pruning)
-                // Jika amplitudo rendah atau energi memburuk, jangan dibunuh (0.0). Beri Phase Shift (Amplitudo Hantu)
+                // Pruning Checks
+                if amplitude < 0.05 {
+                    arena.kill_node(current_idx);
+                    continue;
+                }
+
                 let predicted_min_energy =
                     pragmatic_error * 0.9f32.powi((self.max_depth as i32) - (current_depth as i32));
-
-                let mut should_branch = amplitude > 0.1;
-
                 if predicted_min_energy > 5.0 && current_depth >= 2 {
-                    // Kasus jalan buntu: Ubah jadi ghost amplitude (contoh: 0.01) dengan fase terbalik
-                    arena.amplitudes[current_idx] = 0.01;
-                    arena.phases[current_idx] = std::f32::consts::PI; // Shift 180 degrees
-                    should_branch = false; // Biarkan menjalar tapi jangan beranak banyak
-                } else if amplitude < 0.05 {
-                    // Kasus probabilitas rendah tapi energi mungkin oke
-                    arena.amplitudes[current_idx] = 0.02;
-                    arena.phases[current_idx] += std::f32::consts::FRAC_PI_2; // Shift 90 degrees
-                    should_branch = true; // Biarkan menjalar
+                    arena.kill_node(current_idx);
+                    continue;
                 }
 
                 // Branching Logic (Iteratif)
-                if should_branch && current_depth < self.max_depth {
+                if amplitude > 0.1 && current_depth < self.max_depth {
                     let max_branches = if current_depth == 0 { 20 } else { 2 };
                     let mut branch_count = 0;
 
@@ -722,19 +609,6 @@ impl AsyncWaveSearch {
                             frontier.push(child_idx);
                         }
                     }
-                }
-            }
-
-            // Hitung rata-rata waktu eksekusi batch per entitas manifold
-            let elapsed_batch_ns = batch_start_time.elapsed().as_nanos() as u64;
-            let mut arena = self.arena.write().unwrap();
-            if batch_total_active_count > 0 {
-                let avg_ns = elapsed_batch_ns / batch_total_active_count as u64;
-                if arena.average_iteration_time_ns == 0 {
-                    arena.average_iteration_time_ns = avg_ns;
-                } else {
-                    arena.average_iteration_time_ns =
-                        (arena.average_iteration_time_ns * 3 + avg_ns) / 4;
                 }
             }
         })

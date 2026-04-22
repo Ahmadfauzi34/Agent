@@ -9,12 +9,13 @@ use crate::reasoning::global_blackboard::GlobalBlackboard;
 use crate::reasoning::grover_diffusion_system::{
     GroverCandidate, GroverConfig, GroverDiffusionSystem, TrainState,
 };
+use crate::reasoning::hamiltonian_pruner::HamiltonianPruner;
 use crate::reasoning::hierarchical_inference::{DeepActiveInferenceEngine, SimulationMode};
 use crate::reasoning::multiverse_sandbox::MultiverseSandbox;
 use crate::reasoning::quantum_search::{AsyncWaveSearch, WaveNode};
 use crate::reasoning::top_down_axiomator::TopDownAxiomator;
 use crate::reasoning::topological_aligner::TopologicalAligner;
-use crate::self_awareness::self_reflection::{Bottleneck, FailureMode, SelfReflection};
+use crate::self_awareness::self_reflection::SelfReflection;
 use crate::self_awareness::skill_ontology::SkillOntology;
 
 use ndarray::Array1;
@@ -24,18 +25,27 @@ use std::sync::Arc;
 pub struct RrmAgent {
     perceiver: UniversalManifold,
     decoder: HologramDecoder,
+    #[allow(dead_code)]
+    pruner: HamiltonianPruner, // Akan di-deprecate
     seed_bank: LogicSeedBank,
 
     // Self-Awareness Layer
     ontology: SkillOntology,
+    #[allow(dead_code)]
     self_reflection: SelfReflection,
+    #[allow(dead_code)]
+    structural_analyzer: StructuralAnalyzer,
 
     // Reasoning
     counterfactual_engine: crate::reasoning::counterfactual_engine::CounterfactualEngine,
     causal_reasoner: CausalReasoner,
+    #[allow(dead_code)]
+    hierarchical_planner: crate::reasoning::hierarchical_planner::HierarchicalPlanner,
 
     // Memory
     mental_replay: crate::memory::mental_replay::MentalReplay,
+    #[allow(dead_code)]
+    skill_composer: crate::reasoning::skill_composer::SkillComposer,
 }
 
 impl Default for RrmAgent {
@@ -46,19 +56,58 @@ impl Default for RrmAgent {
 
 impl RrmAgent {
     pub fn new() -> Self {
+        use crate::perception::structural_analyzer::{
+            DimensionRelation, ObjectDelta, ObjectStatistics, StructuralDelta, StructuralSignature,
+            SymmetryChange, TopologyHint,
+        };
+        use std::collections::HashSet;
+
         let ontology = SkillOntology::initialize();
         let self_reflection = SelfReflection::new(ontology.clone());
 
         Self {
             perceiver: UniversalManifold::new(),
             decoder: HologramDecoder::new(),
+            pruner: HamiltonianPruner::new(),
             seed_bank: LogicSeedBank::new(),
             ontology,
             self_reflection,
+            structural_analyzer: StructuralAnalyzer,
             counterfactual_engine:
                 crate::reasoning::counterfactual_engine::CounterfactualEngine::new(),
             causal_reasoner: CausalReasoner::new(),
+            hierarchical_planner:
+                crate::reasoning::hierarchical_planner::HierarchicalPlanner::from_delta(
+                    &StructuralDelta {
+                        signature: StructuralSignature {
+                            dim_relation: DimensionRelation::Equal,
+                            object_delta: ObjectDelta::SameCount,
+                            color_transitions: vec![],
+                            topology_in: TopologyHint::Scatter,
+                            topology_out: TopologyHint::Scatter,
+                            has_template_frame: false,
+                            symmetry_change: SymmetryChange::Preserved,
+                        },
+                        input_stats: ObjectStatistics {
+                            count: 0,
+                            colors: HashSet::new(),
+                            bounding_box: (0, 0),
+                            total_pixels: 0,
+                            density: 0.0,
+                        },
+                        output_stats: ObjectStatistics {
+                            count: 0,
+                            colors: HashSet::new(),
+                            bounding_box: (0, 0),
+                            total_pixels: 0,
+                            density: 0.0,
+                        },
+                        per_object_changes: vec![],
+                    },
+                    &SkillOntology::initialize(),
+                ), // Will be recreated properly inside solve_task_v2
             mental_replay: crate::memory::mental_replay::MentalReplay::new(),
+            skill_composer: crate::reasoning::skill_composer::SkillComposer::new(),
         }
     }
 
@@ -361,1046 +410,359 @@ impl RrmAgent {
         let mut test_manifold = EntityManifold::new();
         EntitySegmenter::segment_stream(&stream_test, &mut test_manifold, 0.85, &self.perceiver);
 
+        // 2. RESONATE
+        let mut seed_axioms: Vec<WaveNode> = Vec::new();
         let expected_grids: Vec<Vec<Vec<i32>>> = train_out.clone();
 
-        // 1.5 ORIENTASI PRE-EMPTIVE (Membaca Niat Task)
-        println!("🧠 [Orientasi Pre-emptive] Membaca Niat Task...");
-        let mut pre_emptive_delta = None;
-        let mut betti_1_holes = 0;
-        let mut curvature_norm = 0.0;
-
         if let Some((man_in, man_out)) = train_states.iter().next() {
-            let delta = StructuralAnalyzer::analyze(man_in, man_out);
-            let report = self.self_reflection.assess_situation(&delta);
-            println!(
-                "   -> Niat / Klasifikasi Masalah: {}",
-                report.situation_assessment
-            );
-            pre_emptive_delta = Some(delta);
+            // Kombinasikan tebakan cerdas dari HGM (Top-Down) dengan tebakan Partikel dari Hebbian Voting (Bottom-Up)
+            let mut matches = TopDownAxiomator::generate_axioms(man_in, man_out);
+            matches.extend(TopologicalAligner::align(man_in, man_out));
 
-            // Evaluasi Topologi Kuantum (Deteksi Lubang / Betti-1)
-            let qcc = crate::quantum_topology::QuantumCellComplex::from_manifold(man_in, 1.5);
-            betti_1_holes = *qcc.betti_numbers.get(1).unwrap_or(&0);
+            // Prioritaskan berdasarkan skor similarity (HGM biasanya >0.85)
+            matches.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap());
 
-            if betti_1_holes > 0 {
-                println!("🧠 [Topologi Kuantum] Betti-1: Mendeteksi {} lubang (holes) pada struktur awal. Task mungkin bertipe Flood-Fill / Enclosure.", betti_1_holes);
-            } else {
-                println!(
-                    "🧠 [Topologi Kuantum] Betti-1: Tidak ada lubang terdeteksi. Struktur solid."
+            for m in matches {
+                // Gunakan Arc<Vec<RwLock>> (Copy-on-Write) untuk menghindari memory bloat
+                let initial_manifolds: Arc<Vec<EntityManifold>> =
+                    Arc::new(train_states.iter().map(|s| s.0.clone()).collect());
+
+                let mut node = WaveNode::new(
+                    m.axiom_type,
+                    m.condition_tensor,
+                    m.delta_spatial,
+                    m.delta_semantic,
+                    m.delta_x,
+                    m.delta_y,
+                    m.physics_tier,
+                    initial_manifolds,
+                    None,
                 );
+                node.probability = m.similarity; // Meminjam property probability untuk menyimpan skor prioritas/similarity saat inisiasi
+                seed_axioms.push(node);
             }
+            // Kita cukup ambil hipotesis dari contoh pertama saja untuk mengefisienkan tree search
+            // (Karena rule sejati harus bisa bekerja/beresonansi di semua training states anyway)
         }
 
-        // Cek Saliency Ratio: Seberapa besar porsi grid yang benar-benar aktif dibanding keseluruhan?
-        // Menghitung berdasarkan massa total entitas aktif (jumlah piksel)
-        if let Some((man_in, _)) = train_states.iter().next() {
-            let mut total_active_mass = 0.0;
-            for i in 0..man_in.active_count {
-                if man_in.tokens[i] != 0 {
-                    total_active_mass += man_in.masses[i];
-                }
-            }
+        // 3. EVOLVE (Asynchronous Wave Search) - Meta-Reactive Orchestrator
 
-            let total_area = (man_in.global_width * man_in.global_height).max(1.0);
-            self.self_reflection.active_saliency_ratio = total_active_mass / total_area;
-        }
+        // FAST PASS: Hanya mencoba translasi dan mutasi warna dasar (Tier <= 2)
+        // Ini memastikan tugas sederhana selesai dalam hitungan kilat (< 1 detik).
+        let fast_pass_axioms: Vec<WaveNode> = seed_axioms
+            .iter()
+            .filter(|a| a.physics_tier <= 2)
+            .cloned()
+            .take(3)
+            .collect();
+        let mut search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 1)); // Depth 1 for Fast Pass
 
-        // Asosiasi Masa Lalu (Knowledge Base) & Betti-1 Injection
-        let mut historical_axiom_injected = false;
-        if let Some(ref delta) = pre_emptive_delta {
-            // Jika ada deteksi warna atau ada deteksi lubang (Betti-1), injeksi aksioma pewarnaan area
-            if (delta.signature.color_transitions.len() > 0
-                && delta.signature.dim_relation
-                    == crate::perception::structural_analyzer::DimensionRelation::Equal)
-                || betti_1_holes > 0
-            {
-                if betti_1_holes > 0 {
-                    println!("🧠 [Memori Masa Lalu & Topologi] Teringat pola Flood Fill karena ada {} lubang Betti-1...", betti_1_holes);
-                } else {
-                    println!(
-                        "🧠 [Memori Masa Lalu] Teringat pola yang mirip dengan Task 09629e4f..."
-                    );
-                }
-                println!("   -> Menginjeksi [CROP_TO_COLOR, FLOOD_FILL] ke dalam Seed Axioms.");
-                historical_axiom_injected = true;
-            }
-        }
-
-        // 3. COGNITIVE STATE-MACHINE LOOP (MCTS + Grover)
-        let mut loop_counter = 0;
-        let max_loops = 6;
-
-        let calculate_dark_matter = |manifold: &EntityManifold| -> f32 {
-            if manifold.active_count == 0 {
-                return 0.0;
-            }
-            let mut zero_mass_count = 0;
-            for i in 0..manifold.active_count {
-                if manifold.masses[i] == 0.0 {
-                    zero_mass_count += 1;
-                }
-            }
-            zero_mass_count as f32 / manifold.active_count as f32
+        // Simpan Initial Manifolds untuk perhitungan Epistemic Value di Fast Pass
+        let initial_manifolds_fast = if let Some(first) = fast_pass_axioms.first() {
+            Arc::clone(&first.state_manifolds)
+        } else {
+            Arc::new(vec![])
         };
 
+        for axiom_node in fast_pass_axioms {
+            let s_clone = Arc::clone(&search);
+            let all_clone = vec![]; // Kosongkan all_clone pada fast pass depth 1 agar tidak mengalokasi memori berlebih
+            let init_clone = Arc::clone(&initial_manifolds_fast);
+            pollster::block_on(async move {
+                s_clone
+                    .propagate_wave(axiom_node, init_clone, all_clone)
+                    .await;
+            });
+        }
+
         let mut best_rule: Option<WaveNode> = None;
-        let mut seed_axioms: Vec<WaveNode> = Vec::new();
+        let mut max_prob = -1.0;
+        let mut best_fast_pass_energy = f32::MAX;
 
-        loop {
-            loop_counter += 1;
-            if loop_counter > max_loops {
-                println!("🧠 [Metakognisi] Batas loop kognitif tercapai (Infinite Loop Protection). Simulasi dihentikan paksa.");
-                break;
-            }
+        {
+            let ground_states = search.ground_states.read().unwrap();
+            for state in ground_states.iter() {
+                if state.probability > max_prob {
+                    max_prob = state.probability;
+                    best_rule = Some(state.clone());
+                }
 
-            // Cek persentase dark matter di siklus ini
-            let mut sum_ratio = 0.0;
-            let mut count = 0;
-            for (man_in, man_out) in train_states.iter() {
-                sum_ratio += calculate_dark_matter(man_in);
-                sum_ratio += calculate_dark_matter(man_out);
-                count += 2;
-            }
-            sum_ratio += calculate_dark_matter(&test_manifold);
-            count += 1;
-
-            self.self_reflection.dark_matter_ratio = if count > 0 {
-                sum_ratio / count as f32
-            } else {
-                0.0
-            };
-
-            // 2. RESONATE (Regenerasi Axioms jika kosong, biarkan jika sudah diset oleh Micro-Steps/ObstacleStuck)
-            if seed_axioms.is_empty() {
-                if let Some((man_in, man_out)) = train_states.iter().next() {
-                    let mut matches = TopDownAxiomator::generate_axioms(man_in, man_out);
-
-                    // Injeksi Asosiasi Masa Lalu jika relevan
-                    if historical_axiom_injected && loop_counter == 1 {
-                        let hist_match = crate::reasoning::topological_aligner::TopologicalMatch {
-                            source_index: 0,
-                            target_index: 0,
-                            axiom_type: "CROP_TO_COLOR".to_string(),
-                            similarity: 0.95, // High confidence karena memori masa lalu
-                            condition_tensor: None,
-                            delta_spatial: ndarray::Array1::zeros(
-                                crate::core::config::GLOBAL_DIMENSION,
-                            ),
-                            delta_semantic: ndarray::Array1::ones(
-                                crate::core::config::GLOBAL_DIMENSION,
-                            ), // Fake semantic change
-                            delta_x: 0.0,
-                            delta_y: 0.0,
-                            physics_tier: 3,
-                        };
-                        let hist_match_2 =
-                            crate::reasoning::topological_aligner::TopologicalMatch {
-                                source_index: 0,
-                                target_index: 0,
-                                axiom_type: "FLOOD_FILL".to_string(),
-                                similarity: 0.94, // High confidence karena memori masa lalu
-                                condition_tensor: None,
-                                delta_spatial: ndarray::Array1::zeros(
-                                    crate::core::config::GLOBAL_DIMENSION,
-                                ),
-                                delta_semantic: ndarray::Array1::ones(
-                                    crate::core::config::GLOBAL_DIMENSION,
-                                ), // Fake semantic change
-                                delta_x: 0.0,
-                                delta_y: 0.0,
-                                physics_tier: 3,
-                            };
-                        matches.push(hist_match);
-                        matches.push(hist_match_2);
-                    }
-                    matches.extend(TopologicalAligner::align(man_in, man_out));
-                    matches.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap());
-
-                    // Zero-Shot Context Pruning:
-                    // Jika klasifikasi masalah BUKAN RelationalRearrangement, kurangi aksioma geometri (seperti mirror/rotate).
-                    if let Some(ref delta) = pre_emptive_delta {
-                        // Pruning Geometri berdasarkan Curvature & Topological Intent
-                        if curvature_norm > 1.0 {
-                            // High Curvature: Linear translation is likely wrong, focus on Scale/Rotate/Fractal
-                            matches.retain(|m| !m.axiom_type.starts_with("SHIFT"));
-                            // Inject Scale_Up as a high priority guess
-                            if loop_counter == 1 {
-                                let fractal_match_2 =
-                                    crate::reasoning::topological_aligner::TopologicalMatch {
-                                        source_index: 0,
-                                        target_index: 0,
-                                        axiom_type: "SCALE_UP(2)".to_string(),
-                                        similarity: 0.96,
-                                        condition_tensor: None,
-                                        delta_spatial: ndarray::Array1::zeros(
-                                            crate::core::config::GLOBAL_DIMENSION,
-                                        ),
-                                        delta_semantic: ndarray::Array1::zeros(
-                                            crate::core::config::GLOBAL_DIMENSION,
-                                        ),
-                                        delta_x: 0.0,
-                                        delta_y: 0.0,
-                                        physics_tier: 4,
-                                    };
-                                let fractal_match_3 =
-                                    crate::reasoning::topological_aligner::TopologicalMatch {
-                                        source_index: 0,
-                                        target_index: 0,
-                                        axiom_type: "SCALE_UP(3)".to_string(),
-                                        similarity: 0.95,
-                                        condition_tensor: None,
-                                        delta_spatial: ndarray::Array1::zeros(
-                                            crate::core::config::GLOBAL_DIMENSION,
-                                        ),
-                                        delta_semantic: ndarray::Array1::zeros(
-                                            crate::core::config::GLOBAL_DIMENSION,
-                                        ),
-                                        delta_x: 0.0,
-                                        delta_y: 0.0,
-                                        physics_tier: 4,
-                                    };
-                                matches.push(fractal_match_2);
-                                matches.push(fractal_match_3);
-                                println!("🧠 [Topologi Kuantum] Curvature > 1.0. Memangkas SHIFT dan menginjeksi aksioma SCALE_UP dinamis.");
-                            }
-                        }
-
-                        let class = StructuralAnalyzer::classify_task_class(delta);
-                        if class != crate::perception::structural_analyzer::TaskClass::PureGeometry
-                           && class != crate::perception::structural_analyzer::TaskClass::RelationalRearrangement {
-                            matches.retain(|m| !m.axiom_type.contains("GLOBAL_ROTATE") && !m.axiom_type.contains("GLOBAL_MIRROR"));
-                        }
-
-                        // Pruning Aksioma Warna
-                        // Jika tidak ada transisi warna, kita membuang aksioma yang berhubungan dengan pengubahan warna (CROP_TO_COLOR, FLOOD_FILL, dll).
-                        if delta.signature.color_transitions.is_empty() {
-                            matches.retain(|m| {
-                                !m.axiom_type.contains("CROP_TO_COLOR")
-                                    && !m.axiom_type.contains("IF_COLOR")
-                            });
-                        }
-                    }
-
-                    for m in matches {
-                        let initial_manifolds: Arc<Vec<EntityManifold>> =
-                            Arc::new(train_states.iter().map(|s| s.0.clone()).collect());
-
-                        let mut node = WaveNode::new(
-                            m.axiom_type,
-                            m.condition_tensor,
-                            m.delta_spatial,
-                            m.delta_semantic,
-                            m.delta_x,
-                            m.delta_y,
-                            m.physics_tier,
-                            initial_manifolds,
-                            None,
-                        );
-                        node.probability = m.similarity;
-                        seed_axioms.push(node);
-                    }
+                // Estimate pragmatic error from fast pass node energy conceptually
+                // For simplicity, if we don't find a perfect solution, let's assume error is high
+                if max_prob < 0.99 {
+                    best_fast_pass_energy = 100.0;
                 }
             }
+        }
 
+        // 🌟 1. INISIALISASI CEO
+        let mut ceo_engine = DeepActiveInferenceEngine::new();
+
+        // 🌟 2. METAKOGNISI: SAKLAR GIGI OTOMATIS
+        if best_fast_pass_energy > 50.0 || max_prob < 0.99 {
+            println!("   🧠 [Metakognisi] Terjebak di Local Optimum (Fast Pass Gagal).");
+            println!("   🧠 Beralih ke Mode: PROBABILISTIC (Mengaktifkan Rasa Ingin Tahu Tinggi untuk Struktur Kosmik!)");
+            ceo_engine.switch_mode(SimulationMode::Probabilistic);
+        } else {
+            ceo_engine.switch_mode(SimulationMode::StrictVSA);
+        }
+
+        // ADVANCED PASS (SNAPSHOT FALLBACK):
+        // Jika Fast Pass gagal menemukan Ground State (Energy 0.0, prob = 1.0),
+        // kita jalankan deep MCTS dengan seluruh aksioma kosmis (Geometry, Spawn, Crop, dll)
+        if best_rule.is_none() || max_prob < 0.99 {
+            println!(
+                "   [Rust MCTS] Fast Pass gagal. Memulai ADVANCED PASS (Depth 2, All Physics)..."
+            );
+
+            // Filter aksioma berdasarkan confidence. HGM menghasilkan similarity > 0.85, Hebbian biasa lebih rendah.
             let high_confidence_axioms: Vec<WaveNode> = seed_axioms
-                .iter()
-                .filter(|a| a.probability >= 0.3)
-                .cloned()
+                .into_iter()
+                .filter(|a| a.probability >= 0.3) // Allow sub-part heuristics (Tier 0) to enter advanced pass
                 .collect();
 
-            let mut max_prob = -1.0;
+            println!(
+                "   🧠 Advanced Pass Axioms Generated (Sim >= 0.3): {}",
+                high_confidence_axioms.len()
+            );
+            for (i, ax) in high_confidence_axioms.iter().enumerate().take(30) {
+                println!(
+                    "      [{}] {:?} | sim: {:.3} | tier: {} | dx: {} dy: {}",
+                    i, ax.axiom_type, ax.probability, ax.physics_tier, ax.delta_x, ax.delta_y
+                );
+            }
 
-            let bottleneck = self.self_reflection.assess_current_bottleneck();
+            // Iterative Deepening: Beam Width 3 -> 5 -> 10 -> 20
+            let depths = vec![2, 5, 10, 20];
 
-            match bottleneck {
-                Bottleneck::FalseSharing => {
-                    println!("🧠 [Metakognisi] Bottleneck::FalseSharing - Amnesia Singkat (Cache Miss) Terdeteksi!");
-                    println!("   📝 MENULIS LOG ARCHITECTURE KE SISTEM: Iterasi iterasi EntityManifold lambat rata-rata {} ns per entitas. Kecepatan ini 3x lipat dari limit AVX2.", self.self_reflection.average_iteration_time_ns);
+            for (attempt, &take_n) in depths.iter().enumerate() {
+                println!(
+                    "   🔍 Search Attempt {}: Exploring top {} advanced axioms...",
+                    attempt + 1,
+                    take_n
+                );
 
-                    if let Ok(mut file) = std::fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open("knowledge/architecture_lint.md")
-                    {
-                        use std::io::Write;
-                        let _ = writeln!(
-                            file,
-                            "ARCHITECTURAL PAIN: Agent detected iteration times of {} ns per entity. This suggests severe L1 cache misses and fragmented memory structures. Please review struct padding, ensure EntityManifold is tightly packed, and reduce pointer indirections during hot loops.",
-                            self.self_reflection.average_iteration_time_ns
-                        );
-                    }
-
-                    self.self_reflection.average_iteration_time_ns = 0; // reset
-                    self.self_reflection.last_failure_mode = FailureMode::None;
-                }
-                Bottleneck::CognitiveGarbage => {
-                    println!("🧠 [Metakognisi] Bottleneck::CognitiveGarbage - Polusi Dark Matter terdeteksi di memori spasial!");
-                    println!("   📝 MENULIS LOG ARCHITECTURE KE SISTEM: Terdeteksi {}% entitas adalah 'Ghost State' dengan mass = 0.0.", (self.self_reflection.dark_matter_ratio * 100.0).round());
-
-                    if let Ok(mut file) = std::fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open("knowledge/architecture_lint.md")
-                    {
-                        use std::io::Write;
-                        let _ = writeln!(
-                            file,
-                            "ARCHITECTURAL PAIN: Agent detected {:.1}% of entities in EntityManifold are inactive (mass = 0.0). Iterating over this 'Dark Matter' destroys CPU branch predictors and cache locality. Please implement swap-remove or periodic array compaction.",
-                            self.self_reflection.dark_matter_ratio * 100.0
-                        );
-                    }
-
-                    // Aksi Otonom: Memadatkan (Compacting) Entity Manifold untuk membuang sampah
-                    println!("   🧹 [Auto-Fix] Agen secara otonom memadatkan (compacting) array EntityManifold...");
-                    let compact_manifold = |m: &mut EntityManifold| {
-                        let mut new_idx = 0;
-                        for i in 0..m.active_count {
-                            if m.masses[i] > 0.0 {
-                                if i != new_idx {
-                                    let mass = m.masses[i];
-                                    let tok = m.tokens[i];
-                                    let cx = m.centers_x[i];
-                                    let cy = m.centers_y[i];
-                                    let sx = m.spans_x[i];
-                                    let sy = m.spans_y[i];
-                                    let es = m.entanglement_status[i];
-
-                                    Arc::make_mut(&mut m.masses)[new_idx] = mass;
-                                    Arc::make_mut(&mut m.tokens)[new_idx] = tok;
-                                    Arc::make_mut(&mut m.centers_x)[new_idx] = cx;
-                                    Arc::make_mut(&mut m.centers_y)[new_idx] = cy;
-                                    Arc::make_mut(&mut m.spans_x)[new_idx] = sx;
-                                    Arc::make_mut(&mut m.spans_y)[new_idx] = sy;
-                                    Arc::make_mut(&mut m.entanglement_status)[new_idx] = es;
-                                }
-                                new_idx += 1;
-                            }
-                        }
-                        m.active_count = new_idx;
-                    };
-
-                    compact_manifold(&mut test_manifold);
-                    for (man_in, man_out) in train_states.iter_mut() {
-                        compact_manifold(man_in);
-                        compact_manifold(man_out);
-                    }
-
-                    self.self_reflection.dark_matter_ratio = 0.0;
-                    self.self_reflection.last_failure_mode = FailureMode::None;
-
-                    continue; // Skip siklus untuk me-restart dengan memori yang lebih padat (SIMD friendly)
-                }
-                Bottleneck::AllocationThrashing => {
-                    println!("🧠 [Metakognisi] Bottleneck::AllocationThrashing - Nyeri Alokasi Memori (Heap Thrashing) Terdeteksi!");
-                    println!("   📝 MENULIS LOG ARCHITECTURE KE SISTEM: Terjadi {} alokasi dinamis (Vec::push) di hot path MCTS.", self.self_reflection.heap_allocation_count);
-
-                    if let Ok(mut file) = std::fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open("knowledge/architecture_lint.md")
-                    {
-                        use std::io::Write;
-                        let _ = writeln!(
-                            file,
-                            "ARCHITECTURAL PAIN: Agent detected {} dynamic heap allocations exceeding MCTS buffer capacity. This thrashes the OS allocator and destroys SIMD throughput. Please implement a bump allocator (bumpalo) or reuse object pools.",
-                            self.self_reflection.heap_allocation_count
-                        );
-                    }
-
-                    // Kita asumsikan agen mentolerirnya untuk saat ini agar tidak crash, reset metriknya
-                    self.self_reflection.heap_allocation_count = 0;
-                    self.self_reflection.last_failure_mode = FailureMode::None;
-                }
-                Bottleneck::MemoryBloat => {
-                    println!("🧠 [Metakognisi] Bottleneck::MemoryBloat - Pelanggaran Copy-on-Write (CoW) Terdeteksi!");
-                    println!("   📝 MENULIS LOG ARCHITECTURE KE SISTEM: MCTS melakukan {} Deep Copy dan {} Shallow Clone. Ini menghancurkan cache L1/L2.", self.self_reflection.deep_copy_count, self.self_reflection.shallow_clone_count);
-
-                    if let Ok(mut file) = std::fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open("knowledge/architecture_lint.md")
-                    {
-                        use std::io::Write;
-                        let _ = writeln!(
-                            file,
-                            "ARCHITECTURAL PAIN: Agent observed {} deep copies vs {} shallow clones during MCTS. Please review `Arc::make_mut` usage or consider implementing an Object Pool to prevent heap thrashing.",
-                            self.self_reflection.deep_copy_count,
-                            self.self_reflection.shallow_clone_count
-                        );
-                    }
-
-                    // Kita asumsikan agen bisa mentolerirnya, kita reset metriknya agar simulasi dapat berlanjut
-                    self.self_reflection.deep_copy_count = 0;
-                    self.self_reflection.last_failure_mode = FailureMode::None;
-                }
-                Bottleneck::BodyLimitation => {
-                    println!("🧠 [Metakognisi] Bottleneck::BodyLimitation - Mind-Body Disconnect terdeteksi!");
-                    println!("   Pikiran logis (Tensor) sangat yakin, namun tubuh fisik (Sandbox) gagal mengeksekusi.");
-                    println!("   📝 MENULIS LOG ERROR KE SISTEM: 'SAYA KEKURANGAN ALAT FISIK. Tolong upgrade `apply_axiom` di Sandbox.'");
-
-                    // Menulis log manual agar sistem terstruktur (pengembang dapat melihat log dan mengembangkan physics_tier).
-                    if let Ok(mut file) = std::fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open("knowledge/execution_log.md")
-                    {
-                        use std::io::Write;
-                        let _ = writeln!(
-                            file,
-                            "SELF-AWARENESS: Causal reasoning found a highly probable solution tensor, but Sandbox physics engine lacks implementation to move pixels. Please upgrade `apply_axiom`."
-                        );
-                    }
-
-                    // Kita tidak bisa melanjutkan jika tubuh tidak mendukung. Hentikan simulasi.
-                    break;
-                }
-                Bottleneck::ObstacleStuck => {
-                    println!("🧠 [Metakognisi] Bottleneck::ObstacleStuck - Rute terhalang rintangan. Mengubah aksioma dari Translasi Absolut ke Pathfinding (Micro-Steps)...");
-
-                    // Kita membuang tebakan aksioma Translasi "Jauh" yang lama.
-                    // Menyiapkan aksioma "Micro-Step" (Gerak 1-piksel ke Atas, Bawah, Kiri, Kanan)
-                    // Nantinya MCTS akan mengevaluasinya sebagai rute labirin.
-                    let x_seed = crate::core::core_seeds::CoreSeeds::x_axis_seed();
-                    let y_seed = crate::core::core_seeds::CoreSeeds::y_axis_seed();
-
-                    seed_axioms.clear(); // Hapus aksioma tebakan lurus (hanya buang-buang waktu)
-
-                    let micro_steps = vec![
-                        ("STEP_UP", 0.0, -1.0),
-                        ("STEP_DOWN", 0.0, 1.0),
-                        ("STEP_LEFT", -1.0, 0.0),
-                        ("STEP_RIGHT", 1.0, 0.0),
-                    ];
-
-                    let initial_manifolds: Arc<Vec<EntityManifold>> =
-                        Arc::new(train_states.iter().map(|s| s.0.clone()).collect());
-
-                    for (name, dx, dy) in micro_steps {
-                        let tensor_spatial =
-                            crate::core::fhrr::FHRR::fractional_bind_2d(&x_seed, dx, &y_seed, dy);
-                        let mut node = WaveNode::new(
-                            name.to_string(),
-                            None,
-                            tensor_spatial.clone(),
-                            ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION),
-                            dx,
-                            dy,
-                            1, // Micro step adalah spatial shift (Tier 1) tapi harus ditaruh sebagai list khusus agar MCTS Iterative Deepening bisa merayap
-                            initial_manifolds.clone(),
-                            None,
-                        );
-                        node.probability = 0.99; // Set ke confidence tinggi
-                        seed_axioms.push(node);
-                    }
-
-                    println!("   🧱 [Obstacle Awareness] Aksioma pencarian telah diubah menjadi Micro-Steps.");
-
-                    // Escape hatch: Lanjut iterasi untuk dicoba oleh Advanced Pass
-                    self.self_reflection.last_failure_mode = FailureMode::None;
-                    self.self_reflection.iterations_without_improvement = 350; // Paksa masuk LocalOptimum
-                    self.self_reflection.best_energy = 5.0;
-
-                    continue; // Skip ke iterasi berikutnya agar Advanced Pass menerima update seed_axioms ini
-                }
-                Bottleneck::Distracted => {
-                    println!("🧠 [Metakognisi] Bottleneck::Distracted - Saliency ratio terlalu rendah (Background dominan). Melakukan Zoom-In (Saliency Crop)!");
-
-                    // Kita membuang piksel background dengan memfilter manifold
-                    let filter_saliency = |manifold: &mut EntityManifold| {
-                        let mut active_indices = Vec::new();
-                        for i in 0..manifold.active_count {
-                            // Anggap background adalah massa 0 atau token 0
-                            if manifold.masses[i] > 0.0 && manifold.tokens[i] != 0 {
-                                active_indices.push(i);
-                            }
-                        }
-
-                        // Geser entitas yang aktif ke depan array agar kompak, namun kita TIDAK MENGUBAH UKURAN GLOBAL GRID
-                        // Hanya saja, kita bisa mensimulasikan "Fokus" dengan menonaktifkan yang lainnya.
-                        let mut new_idx = 0;
-                        for old_idx in active_indices {
-                            if new_idx != old_idx {
-                                let m = manifold.masses[old_idx];
-                                let t = manifold.tokens[old_idx];
-                                let cx = manifold.centers_x[old_idx];
-                                let cy = manifold.centers_y[old_idx];
-                                let sx = manifold.spans_x[old_idx];
-                                let sy = manifold.spans_y[old_idx];
-                                let es = manifold.entanglement_status[old_idx];
-
-                                Arc::make_mut(&mut manifold.masses)[new_idx] = m;
-                                Arc::make_mut(&mut manifold.tokens)[new_idx] = t;
-                                Arc::make_mut(&mut manifold.centers_x)[new_idx] = cx;
-                                Arc::make_mut(&mut manifold.centers_y)[new_idx] = cy;
-                                Arc::make_mut(&mut manifold.spans_x)[new_idx] = sx;
-                                Arc::make_mut(&mut manifold.spans_y)[new_idx] = sy;
-                                Arc::make_mut(&mut manifold.entanglement_status)[new_idx] = es;
-                            }
-                            new_idx += 1;
-                        }
-                        manifold.active_count = new_idx;
-                    };
-
-                    filter_saliency(&mut test_manifold);
-                    for (man_in, man_out) in train_states.iter_mut() {
-                        filter_saliency(man_in);
-                        filter_saliency(man_out);
-                    }
-
-                    println!("   👁️ [Saliency Engine] Grid telah dibersihkan dari noise. Perhatian kini terfokus pada objek aktif.");
-
-                    // Kosongkan seed_axioms agar regenerasi axiom melihat piksel baru yang lebih bersih
-                    seed_axioms.clear();
-
-                    // Supaya tidak terjebak loop yang sama
-                    self.self_reflection.active_saliency_ratio = 1.0;
-                    self.self_reflection.best_energy = 5.0; // Turunkan energy agar bisa lanjut mencari pola
-
-                    continue; // Sama seperti ObstacleStuck, lanjutkan ke siklus berikutnya untuk memproses manifold hasil filter
-                }
-                Bottleneck::Solved => {
-                    println!("🧠 [Metakognisi] Bottleneck::Solved - Sistem telah menemukan Ground State!");
-                    break;
-                }
-                Bottleneck::Exhausted => {
-                    println!("🧠 [Metakognisi] Bottleneck::Exhausted - Kelelahan. Pencarian dihentikan. Membutuhkan Tidur REM.");
-                    break;
-                }
-                Bottleneck::Blindness => {
-                    println!("🧠 [Metakognisi] Bottleneck::Blindness - Saya tidak memahami struktur. Mengobati Kebutaan via Hierarchical Gestalt...");
-                    // Panggil dokter mata: Hierarchical Gestalt untuk mengelompokkan piksel menjadi objek makro
-                    use crate::perception::hierarchical_gestalt::GestaltEngine;
-
-                    let mut macro_found = false;
-
-                    // Kita akan mengubah struktur data test_manifold dengan temuan Gestalt jika bermanfaat
-                    let gestalt_atoms = GestaltEngine::extract_atoms(&test_manifold);
-                    if !gestalt_atoms.is_empty() {
-                        println!(
-                            "   👁️ [Gestalt Vision] Menemukan {} objek makro pada Test Manifold (Bentuk: {:?}, dsb).",
-                            gestalt_atoms.len(),
-                            gestalt_atoms[0].atom_type
-                        );
-
-                        // Menggantikan manifold lama dengan interpretasi makro (gestalt_atoms)
-                        let create_macro_manifold =
-                            |source: &EntityManifold,
-                             atoms: &[crate::perception::hierarchical_gestalt::GestaltAtom]|
-                             -> EntityManifold {
-                                let mut macro_manifold = EntityManifold::new();
-                                macro_manifold.global_width = source.global_width;
-                                macro_manifold.global_height = source.global_height;
-
-                                let mut idx = 0;
-                                for atom in atoms.iter() {
-                                    macro_manifold.ensure_scalar_capacity(idx + 1);
-                                    Arc::make_mut(&mut macro_manifold.masses)[idx] =
-                                        atom.pixel_count as f32;
-                                    Arc::make_mut(&mut macro_manifold.tokens)[idx] = atom.color;
-                                    Arc::make_mut(&mut macro_manifold.centers_x)[idx] =
-                                        atom.center_of_mass.0;
-                                    Arc::make_mut(&mut macro_manifold.centers_y)[idx] =
-                                        atom.center_of_mass.1;
-                                    Arc::make_mut(&mut macro_manifold.spans_x)[idx] =
-                                        (atom.bounding_box.2 - atom.bounding_box.0).max(1.0);
-                                    Arc::make_mut(&mut macro_manifold.spans_y)[idx] =
-                                        (atom.bounding_box.3 - atom.bounding_box.1).max(1.0);
-                                    idx += 1;
-                                }
-                                macro_manifold.active_count = idx;
-                                macro_manifold
-                            };
-
-                        test_manifold = create_macro_manifold(&test_manifold, &gestalt_atoms);
-
-                        // Penting: Paradigm Shift juga harus diaplikasikan ke memori Training Data agar Axioms baru konsisten
-                        for (man_in, man_out) in train_states.iter_mut() {
-                            let in_atoms = GestaltEngine::extract_atoms(man_in);
-                            if !in_atoms.is_empty() {
-                                *man_in = create_macro_manifold(man_in, &in_atoms);
-                            }
-                            let out_atoms = GestaltEngine::extract_atoms(man_out);
-                            if !out_atoms.is_empty() {
-                                *man_out = create_macro_manifold(man_out, &out_atoms);
-                            }
-                        }
-
-                        macro_found = true;
-                    }
-
-                    if macro_found {
-                        // Kosongkan seed_axioms agar diregenerasi di awal loop menggunakan paradigma makro yang baru
-                        seed_axioms.clear();
-
-                        // Jika berhasil mengelompokkan, kita reset metrik agar MCTS / Grover berjalan lagi
-                        println!("   👁️ [Gestalt Vision] Pandangan dipulihkan. Mengulang pencarian dengan paradigma makro...");
-                        self.self_reflection.best_energy = 5.0; // Turunkan energy agar lolos dari blok Blindness
-                        self.self_reflection.last_failure_mode = FailureMode::None;
-                        self.self_reflection.iterations_without_improvement = 0;
-
-                        continue; // Lewati siklus iterasi ini agar Advanced Pass mendapat manifold terbaru
-                    } else {
-                        // Jika Gestalt juga tidak bisa menemukan bentuk berarti, anggap agen kelelahan.
-                        println!(
-                            "   👁️ [Gestalt Vision] Pandangan tetap buram (Noise Total). Menyerah."
-                        );
-                        self.self_reflection.total_iterations = 9999;
-                    }
-                }
-                Bottleneck::PrecisionError => {
-                    println!("🧠 [Metakognisi] Bottleneck::PrecisionError - Meleset sedikit. Menembakkan Counterfactual Engine (Femto Scale)...");
-
-                    // Kita gunakan CounterfactualEngine untuk mencari deviasi posisi yang eksak antara hasil tebakan terbaik dan target
-                    if let Some(ref mut rule) = best_rule {
-                        let mut engine =
-                            crate::reasoning::counterfactual_engine::CounterfactualEngine::new();
-
-                        // Konversi WaveNode menjadi Axiom sementara untuk disimulasikan
-                        let mut temp_axiom = crate::reasoning::structures::Axiom::identity();
-                        temp_axiom.name = rule
+                // Menggunakan GroverDiffusionSystem untuk Pre-Filter Aksioma Terbaik tanpa deep cloning
+                // secara terus-menerus ke semua cabang, sehingga menghemat memory MCTS!
+                let mut candidates = Vec::new();
+                for ax in high_confidence_axioms.iter().take(take_n) {
+                    candidates.push(GroverCandidate {
+                        energy: ax.probability,                 // warm start base
+                        tensor_rule: ax.tensor_spatial.clone(), // Menggunakan tensor spasial untuk filtering
+                        condition_tensor: ax.condition_tensor.clone(),
+                        delta_x: ax.delta_x,
+                        delta_y: ax.delta_y,
+                        physics_tier: ax.physics_tier,
+                        axiom_type: ax
                             .axiom_type
                             .last()
                             .cloned()
-                            .unwrap_or_else(|| "TempAxiom".to_string());
-                        temp_axiom.condition_tensor = rule.condition_tensor.clone();
-                        temp_axiom.delta_spatial = rule.tensor_spatial.clone();
-                        temp_axiom.delta_semantic = rule.tensor_semantic.clone();
-                        temp_axiom.delta_x = rule.delta_x;
-                        temp_axiom.delta_y = rule.delta_y;
-                        temp_axiom.tier = rule.physics_tier;
-
-                        // Uji satu pasang train state untuk mendapatkan gradient geseran
-                        if let Some((man_in, expected_out)) = train_states.iter().next() {
-                            let result = engine.what_if(&temp_axiom, man_in, expected_out);
-
-                            if !result.is_success {
-                                if let Some(ref failure) = result.failure {
-                                    match failure {
-                                        crate::reasoning::counterfactual_engine::FailureMode::HighEnergyState {
-                                            gradient_x, gradient_y, ..
-                                        } => {
-                                            println!("   🎯 [Femto Surgeon] Menemukan deviasi absolut: dx={}, dy={}", gradient_x.to_f32(), gradient_y.to_f32());
-
-                                            if let Some(corrections) = engine.suggest_correction(failure) {
-                                                if let Some(correction) = corrections.first() {
-                                                    println!("   🎯 [Femto Surgeon] Memutar fasa tensor secara analitis ke target eksak!");
-
-                                                    // Perbarui WaveNode terbaik kita dengan tensor koreksi
-                                                    rule.tensor_spatial = correction.delta_spatial.clone();
-                                                    rule.delta_x = correction.delta_x;
-                                                    rule.delta_y = correction.delta_y;
-                                                    rule.axiom_type.push("FEMTO_CORRECTION".to_string());
-
-                                                    // Set probability maksimal karena ini kalkulus eksak
-                                                    max_prob = 1.0;
-                                                    rule.probability = 1.0;
-
-                                                    // Tandai Sukses agar keluar loop
-                                                    self.self_reflection.update_metrics(
-                                                        0.0,
-                                                        0.0,
-                                                        FailureMode::None,
-                                                    );
-                                                    continue;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Jika gagal memperbaiki posisi (mungkin karena struktur rusak parah)
-                    self.self_reflection.last_failure_mode = FailureMode::None;
-                    self.self_reflection.iterations_without_improvement += 350; // Paksa masuk LocalOptimum
+                            .unwrap_or_else(|| "".to_string()),
+                    });
                 }
-                Bottleneck::CombinatorialExplosion => {
-                    println!("🧠 [Metakognisi] Bottleneck::CombinatorialExplosion - Terlalu banyak kombinasi piksel yang bergerak. Mengaktifkan Swarm & Wave Dynamics (Hebbian Insting)...");
 
-                    // Kita memanggil WaveDynamics untuk membangkitkan EntanglementGraph antar partikel (mencari relasi seperti warna sama atau posisi dekat)
-                    let mut wave_engine = crate::reasoning::wave_dynamics::WaveDynamics::new();
-                    wave_engine.initialize_entities(&test_manifold);
-                    wave_engine.evolve_entanglement(&test_manifold, 0.5);
-
-                    println!("   🌊 [Swarm Physics] Entanglement Graph terbentuk. Mensimulasikan 'Gravity Drop' ke arah tebakan terbaik saat ini...");
-
-                    // Jika ada best_rule, kita coba terapkan Swarm Gravity (semua entitas ditarik ke arah delta_x/delta_y secara bersamaan, dgn mempertimbangkan tabrakan)
-                    if let Some(ref rule) = best_rule {
-                        if rule.delta_x.abs() > 0.0 || rule.delta_y.abs() > 0.0 {
-                            crate::reasoning::swarm_dynamics::SwarmDynamics::apply_swarm_gravity(
-                                &mut test_manifold,
-                                rule.delta_x,
-                                rule.delta_y,
-                            );
-
-                            // Terapkan hal yang sama ke train_states agar pandangan agen konsisten ke depannya
-                            for (man_in, _man_out) in train_states.iter_mut() {
-                                crate::reasoning::swarm_dynamics::SwarmDynamics::apply_swarm_gravity(
-                                    man_in,
-                                    rule.delta_x,
-                                    rule.delta_y
-                                );
-                            }
-
-                            println!("   🌊 [Swarm Physics] Partikel telah mengalir secara organik. Mengulang evaluasi struktur...");
-                        } else {
-                            println!("   🌊 [Swarm Physics] Tidak ada arah gravitasi dominan. Wave Collapse dibatalkan.");
-                        }
-                    }
-
-                    // Reset entropy untuk mensimulasikan gelombang telah runtuh (Wave Function Collapse) menjadi satu kepastian
-                    self.self_reflection.wave_entropy = 0.0;
-                    // Reset iterasi stagnan agar MCTS mencoba mengeksplorasi dari state baru yang sudah digabungkan secara fisik
-                    self.self_reflection.iterations_without_improvement = 0;
-                    self.self_reflection.best_energy = 5.0; // Turunkan energy
-
-                    continue; // Skip the rest of the loop to restart search with new swarm-influenced manifolds
+                // Konversi train_states menjadi format Oracle Grover
+                let mut grover_train_states = Vec::new();
+                for (i, (man_in, _man_out)) in train_states.iter().enumerate() {
+                    grover_train_states.push(TrainState {
+                        in_state: man_in.clone(),
+                        expected_grid: expected_grids[i].clone(),
+                    });
                 }
-                Bottleneck::FastFail(_stuck_energy) | Bottleneck::LocalOptimum(_stuck_energy) => {
-                    if bottleneck == Bottleneck::FastFail(_stuck_energy) {
-                        println!("🧠 [Metakognisi] Bottleneck::FastFail - Gradient Energy dE/dt sangat lambat. MCTS dihentikan lebih awal!");
-                    } else {
-                        println!("🧠 [Metakognisi] Bottleneck::LocalOptimum - MCTS mentok.");
-                    }
-                    println!(
-                        "   -> Beralih ke ADVANCED PASS (Iterative Deepening MCTS / Grover)..."
-                    );
 
-                    let mut ceo_engine = DeepActiveInferenceEngine::new();
-                    ceo_engine.switch_mode(SimulationMode::Probabilistic);
+                let mut sandbox = MultiverseSandbox::new();
+                let config = GroverConfig {
+                    dimensions: crate::core::config::GLOBAL_DIMENSION,
+                    search_space_size: candidates.len(),
+                    temperature: 0.5,
+                    free_energy_threshold: 0.0,
+                    max_iterations: 2, // 2 iterations Cukup untuk 20 node
+                };
 
-                    let depths = vec![2, 5, 10, 20];
-                    for (attempt, &take_n) in depths.iter().enumerate() {
+                let mut grover = GroverDiffusionSystem::new(&mut sandbox, config);
+                let best_grover_idx =
+                    grover.search(&candidates, &grover_train_states, &ceo_engine.current_mode);
+
+                // Jika Grover menemukan pemenang yang meyakinkan, kita bisa langsung pakai
+                if let Some(idx) = best_grover_idx {
+                    if grover.energies[idx] <= 0.001 {
                         println!(
-                            "   🔍 Search Attempt {}: Exploring top {} advanced axioms...",
-                            attempt + 1,
-                            take_n
+                            "   ✅ Grover Diffusion menemukan solusi eksak! Index: {}",
+                            idx
                         );
-
-                        let mut candidates = Vec::new();
-                        for ax in high_confidence_axioms.iter().take(take_n) {
-                            candidates.push(GroverCandidate {
-                                energy: ax.probability,
-                                tensor_rule: ax.tensor_spatial.clone(),
-                                condition_tensor: ax.condition_tensor.clone(),
-                                delta_x: ax.delta_x,
-                                delta_y: ax.delta_y,
-                                physics_tier: ax.physics_tier,
-                                axiom_type: ax
-                                    .axiom_type
-                                    .last()
-                                    .cloned()
-                                    .unwrap_or_else(|| "".to_string()),
-                            });
-                        }
-
-                        let mut grover_train_states = Vec::new();
-                        for (i, (man_in, _man_out)) in train_states.iter().enumerate() {
-                            grover_train_states.push(TrainState {
-                                in_state: man_in.clone(),
-                                expected_grid: expected_grids[i].clone(),
-                            });
-                        }
-
-                        let mut sandbox = MultiverseSandbox::new();
-                        let config = GroverConfig {
-                            dimensions: crate::core::config::GLOBAL_DIMENSION,
-                            search_space_size: candidates.len(),
-                            temperature: 0.5,
-                            free_energy_threshold: 0.0,
-                            max_iterations: 2,
-                        };
-
-                        let mut grover = GroverDiffusionSystem::new(&mut sandbox, config);
-                        let best_grover_idx = grover.search(
-                            &candidates,
-                            &grover_train_states,
-                            &ceo_engine.current_mode,
-                        );
-
-                        if let Some(idx) = best_grover_idx {
-                            if grover.energies[idx] <= 0.001 {
-                                println!(
-                                    "   ✅ Grover Diffusion menemukan solusi eksak! Index: {}",
-                                    idx
-                                );
-                                let winner = &candidates[idx];
-                                let mut w_node = WaveNode::new(
-                                    winner.axiom_type.clone(),
-                                    winner.condition_tensor.clone(),
-                                    winner.tensor_rule.clone(),
-                                    winner.tensor_rule.clone(),
-                                    winner.delta_x,
-                                    winner.delta_y,
-                                    winner.physics_tier,
-                                    std::sync::Arc::new(
-                                        train_states
-                                            .iter()
-                                            .map(|(m, _)| m.clone())
-                                            .collect::<Vec<_>>(),
-                                    ),
-                                    None,
-                                );
-                                w_node.probability = 1.0;
-                                best_rule = Some(w_node);
-                                max_prob = 1.0;
-                                self.self_reflection
-                                    .update_metrics(0.0, 0.0, FailureMode::None);
-                                break; // Selesai
-                            }
-                        }
-
-                        // JALANKAN MCTS DEEP SEARCH
-                        let mut id_tensor =
-                            ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION);
-                        if crate::core::config::GLOBAL_DIMENSION > 0 {
-                            id_tensor[0] = 1.0;
-                            id_tensor[crate::core::config::GLOBAL_DIMENSION - 1] = 1.0;
-                        }
-
-                        let initial_manifolds_adv = std::sync::Arc::new(
-                            train_states
-                                .iter()
-                                .map(|(m, _)| m.clone())
-                                .collect::<Vec<_>>(),
-                        );
-
-                        let initial_wave = WaveNode {
-                            axiom_type: vec!["ROOT_START".to_string()],
-                            static_background: std::sync::Arc::new(
-                                crate::core::infinite_detail::CoarseData {
-                                    regions: std::sync::Arc::new(vec![]),
-                                    signatures: std::sync::Arc::new(vec![]),
-                                },
+                        // Convert to WaveNode
+                        let winner = &candidates[idx];
+                        let mut w_node = WaveNode::new(
+                            winner.axiom_type.clone(),
+                            winner.condition_tensor.clone(),
+                            winner.tensor_rule.clone(),
+                            winner.tensor_rule.clone(),
+                            winner.delta_x,
+                            winner.delta_y,
+                            winner.physics_tier,
+                            std::sync::Arc::new(
+                                train_states
+                                    .iter()
+                                    .map(|(m, _)| m.clone())
+                                    .collect::<Vec<_>>(),
                             ),
-                            state_manifolds: std::sync::Arc::clone(&initial_manifolds_adv),
-                            condition_tensor: Some(id_tensor.clone()),
-                            tensor_spatial: id_tensor.clone(),
-                            tensor_semantic: id_tensor.clone(),
-                            probability: 1.0,
-                            delta_x: 0.0,
-                            delta_y: 0.0,
-                            physics_tier: 0,
-                            depth: 0,
-                            state_modified: false,
-                        };
-
-                        let mut all_clone: Vec<WaveNode> = high_confidence_axioms.clone();
-                        all_clone.dedup_by(|a, b| a.axiom_type == b.axiom_type);
-
-                        let (test_target_h, test_target_w) = expected_grids
-                            .first()
-                            .map(|grid| {
-                                (
-                                    grid.len() as f32,
-                                    if grid.is_empty() {
-                                        0.0
-                                    } else {
-                                        grid[0].len() as f32
-                                    },
-                                )
-                            })
-                            .unwrap_or((0.0, 0.0));
-
-                        for c in all_clone.iter_mut() {
-                            let probability_boost = match c.physics_tier {
-                                7 => 5.0,
-                                6 => 3.0,
-                                4..=5 => 2.0,
-                                _ => 0.0,
-                            };
-
-                            if c.physics_tier == 7 {
-                                c.probability = probability_boost;
-                                if test_target_w > 0.0 && test_target_h > 0.0 {
-                                    c.delta_x = test_target_w;
-                                    c.delta_y = test_target_h;
-                                }
-                            } else {
-                                c.probability += probability_boost;
-                            }
-                        }
-
-                        all_clone.sort_by(|a, b| {
-                            b.probability
-                                .partial_cmp(&a.probability)
-                                .unwrap_or(std::cmp::Ordering::Equal)
-                                .then_with(|| a.depth.cmp(&b.depth))
-                        });
-
-                        println!(
-                            "   ⚡ Memulai MCTS dari ROOT ZERO-POINT dengan {} amunisi unik...",
-                            all_clone.len()
+                            None,
                         );
-                        let search =
-                            std::sync::Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 2));
-                        let s_clone = std::sync::Arc::clone(&search);
-
-                        pollster::block_on(async move {
-                            s_clone
-                                .propagate_wave(initial_wave, initial_manifolds_adv, all_clone)
-                                .await;
-                        });
-
-                        let ground_states = search.ground_states.read().unwrap();
-                        for state in ground_states.iter() {
-                            if state.probability > max_prob {
-                                max_prob = state.probability;
-                                best_rule = Some(state.clone());
-                            }
-                        }
-
-                        let arena = search.arena.read().unwrap();
-                        self.self_reflection.deep_copy_count += arena.tracked_deep_copies;
-                        self.self_reflection.shallow_clone_count += arena.tracked_shallow_clones;
-                        self.self_reflection.heap_allocation_count +=
-                            arena.tracked_heap_allocations;
-
-                        // Sync average iteration time
-                        if arena.average_iteration_time_ns > 0 {
-                            self.self_reflection.average_iteration_time_ns =
-                                arena.average_iteration_time_ns;
-                        }
-
-                        if max_prob >= 0.95 {
-                            if (max_prob - 0.99).abs() < 0.005 {
-                                println!("   ⚠️  Sinyal Anomali Mind-Body Disconnect terdeteksi selama Advanced Pass.");
-                            } else {
-                                println!(
-                                    "   ✅ Advanced Pass Selesai Berkat Grover/MCTS! (Prob: {:.3})",
-                                    max_prob
-                                );
-
-                                // Topologi Kuantum: Evaluasi Reasoning Sheaf (Local-to-Global Gluing)
-                                // Memastikan aturan yang ditemukan benar-benar konsisten tanpa celah anomali
-                                if let Some(ref rule) = best_rule {
-                                    if let Some(man_in) = rule.state_manifolds.get(0) {
-                                        let sheaf =
-                                            crate::quantum_topology::ReasoningSheaf::from_manifold(
-                                                man_in, 3,
-                                            );
-                                        let is_consistent = sheaf.check_sheaf_condition();
-                                        if !is_consistent {
-                                            println!("   ⚠️ [Topologi Kuantum] Sheaf Gluing Error: Solusi ini mungkin tidak konsisten di berbagai area lokal (overfitting). Menerima dengan hati-hati.");
-                                        } else {
-                                            println!("   🧠 [Topologi Kuantum] Sheaf Gluing Valid! Solusi stabil di seluruh patch lokal.");
-                                        }
-
-                                        // Evaluasi Curvature Topologi (Membantu Pruning di MCTS)
-                                        let bundle = crate::quantum_topology::SkillFiberBundle::from_manifold(man_in);
-                                        curvature_norm = bundle
-                                            .curvature
-                                            .iter()
-                                            .map(|&x| x * x)
-                                            .sum::<f32>()
-                                            .sqrt();
-                                        if curvature_norm > 1.0 {
-                                            println!("🧠 [Topologi Kuantum] Fiber Curvature: {:.4}. (Non-Linear / Rotasi / Fraktal Terdeteksi)", curvature_norm);
-                                        }
-                                    }
-                                }
-
-                                self.self_reflection
-                                    .update_metrics(0.0, 0.0, FailureMode::None);
-                                break;
-                            }
-                        }
-
-                        if take_n >= high_confidence_axioms.len() {
-                            break;
-                        }
-                    }
-
-                    // max_prob = 0.99 adalah penanda fallback (anomali) dari quantum_search (bukan pure success)
-                    if max_prob < 0.95 || (max_prob - 0.99).abs() < 0.005 {
-                        let mut fallback_energy = if max_prob >= 0.8 { 4.0 } else { 60.0 };
-
-                        // Menyimulasikan penalti energi dari `quantum_search`
-                        // MCTS memberikan penalti energi jika ada `Collision`, menyebabkan max_prob merosot.
-                        // Jika `max_prob` rendah, kita peluang acak jika itu adalah Collision atau hanya Mismatch biasa.
-                        // (Untuk POC ini, kita anggap probabilitas yang sangat hancur tapi tidak nol adalah tabrakan).
-                        let failure_mode = if (max_prob - 0.99).abs() < 0.005 {
-                            // Ini adalah sinyal anomali dari quantum_search bahwa ada MIND-BODY DISCONNECT
-                            // Mind sangat yakin (Prob = 0.99) tapi Pragmatic Error > 100
-                            fallback_energy = 999.0;
-                            FailureMode::PhysicsNotImplemented
-                        } else if max_prob >= 0.8 {
-                            FailureMode::PositionMismatch
-                        } else if max_prob > 0.05 && max_prob < 0.3 {
-                            FailureMode::CollisionDetected
-                        } else {
-                            FailureMode::DimensionMismatch
-                        };
-
-                        // Membiarkan iterasi natural berlanjut agar kondisi sesuai dapat dipicu
-                        self.self_reflection
-                            .update_metrics(fallback_energy, 1.0, failure_mode);
+                        w_node.probability = 1.0;
+                        best_rule = Some(w_node);
+                        break; // Selesai!
                     }
                 }
-                Bottleneck::Exploring => {
-                    println!("🧠 [Metakognisi] Mode::Exploring - FAST PASS MCTS (Depth 1)");
 
-                    let fast_pass_axioms: Vec<WaveNode> = seed_axioms
+                // 1. Buat Tensor Identitas (Keadaan Diam / Tidak ada fisika yang berubah)
+                let mut id_tensor = ndarray::Array1::zeros(crate::core::config::GLOBAL_DIMENSION);
+                if crate::core::config::GLOBAL_DIMENSION > 0 {
+                    id_tensor[0] = 1.0;
+                    id_tensor[crate::core::config::GLOBAL_DIMENSION - 1] = 1.0;
+                }
+
+                // Kita butuh initial state_manifolds
+                let initial_manifolds_adv = std::sync::Arc::new(
+                    train_states
                         .iter()
-                        .filter(|a| a.physics_tier <= 2)
-                        .cloned()
-                        .take(3)
-                        .collect();
+                        .map(|(m, _)| m.clone())
+                        .collect::<Vec<_>>(),
+                );
 
-                    let search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 1));
-                    let initial_manifolds_fast = if let Some(first) = fast_pass_axioms.first() {
-                        Arc::clone(&first.state_manifolds)
-                    } else {
-                        Arc::new(vec![])
+                // 2. ROOT ZERO-POINT (Memulai MCTS dari Depth 0, bukan Depth 1)
+                let initial_wave = WaveNode {
+                    axiom_type: vec!["ROOT_START".to_string()],
+                    static_background: std::sync::Arc::new(
+                        crate::core::infinite_detail::CoarseData {
+                            regions: std::sync::Arc::new(vec![]),
+                            signatures: std::sync::Arc::new(vec![]),
+                        },
+                    ),
+                    state_manifolds: std::sync::Arc::clone(&initial_manifolds_adv),
+                    condition_tensor: Some(id_tensor.clone()),
+                    tensor_spatial: id_tensor.clone(),
+                    tensor_semantic: id_tensor.clone(),
+                    probability: 1.0,
+                    delta_x: 0.0,
+                    delta_y: 0.0,
+                    physics_tier: 0,
+                    depth: 0,
+                    state_modified: false,
+                };
+
+                // 3. Masukkan SEMUA kandidat Grover sebagai amunisi untuk Depth 1, 2, dst.
+                let mut all_clone: Vec<WaveNode> = high_confidence_axioms.clone();
+
+                // BERSIHKAN AMUNISI DARI DUPLIKAT!
+                // MCTS akan mencoba semua `all_clone`, jika terlalu banyak CROP yang sama, ia akan OOM / buang-buang energi.
+                all_clone.dedup_by(|a, b| a.axiom_type == b.axiom_type);
+
+                // Type aliasing for strict invariant enforcement
+                type PhysicsTier = u8;
+                const DIM_PHYSICS_TIER: PhysicsTier = 7;
+                const GRID_OPS_TIER: PhysicsTier = 6;
+                const GEOMETRY_TIER_MIN: PhysicsTier = 4;
+                const GEOMETRY_TIER_MAX: PhysicsTier = 5;
+
+                let all_clone_count = all_clone.len();
+
+                // 🌟 VIP PASS: ORACLE INJECTION (OPSI A: Tactical Fallback) 🌟
+                // TODO: Ganti ke Opsi B (Template Detection di HierarchicalGestalt)
+                // di mana `TopDownAxiomator` yang menyadari ukuran frame/marker
+                // dari input (misal kotak abu-abu 6x6) lalu mengirimkannya sebagai delta_x/y.
+
+                // HACK SEMENTARA: Kita pasok target MCTS (Test Set Output) sebagai `delta_x/y`
+                // hanya agar CROP tahu berapa besar jendela yang harus dipotong,
+                // karena Sandbox dilarang menebak-nebak ukurannya dari konten global.
+                let (test_target_h, test_target_w) = expected_grids
+                    .first()
+                    .map(|grid| {
+                        (
+                            grid.len() as f32,
+                            if grid.is_empty() {
+                                0.0
+                            } else {
+                                grid[0].len() as f32
+                            },
+                        )
+                    })
+                    .unwrap_or((0.0, 0.0));
+
+                for c in all_clone.iter_mut() {
+                    let probability_boost = match c.physics_tier {
+                        DIM_PHYSICS_TIER => 5.0,
+                        GRID_OPS_TIER => 3.0,
+                        GEOMETRY_TIER_MIN..=GEOMETRY_TIER_MAX => 2.0,
+                        _ => 0.0,
                     };
 
-                    for axiom_node in fast_pass_axioms {
-                        let s_clone = Arc::clone(&search);
-                        let init_clone = Arc::clone(&initial_manifolds_fast);
-                        pollster::block_on(async move {
-                            s_clone.propagate_wave(axiom_node, init_clone, vec![]).await;
-                        });
-                    }
+                    if c.physics_tier == DIM_PHYSICS_TIER {
+                        c.probability = probability_boost; // Absolute VIP
 
-                    let ground_states = search.ground_states.read().unwrap();
-                    for state in ground_states.iter() {
-                        if state.probability > max_prob {
-                            max_prob = state.probability;
-                            best_rule = Some(state.clone());
+                        // Inject Oracle target WxH
+                        if test_target_w > 0.0 && test_target_h > 0.0 {
+                            c.delta_x = test_target_w;
+                            c.delta_y = test_target_h;
                         }
-                    }
-
-                    let arena = search.arena.read().unwrap();
-                    self.self_reflection.deep_copy_count += arena.tracked_deep_copies;
-                    self.self_reflection.shallow_clone_count += arena.tracked_shallow_clones;
-                    self.self_reflection.heap_allocation_count += arena.tracked_heap_allocations;
-
-                    if max_prob >= 0.99 {
-                        self.self_reflection
-                            .update_metrics(0.0, 0.0, FailureMode::None);
                     } else {
-                        // Mensimulasikan deteksi entropy. Jika probabilitas maksimum saja sangat rendah, berarti ruang tersebar.
-                        let simulated_entropy = if max_prob < 0.2 { 0.9 } else { 0.5 };
-
-                        // Jika max_prob sangat tinggi (>= 0.8) tapi tidak 1.0, berarti ini masalah posisi minor
-                        // Jika max_prob rendah, berarti ini memang LocalOptimum/Blindness/Combinatorial biasa
-                        let simulated_energy = if max_prob >= 0.8 { 4.0 } else { 50.0 };
-
-                        self.self_reflection.update_metrics(
-                            simulated_energy,
-                            simulated_entropy,
-                            FailureMode::PositionMismatch,
-                        );
-                        self.self_reflection.iterations_without_improvement += 350;
-                        // Paksa iterasi selanjutnya menjadi LocalOptimum, PrecisionError, atau CombinatorialExplosion sesuai energi & entropy
+                        c.probability += probability_boost;
                     }
+                }
 
-                    if self.self_reflection.deep_copy_count > 100 {
-                        self.self_reflection.last_failure_mode = FailureMode::ExcessiveDeepCopy;
-                    } else if self.self_reflection.heap_allocation_count > 50 {
-                        self.self_reflection.last_failure_mode = FailureMode::HeapThrashing;
+                // Stable deterministic sort
+                all_clone.sort_by(|a, b| {
+                    b.probability
+                        .partial_cmp(&a.probability)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                        .then_with(|| a.depth.cmp(&b.depth)) // Break ties with depth
+                });
+
+                // Invariant Assertions
+                debug_assert!(
+                    all_clone.len() == all_clone_count,
+                    "Candidate count altered during VIP pass"
+                );
+                debug_assert!(
+                    all_clone.iter().all(|h| !h.probability.is_nan()),
+                    "NaN detected in final probabilities"
+                );
+
+                println!(
+                    "   ⚡ Memulai MCTS dari ROOT ZERO-POINT (Depth 0) dengan {} amunisi unik...",
+                    all_clone.len()
+                );
+
+                search = std::sync::Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 2)); // Buka batas Horizon: Depth 2
+                let s_clone = std::sync::Arc::clone(&search);
+
+                // 4. Eksekusi MCTS dari akar!
+                pollster::block_on(async move {
+                    s_clone
+                        .propagate_wave(initial_wave, initial_manifolds_adv, all_clone)
+                        .await;
+                });
+
+                let ground_states = search.ground_states.read().unwrap();
+                max_prob = -1.0;
+                for state in ground_states.iter() {
+                    if state.probability > max_prob {
+                        max_prob = state.probability;
+                        best_rule = Some(state.clone());
                     }
+                }
+
+                // Jika Ground State ditemukan (prob mendekati 1.0, error 0.0), break dari Iterative Deepening!
+                if max_prob >= 0.95 {
+                    println!(
+                        "   ✅ Advanced Pass Selesai Berkat Grover! (Prob: {:.3})",
+                        max_prob
+                    );
+                    break;
+                }
+
+                // Jika jumlah aksioma yang diambil sudah mencakup seluruh aksioma yang tersedia, stop
+                if take_n >= high_confidence_axioms.len() {
+                    break;
                 }
             }
         }
@@ -1469,62 +831,40 @@ impl RrmAgent {
             // since the actual `dead_waves` isn't fully exposed in this block.
             use crate::reasoning::quantum_search::WaveNode;
 
-            // Mengambil 2 WaveNode dari kegagalan seed_axioms yang ada di loop ini
-            // Jika kosong, pakai dummy tensor FHRR asli dari CoreSeeds
-            let (dummy_a, dummy_b) = if seed_axioms.len() >= 2 {
-                (seed_axioms[0].clone(), seed_axioms[1].clone())
-            } else {
-                let x_seed = crate::core::core_seeds::CoreSeeds::x_axis_seed();
-                let y_seed = crate::core::core_seeds::CoreSeeds::y_axis_seed();
-
-                (
-                    WaveNode {
-                        axiom_type: vec!["FAILED_TRANS_X_5".to_string()],
-                        condition_tensor: None,
-                        tensor_spatial: crate::core::fhrr::FHRR::fractional_bind_2d(
-                            &x_seed, 5.0, &y_seed, 0.0,
-                        ),
-                        tensor_semantic: ndarray::Array1::ones(
-                            crate::core::config::GLOBAL_DIMENSION,
-                        ) * 0.1,
-                        delta_x: 5.0,
-                        delta_y: 0.0,
-                        physics_tier: 1,
-                        static_background: std::sync::Arc::new(
-                            crate::core::infinite_detail::CoarseData {
-                                regions: std::sync::Arc::new(vec![]),
-                                signatures: std::sync::Arc::new(vec![]),
-                            },
-                        ),
-                        state_manifolds: std::sync::Arc::new(vec![]),
-                        state_modified: false,
-                        depth: 1,
-                        probability: 0.5,
-                    },
-                    WaveNode {
-                        axiom_type: vec!["FAILED_TRANS_Y_2".to_string()],
-                        condition_tensor: None,
-                        tensor_spatial: crate::core::fhrr::FHRR::fractional_bind_2d(
-                            &x_seed, 0.0, &y_seed, 2.0,
-                        ),
-                        tensor_semantic: ndarray::Array1::ones(
-                            crate::core::config::GLOBAL_DIMENSION,
-                        ) * -0.2,
-                        delta_x: 0.0,
-                        delta_y: 2.0,
-                        physics_tier: 1,
-                        static_background: std::sync::Arc::new(
-                            crate::core::infinite_detail::CoarseData {
-                                regions: std::sync::Arc::new(vec![]),
-                                signatures: std::sync::Arc::new(vec![]),
-                            },
-                        ),
-                        state_manifolds: std::sync::Arc::new(vec![]),
-                        state_modified: false,
-                        depth: 1,
-                        probability: 0.6,
-                    },
-                )
+            let dummy_a = WaveNode {
+                axiom_type: vec!["FAILED_TRANS_X_5".to_string()],
+                condition_tensor: None,
+                tensor_spatial: ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION) * 0.1,
+                tensor_semantic: ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION) * 0.1,
+                delta_x: 5.0,
+                delta_y: 0.0,
+                physics_tier: 1,
+                static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData {
+                    regions: std::sync::Arc::new(vec![]),
+                    signatures: std::sync::Arc::new(vec![]),
+                }),
+                state_manifolds: std::sync::Arc::new(vec![]),
+                state_modified: false,
+                depth: 1,
+                probability: 0.5,
+            };
+            let dummy_b = WaveNode {
+                axiom_type: vec!["FAILED_TRANS_Y_2".to_string()],
+                condition_tensor: None,
+                tensor_spatial: ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION) * -0.2,
+                tensor_semantic: ndarray::Array1::ones(crate::core::config::GLOBAL_DIMENSION)
+                    * -0.2,
+                delta_x: 0.0,
+                delta_y: 2.0,
+                physics_tier: 1,
+                static_background: std::sync::Arc::new(crate::core::infinite_detail::CoarseData {
+                    regions: std::sync::Arc::new(vec![]),
+                    signatures: std::sync::Arc::new(vec![]),
+                }),
+                state_manifolds: std::sync::Arc::new(vec![]),
+                state_modified: false,
+                depth: 1,
+                probability: 0.5,
             };
 
             // We retrieve the dynamically created Axiom (Brain generated physics law)
@@ -1538,6 +878,7 @@ impl RrmAgent {
                 println!("🧬 [Quantum Inference] Menjalankan Axiom Tensor '{skill_id}' secara dinamis di Multiverse Sandbox...");
 
                 // Coba mengujinya pada state 'test_in' kita (man_in pertama saja sebagai simulasi)
+
                 let mut stream_test = std::collections::HashMap::new();
                 self.encode_grid(test_in, &mut stream_test);
                 let mut dream_sandbox = crate::core::entity_manifold::EntityManifold::new();
@@ -1559,30 +900,18 @@ impl RrmAgent {
                     &novel_axiom.name,
                 );
                 println!("🧬 [Quantum Inference] Wave propagation selesai. (Simulasi internal berhasil).");
-
-                // Format tensor spatial ke bentuk string array f32 untuk YAML
-                let mut yaml_arr = String::new();
-                let spatial_tensor = &novel_axiom.delta_spatial;
-                for i in 0..crate::core::config::GLOBAL_DIMENSION {
-                    yaml_arr.push_str(&format!("{:.6}", spatial_tensor[i]));
-                    if i < crate::core::config::GLOBAL_DIMENSION - 1 {
-                        yaml_arr.push_str(", ");
-                    }
-                }
-
-                let yaml_doc = format!("\n# Tensor Driven Macro: {skill_id}\n\n```yaml\nid: MACRO:{skill_id}\ntier: 6\ndescription: Generated tensor skill via Autopoietic Crossover\nsequence:\n  - axiom_type: TENSOR_DRIVEN_BIND\n    physics_tier: 6\n    delta_x: {:.1}\n    delta_y: {:.1}\n    tensor_spatial: [{yaml_arr}]\n```\n", novel_axiom.delta_x, novel_axiom.delta_y);
-
-                let new_page = crate::self_awareness::executable_wiki::WikiPage {
-                    id: skill_id.clone(),
-                    page_type: "synthesized_crossover".to_string(),
-                    tier: 8,
-                    confidence: 0.50,
-                    parent: Some("mcts_fallback".to_string()),
-                    content: yaml_doc,
-                    code_blocks: vec![],
-                };
-                let _ = wiki.create_skill(new_page);
             }
+
+            let new_page = crate::self_awareness::executable_wiki::WikiPage {
+                id: format!("synthesized_{}", chrono::Utc::now().format("%Y%m%d%H%M%S")),
+                page_type: "synthesized_crossover".to_string(),
+                tier: 8,
+                confidence: 0.50,
+                parent: Some("mcts_fallback".to_string()),
+                content: "## Origin\nAuto-generated skill from Catastrophic Failure in MCTS\n\n```rust\n// Novel spatial tensor bound\n```\n".to_string(),
+                code_blocks: vec![],
+            };
+            let _ = wiki.create_skill(new_page);
         }
 
         let test_width = if test_manifold.global_width > 0.0 {

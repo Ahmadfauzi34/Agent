@@ -2,7 +2,6 @@ use std::sync::Arc;
 pub mod core;
 pub mod memory;
 pub mod perception;
-pub mod quantum_topology;
 pub mod reasoning;
 pub mod self_awareness;
 pub mod shared;
@@ -16,9 +15,9 @@ use std::fs;
 use std::time::Instant;
 
 fn distill_yaml_skills() {
+    use crate::core::fhrr::FHRR;
     use crate::core::config::GLOBAL_DIMENSION;
     use crate::core::core_seeds::CoreSeeds;
-    use crate::core::fhrr::FHRR;
     use ndarray::Array1;
     use std::fs;
 
@@ -49,7 +48,7 @@ fn distill_yaml_skills() {
         }
 
         // Pastikan nilainya tidak pernah meledak! Kita normalkan agar L2 Norm = 1.0 atau batasnya stabil.
-        let mut sum_sq = 0.0;
+                let mut sum_sq = 0.0;
         for i in 0..GLOBAL_DIMENSION {
             sum_sq += skill_tensor[i] * skill_tensor[i];
         }
@@ -70,29 +69,13 @@ fn distill_yaml_skills() {
 
         let yaml_doc = format!("\n# Tensor Driven Macro: {id}\n\n```yaml\nid: MACRO:{id}\ntier: 6\ndescription: Generated tensor skill\nsequence:\n  - axiom_type: TENSOR_DRIVEN_BIND\n    physics_tier: 6\n    delta_x: {dx:.1}\n    delta_y: {dy:.1}\n    tensor_spatial: [{yaml_arr}]\n```\n");
 
-        fs::write(
-            format!("knowledge/grammar/{}.md", id.to_lowercase()),
-            yaml_doc,
-        )
-        .unwrap();
+        fs::write(format!("knowledge/grammar/{}.md", id.to_lowercase()), yaml_doc).unwrap();
     };
 
     generate_yaml("SHIFT_RIGHT", 1.0, 0.0, false, false);
     generate_yaml("SHIFT_DOWN", 0.0, 1.0, false, false);
     generate_yaml("MIRROR_X", 0.0, 0.0, true, false);
     generate_yaml("ROTATE_90", 0.0, 0.0, false, true);
-
-    // Tambahan Grammar Topologi Kuantum (Semantic / Topology)
-    // Di dunia FHRR, kita memberikan tensor "noise" stabil spesifik untuk membedakannya
-    // Di saat runtime, MCTS/Grover akan menemukan pola ini dan mengirimkannya ke MultiverseSandbox
-    generate_yaml("CROP_TO_COLOR", 0.0, 0.0, false, false);
-    generate_yaml("FLOOD_FILL", 0.0, 0.0, false, false);
-    generate_yaml("EXTRACT_ANOMALY", 0.0, 0.0, false, false);
-    generate_yaml("SCALE_UP(2)", 0.0, 0.0, false, false);
-    generate_yaml("SCALE_UP(3)", 0.0, 0.0, false, false);
-
-    // Tambahan Harmonic Analysis (Fourier Neural Operator)
-    generate_yaml("FOURIER_PATTERN", 0.0, 0.0, false, false);
 
     println!("--- DISTILLATION TO YAML COMPLETED ---");
 }
@@ -168,12 +151,12 @@ fn main() {
         let result = agent.solve_task(&train_in, &train_out, &test_in);
 
         let mut success = true;
-        let mut final_result = result.clone();
+        let mut final_result = result;
 
-        if result.len() != test_out.len() {
+        if final_result.len() != test_out.len() {
             success = false;
         } else {
-            for (r_row, t_row) in result.iter().zip(test_out.iter()) {
+            for (r_row, t_row) in final_result.iter().zip(test_out.iter()) {
                 if r_row != t_row {
                     success = false;
                     break;
