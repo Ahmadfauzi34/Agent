@@ -1,5 +1,6 @@
 #[global_allocator]
-static ALLOCATOR: memory::allocator::TrackingAllocator = memory::allocator::TrackingAllocator::new();
+static ALLOCATOR: memory::allocator::TrackingAllocator =
+    memory::allocator::TrackingAllocator::new();
 
 use std::sync::Arc;
 pub mod core;
