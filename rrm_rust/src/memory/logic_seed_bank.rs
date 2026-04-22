@@ -100,6 +100,7 @@ impl LshIndex {
         result
     }
 
+    #[allow(dead_code)]
     fn clear(&mut self) {
         for bucket in &mut self.buckets {
             bucket.clear();

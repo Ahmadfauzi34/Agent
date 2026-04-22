@@ -107,18 +107,12 @@ pub struct FractalArena {
     pub ids: Vec<FractalId>,
     pub parents: Vec<Option<usize>>,
     pub children_ranges: Vec<(usize, u8)>,
-    pub average_iteration_time_ns: u64,
     pub tolerances: Vec<EnergyTolerance>,
     pub static_backgrounds: Vec<Arc<crate::core::infinite_detail::CoarseData>>,
     pub amplitudes: Vec<f32>,
     pub phases: Vec<f32>,
     pub states: Vec<Arc<Vec<EntityManifold>>>,
     pub modified_flags: Vec<bool>,
-
-    // Metrik Pelacakan CoW (Copy-on-Write)
-    pub tracked_deep_copies: usize,
-    pub tracked_shallow_clones: usize,
-    pub tracked_heap_allocations: usize, // Pelacak jumlah `Vec::push` di luar batas memori buffer
 
     // Extracted fields for logical grouping
     pub perception_sensory: Vec<Array1<f32>>,
@@ -153,11 +147,6 @@ impl FractalArena {
             states: Vec::with_capacity(capacity),
             modified_flags: Vec::with_capacity(capacity),
 
-            average_iteration_time_ns: 0,
-            tracked_deep_copies: 0,
-            tracked_shallow_clones: 0,
-            tracked_heap_allocations: 0,
-
             perception_sensory: Vec::with_capacity(capacity),
             reasoning_pragmatic: Vec::with_capacity(capacity),
             reasoning_epistemic: Vec::with_capacity(capacity),
@@ -190,11 +179,7 @@ impl FractalArena {
             self.amplitudes[idx] = 1.0;
             self.phases[idx] = 0.0;
             self.modified_flags[idx] = false;
-
-            // Shallow Clone Tracker
-            self.tracked_shallow_clones += 1;
             self.states[idx] = state;
-
             self.ids[idx] = FractalId {
                 index: idx as u32,
                 path_hash: 0,
@@ -218,12 +203,7 @@ impl FractalArena {
             return Some(idx);
         }
 
-        // Simulasi jika RRM terpaksa melewati kapasitas arena (Ini merepresentasikan "Memory Bloat" / Heap Allocation yang sesungguhnya)
         if self.active_count >= self.capacity {
-            self.tracked_heap_allocations += 1;
-            // Kita HARUS menghentikan spawning atau mendelegasikan ke GC di sini
-            // Untuk menghindari Panic saat pengaksesan index (Out of Bounds), kita return None.
-            // RRM secara otonom akan membaca `tracked_heap_allocations` dan menghentikan MCTS sebelum crash terjadi.
             return None;
         }
 
@@ -347,14 +327,6 @@ impl FractalArena {
                 SimdEnergyCalculator::calculate_epistemic(&*manifold_read, &initial_read);
         }
 
-        // 🌟 CAPABILITY AWARENESS: MIND-BODY DISCONNECT DETECTOR 🌟
-        // Jika Mind (Tensor Similarity/Probabilitas asal dari axiom) sangat yakin (>90% / amplitude awal besar),
-        // TETAPI setelah dieksekusi di Sandbox tubuh, "Tubuh" sama sekali tidak mengubah state
-        // sehingga Pragmatic Error masih sangat tinggi (Sama dengan Pragmatic Error benda asli sebelum diubah).
-        // Kita bisa menyimulasikan penalaran ini dengan membatasi Amplitude tidak turun drastis, tapi
-        // memberikan penanda khusus. Dalam MCTS ini, kita asumsikan jika `expected_free_energy` == `total_pragmatic_error` persis,
-        // dan tidak ada perubahan sama sekali, kita tahan nilainya sebagai anomali.
-
         self.reasoning_pragmatic[idx] = total_pragmatic_error;
         self.reasoning_epistemic[idx] = total_epistemic_value;
 
@@ -366,16 +338,7 @@ impl FractalArena {
         self.amplitudes[idx] = if total_pragmatic_error <= 0.0 {
             1.0
         } else {
-            let mut penalty = (expected_free_energy / 50000.0).clamp(0.0, 0.95);
-            // Mind-Body Disconnect Indicator:
-            // Jika agent mendapat probabilitas tinggi dari rule awal, tapi energi pragmatisnya super tinggi
-            // (karena physics_tier gagal menerjemahkannya di Sandbox), kita tahan amplitudonya agar tidak terbuang/prune
-            // sehingga metakognisi bisa mendeteksinya di `rrm_agent.rs` sebagai PhysicsNotImplemented.
-            if total_pragmatic_error > 100.0 && total_epistemic_value < 1.0 {
-                // Beri anomali flag probabilitas: 0.9999 (Sangat spesifik agar terbaca oleh agent)
-                penalty = 0.0;
-            }
-            0.99 - penalty
+            0.99 - (expected_free_energy / 50000.0).clamp(0.0, 0.95)
         };
 
         // Switch cognitive mode berdasarkan posisi (Mandelbrot Boundary logic)
@@ -473,20 +436,9 @@ impl AsyncWaveSearch {
                 let action_dy = arena.action_dy[current_idx];
                 let action_tier = arena.action_tier[current_idx];
 
-                // Hitung Deep Copy Tracker
-                if Arc::strong_count(&arena.states[current_idx]) > 1 {
-                    arena.tracked_deep_copies += 1;
-                }
-
                 let states_mut = Arc::make_mut(&mut arena.states[current_idx]);
-                let mut any_collision = false;
-
-                let start_axiom = std::time::Instant::now();
-                let mut total_active_count = 0;
-
                 for manifold in states_mut.iter_mut() {
-                    total_active_count += manifold.active_count;
-                    let collided = MultiverseSandbox::apply_axiom(
+                    MultiverseSandbox::apply_axiom(
                         &mut *manifold,
                         &action_condition,
                         &action_spatial,
@@ -496,31 +448,10 @@ impl AsyncWaveSearch {
                         action_tier,
                         &current_axiom_str,
                     );
-                    if collided {
-                        any_collision = true;
-                    }
-                }
-
-                let elapsed_ns = start_axiom.elapsed().as_nanos() as u64;
-                if total_active_count > 0 {
-                    let avg_ns = elapsed_ns / total_active_count as u64;
-                    // Exponential moving average for iteration time
-                    if arena.average_iteration_time_ns == 0 {
-                        arena.average_iteration_time_ns = avg_ns;
-                    } else {
-                        arena.average_iteration_time_ns =
-                            (arena.average_iteration_time_ns * 3 + avg_ns) / 4;
-                    }
                 }
 
                 // Reasoning (Free Energy)
                 arena.reason(current_idx, &self.expected_grids, &initial_manifolds);
-
-                // Tambahkan penalti energi jika menabrak rintangan
-                if any_collision {
-                    arena.reasoning_pragmatic[current_idx] += 10.0;
-                    arena.amplitudes[current_idx] *= 0.5; // Mengurangi probabilitas secara drastis
-                }
 
                 let pragmatic_error = arena.reasoning_pragmatic[current_idx];
                 let epistemic_value = arena.reasoning_epistemic[current_idx];
