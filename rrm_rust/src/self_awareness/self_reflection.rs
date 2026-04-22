@@ -32,7 +32,6 @@ pub enum Bottleneck {
     AllocationThrashing, // Agen merasakan nyeri karena "alloc/malloc" dinamis (Heap) berlebihan
     CognitiveGarbage, // RRM mengeluh Array penuh sampah/Ghost State yang memperlambat iterasi SIMD
     FalseSharing,   // Amnesia Singkat (Cache Misses parah)
-    FastFail(f32),  // Kesabaran dinamis, dE/dt terlalu lambat di fase awal
     Solved,
     Exhausted,
     Exploring,
@@ -51,8 +50,7 @@ pub struct SelfReflection {
     pub wave_entropy: f32, // Semakin tinggi = probabilitas menyebar (tebakan buta)
     pub active_saliency_ratio: f32, // Rasio area grid yang benar-benar berubah (0.0 - 1.0)
     pub dark_matter_ratio: f32, // Rasio entitas dengan massa 0 (sampah / ghost state) vs total active_count (0.0 - 1.0)
-    pub initial_energy: Option<f32>, // Energi saat awal pencarian, untuk mengukur Gradient of Energy
-    pub deep_copy_count: usize,      // Pelacakan rasa sakit memori (CoW violations)
+    pub deep_copy_count: usize, // Pelacakan rasa sakit memori (CoW violations)
     pub shallow_clone_count: usize,
     pub heap_allocation_count: usize, // Pelacakan alokasi heap (push dinamis melebihi kapasitas awal)
     pub last_failure_mode: FailureMode,
@@ -100,7 +98,6 @@ impl SelfReflection {
             heap_allocation_count: 0,
             last_failure_mode: FailureMode::None,
             total_iterations: 0,
-            initial_energy: None,
         }
     }
 
@@ -119,7 +116,6 @@ impl SelfReflection {
         self.heap_allocation_count = 0;
         self.last_failure_mode = FailureMode::None;
         self.total_iterations = 0;
-        self.initial_energy = None;
     }
 
     /// Mengupdate metrik kognitif berdasarkan hasil komputasi terkini
@@ -128,10 +124,6 @@ impl SelfReflection {
         self.wave_entropy = entropy;
         self.last_failure_mode = failure;
         self.total_iterations += 1;
-
-        if self.initial_energy.is_none() {
-            self.initial_energy = Some(current_energy);
-        }
 
         if current_energy < self.best_energy {
             self.best_energy = current_energy;
@@ -200,18 +192,6 @@ impl SelfReflection {
         if self.last_failure_mode == FailureMode::DimensionMismatch && self.best_energy >= 50.0 {
             // Agen tidak melihat gambaran besarnya (mungkin noise / segmentasi salah)
             return Bottleneck::Blindness;
-        }
-
-        // Fast-Fail MCTS: Gradient of Energy Check
-        // Jika agen tidak membuat banyak kemajuan di 10 iterasi awal, jangan buang waktu. Langsung gagal-cepat.
-        if self.total_iterations >= 10 && self.total_iterations < 20 {
-            if let Some(init_e) = self.initial_energy {
-                let energy_delta = init_e - self.best_energy;
-                // Jika energinya turun kurang dari 5% dari initial energy, berarti mentok
-                if energy_delta < init_e * 0.05 {
-                    return Bottleneck::FastFail(self.best_energy);
-                }
-            }
         }
 
         if self.iterations_without_improvement > 300 {

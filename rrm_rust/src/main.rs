@@ -2,7 +2,6 @@ use std::sync::Arc;
 pub mod core;
 pub mod memory;
 pub mod perception;
-pub mod quantum_topology;
 pub mod reasoning;
 pub mod self_awareness;
 pub mod shared;
@@ -81,18 +80,6 @@ fn distill_yaml_skills() {
     generate_yaml("SHIFT_DOWN", 0.0, 1.0, false, false);
     generate_yaml("MIRROR_X", 0.0, 0.0, true, false);
     generate_yaml("ROTATE_90", 0.0, 0.0, false, true);
-
-    // Tambahan Grammar Topologi Kuantum (Semantic / Topology)
-    // Di dunia FHRR, kita memberikan tensor "noise" stabil spesifik untuk membedakannya
-    // Di saat runtime, MCTS/Grover akan menemukan pola ini dan mengirimkannya ke MultiverseSandbox
-    generate_yaml("CROP_TO_COLOR", 0.0, 0.0, false, false);
-    generate_yaml("FLOOD_FILL", 0.0, 0.0, false, false);
-    generate_yaml("EXTRACT_ANOMALY", 0.0, 0.0, false, false);
-    generate_yaml("SCALE_UP(2)", 0.0, 0.0, false, false);
-    generate_yaml("SCALE_UP(3)", 0.0, 0.0, false, false);
-
-    // Tambahan Harmonic Analysis (Fourier Neural Operator)
-    generate_yaml("FOURIER_PATTERN", 0.0, 0.0, false, false);
 
     println!("--- DISTILLATION TO YAML COMPLETED ---");
 }
