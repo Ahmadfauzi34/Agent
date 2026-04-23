@@ -61,6 +61,12 @@ pub enum IncompatibilityReason {
     StateMismatch,
 }
 
+impl Default for CounterfactualEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CounterfactualEngine {
     pub fn new() -> Self {
         Self {
@@ -111,7 +117,7 @@ impl CounterfactualEngine {
         let mut intermediate_results = Vec::new();
 
         for (i, axiom) in sequence.iter().enumerate() {
-            if let Some(ref _prev_result) = intermediate_results.last() {
+            if let Some(_prev_result) = intermediate_results.last() {
                 if !self.are_compatible(_prev_result, axiom) {
                     return SequenceResult::Invalid {
                         at_step: i,
@@ -284,7 +290,7 @@ impl CounterfactualEngine {
                     let x_seed = crate::core::core_seeds::CoreSeeds::x_axis_seed();
                     let y_seed = crate::core::core_seeds::CoreSeeds::y_axis_seed();
                     let tensor_spatial =
-                        crate::core::fhrr::FHRR::fractional_bind_2d(&x_seed, rx, &y_seed, ry);
+                        crate::core::fhrr::FHRR::fractional_bind_2d(x_seed, rx, y_seed, ry);
 
                     let mut correction = Axiom::identity();
                     correction.name = format!("SUGGESTED_TRANS_{}_{}", rx, ry);

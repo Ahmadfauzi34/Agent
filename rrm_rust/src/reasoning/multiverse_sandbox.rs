@@ -1,7 +1,6 @@
 use crate::core::entity_manifold::EntityManifold;
 use crate::core::fhrr::FHRR;
 use ndarray::Array1;
-use std::sync::Arc;
 
 pub struct MultiverseSandbox {
     pub active_universes: usize,
@@ -40,7 +39,7 @@ impl MultiverseSandbox {
                 // Alih-alih if-else hardcode, MCTS akan memutar ruang menggunakan Array Tensor murni.
                 // Jika array ini adalah hasil distilasi 'Anomaly Cropping', ia akan mengikat dan menormalkan pusat massa ke origin.
                 if delta_spatial.iter().any(|&v| v.abs() > 0.0) {
-                    let sp_mut = std::sync::Arc::make_mut(&mut u.spatial_tensors);
+                    let sp_mut = &mut u.spatial_tensors;
                     let dim = crate::core::config::GLOBAL_DIMENSION;
 
                     for i in 0..u.active_count {
@@ -152,7 +151,7 @@ impl MultiverseSandbox {
 
                     let target_color = delta_x as i32; // Warna target di simpan di delta_x
                     let new_sem_tensor = FHRR::fractional_bind(
-                        &crate::core::core_seeds::CoreSeeds::color_seed(),
+                        crate::core::core_seeds::CoreSeeds::color_seed(),
                         target_color as f32,
                     );
 
@@ -184,10 +183,10 @@ impl MultiverseSandbox {
                                 u.ensure_scalar_capacity(dm_idx + 1);
 
                                 // Bangkitkan!
-                                Arc::make_mut(&mut u.masses)[dm_idx] = 1.0;
-                                Arc::make_mut(&mut u.centers_x)[dm_idx] = spawn_x as f32;
-                                Arc::make_mut(&mut u.centers_y)[dm_idx] = spawn_y as f32;
-                                Arc::make_mut(&mut u.tokens)[dm_idx] = target_color;
+                                u.masses[dm_idx] = 1.0;
+                                u.centers_x[dm_idx] = spawn_x as f32;
+                                u.centers_y[dm_idx] = spawn_y as f32;
+                                u.tokens[dm_idx] = target_color;
 
                                 // Update Tensors
                                 let mut sem_tensor = u.get_semantic_tensor_mut(dm_idx);
@@ -338,8 +337,8 @@ impl MultiverseSandbox {
 
                                 // 🌟 ANNIHILASI DEBRIS KOSMIK & Sinkronisasi Tensor 🌟
                                 if nx >= 0.0 && nx < new_w && ny >= 0.0 && ny < new_h {
-                                    Arc::make_mut(&mut u.centers_x)[e] = nx;
-                                    Arc::make_mut(&mut u.centers_y)[e] = ny;
+                                    u.centers_x[e] = nx;
+                                    u.centers_y[e] = ny;
 
                                     let new_spatial_tensor =
                                         FHRR::fractional_bind_2d(&x_seed, nx, &y_seed, ny);
@@ -347,7 +346,7 @@ impl MultiverseSandbox {
                                     let mut sp_tensor_mut = u.get_spatial_tensor_mut(e);
                                     sp_tensor_mut.assign(&new_spatial_tensor);
                                 } else {
-                                    Arc::make_mut(&mut u.masses)[e] = 0.0; // Hancurkan
+                                    u.masses[e] = 0.0; // Hancurkan
                                 }
                             }
                         }
@@ -367,7 +366,7 @@ impl MultiverseSandbox {
                     if let Ok(target_color) = axiom_type[start_idx + 1..end_idx].parse::<i32>() {
                         for e in 0..u.active_count {
                             if u.tokens[e] != target_color {
-                                Arc::make_mut(&mut u.masses)[e] = 0.0; // Annihilasi (hilangkan entitas beda warna)
+                                u.masses[e] = 0.0; // Annihilasi (hilangkan entitas beda warna)
                             }
                         }
                     }
@@ -381,7 +380,7 @@ impl MultiverseSandbox {
                     if let Ok(target_color) = axiom_type[start_idx + 1..end_idx].parse::<i32>() {
                         for e in 0..u.active_count {
                             if u.masses[e] > 0.0 {
-                                Arc::make_mut(&mut u.tokens)[e] = target_color;
+                                u.tokens[e] = target_color;
                             }
                         }
                     }
@@ -417,7 +416,7 @@ impl MultiverseSandbox {
                         let cx = u.centers_x[e].round() as usize;
                         let cy = u.centers_y[e].round() as usize;
                         if cx < new_grid[0].len() && cy < new_grid.len() {
-                            Arc::make_mut(&mut u.tokens)[e] = new_grid[cy][cx];
+                            u.tokens[e] = new_grid[cy][cx];
                         }
                     }
                 }
@@ -502,7 +501,7 @@ impl MultiverseSandbox {
                 // TIER 5: ANNIHILATION (DESTROY)
                 // Mengembalikan partikel ke dalam Dark Matter
                 if physics_tier == 5 && axiom_type.contains("ERASE") {
-                    Arc::make_mut(&mut u.masses)[e] = 0.0;
+                    u.masses[e] = 0.0;
                     // Lanjutkan ke entitas berikutnya, tidak perlu binding.
                     continue;
                 }
@@ -543,44 +542,44 @@ impl MultiverseSandbox {
                         let center_y = (min_y + max_y) / 2.0;
                         let rx = cx - center_x;
                         let ry = cy - center_y;
-                        Arc::make_mut(&mut u.centers_x)[e] = center_x + (rx * scale_x);
-                        Arc::make_mut(&mut u.centers_y)[e] = center_y + (ry * scale_y);
+                        u.centers_x[e] = center_x + (rx * scale_x);
+                        u.centers_y[e] = center_y + (ry * scale_y);
                         // Perbesar juga ukuran bounding box objeknya
-                        Arc::make_mut(&mut u.spans_x)[e] *= scale_x;
-                        Arc::make_mut(&mut u.spans_y)[e] *= scale_y;
+                        u.spans_x[e] *= scale_x;
+                        u.spans_y[e] *= scale_y;
                     } else if axiom_type.contains("MIRROR_X") {
                         // Mirror horizontal: flip sumbu X
                         // x_baru = max_x - (cx - min_x)
-                        Arc::make_mut(&mut u.centers_x)[e] = max_x - (cx - min_x);
+                        u.centers_x[e] = max_x - (cx - min_x);
                     } else if axiom_type.contains("MIRROR_Y") {
-                        Arc::make_mut(&mut u.centers_y)[e] = max_y - (cy - min_y);
+                        u.centers_y[e] = max_y - (cy - min_y);
                     } else if axiom_type.contains("ROTATE_90") {
                         // Asumsi putar kanan terhadap center bbox
                         let center_x = (min_x + max_x) / 2.0;
                         let center_y = (min_y + max_y) / 2.0;
                         let rx = cx - center_x;
                         let ry = cy - center_y;
-                        Arc::make_mut(&mut u.centers_x)[e] = center_x - ry;
-                        Arc::make_mut(&mut u.centers_y)[e] = center_y + rx;
+                        u.centers_x[e] = center_x - ry;
+                        u.centers_y[e] = center_y + rx;
                     } else if axiom_type.contains("ROTATE_180") {
                         let center_x = (min_x + max_x) / 2.0;
                         let center_y = (min_y + max_y) / 2.0;
                         let rx = cx - center_x;
                         let ry = cy - center_y;
-                        Arc::make_mut(&mut u.centers_x)[e] = center_x - rx;
-                        Arc::make_mut(&mut u.centers_y)[e] = center_y - ry;
+                        u.centers_x[e] = center_x - rx;
+                        u.centers_y[e] = center_y - ry;
                     } else if axiom_type.contains("ROTATE_270") {
                         let center_x = (min_x + max_x) / 2.0;
                         let center_y = (min_y + max_y) / 2.0;
                         let rx = cx - center_x;
                         let ry = cy - center_y;
-                        Arc::make_mut(&mut u.centers_x)[e] = center_x + ry;
-                        Arc::make_mut(&mut u.centers_y)[e] = center_y - rx;
+                        u.centers_x[e] = center_x + ry;
+                        u.centers_y[e] = center_y - rx;
                     }
 
                     // Pastikan tetap bilangan bulat
-                    Arc::make_mut(&mut u.centers_x)[e] = u.centers_x[e].round();
-                    Arc::make_mut(&mut u.centers_y)[e] = u.centers_y[e].round();
+                    u.centers_x[e] = u.centers_x[e].round();
+                    u.centers_y[e] = u.centers_y[e].round();
                 }
 
                 // 1. Spasial Tensor Binding
@@ -622,8 +621,8 @@ impl MultiverseSandbox {
                         collision_detected = true;
                     }
 
-                    Arc::make_mut(&mut u.centers_x)[e] = new_cx;
-                    Arc::make_mut(&mut u.centers_y)[e] = new_cy;
+                    u.centers_x[e] = new_cx;
+                    u.centers_y[e] = new_cy;
                 }
 
                 // MURNI UNTUK SWARM: Update token untuk Decoder
@@ -797,13 +796,13 @@ impl MultiverseSandbox {
             };
             let inside = inside_x * inside_y;
 
-            Arc::make_mut(&mut u.masses)[e] *= inside;
+            u.masses[e] *= inside;
 
             if inside > 0.5 {
                 let nx = (cx - actual_min_x).round();
                 let ny = (cy - actual_min_y).round();
-                Arc::make_mut(&mut u.centers_x)[e] = nx;
-                Arc::make_mut(&mut u.centers_y)[e] = ny;
+                u.centers_x[e] = nx;
+                u.centers_y[e] = ny;
 
                 let new_spatial_tensor =
                     crate::core::fhrr::FHRR::fractional_bind_2d(&x_seed, nx, &y_seed, ny);

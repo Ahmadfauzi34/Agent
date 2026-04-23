@@ -12,6 +12,12 @@ pub struct GlobalBlackboard {
     collective_state: Array1<f32>,
 }
 
+impl Default for GlobalBlackboard {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GlobalBlackboard {
     pub fn new() -> Self {
         Self {

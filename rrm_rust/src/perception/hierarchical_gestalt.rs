@@ -2,7 +2,7 @@ use crate::core::entity_manifold::EntityManifold;
 use std::cell::RefCell;
 
 thread_local! {
-    static SIMD_BUFFER_POOL: RefCell<Vec<Vec<(f32, f32)>>> = RefCell::new(Vec::new());
+    static SIMD_BUFFER_POOL: RefCell<Vec<Vec<(f32, f32)>>> = const { RefCell::new(Vec::new()) };
     static GESTALT_BUFFER: RefCell<Vec<GestaltAtom>> = RefCell::new(Vec::with_capacity(256));
 }
 

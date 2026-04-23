@@ -30,6 +30,12 @@ pub struct DeepActiveInferenceEngine {
     pub current_mode: SimulationMode,
 }
 
+impl Default for DeepActiveInferenceEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DeepActiveInferenceEngine {
     pub fn new() -> Self {
         Self {

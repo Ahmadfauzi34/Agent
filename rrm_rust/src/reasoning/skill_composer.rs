@@ -48,6 +48,12 @@ pub enum EmergenceProperty {
     ContextAwareFill,
 }
 
+impl Default for SkillComposer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SkillComposer {
     pub fn new() -> Self {
         Self {

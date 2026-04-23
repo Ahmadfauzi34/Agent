@@ -77,7 +77,7 @@ impl LshIndex {
         let hashes = self.hash(tensor);
         for (proj_idx, hash) in hashes.into_iter().enumerate() {
             let bucket = &mut self.buckets[proj_idx];
-            bucket.entry(hash).or_insert_with(Vec::new).push(index);
+            bucket.entry(hash).or_default().push(index);
         }
     }
 
@@ -118,6 +118,12 @@ pub struct LogicSeedBank {
     pub rule_tensors: Vec<f32>,
 
     lsh_index: LshIndex,
+}
+
+impl Default for LogicSeedBank {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LogicSeedBank {

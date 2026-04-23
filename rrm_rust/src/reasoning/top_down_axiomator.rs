@@ -113,7 +113,7 @@ impl TopDownAxiomator {
                         let mut condition_phase =
                             Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);
                         let color_phase =
-                            FHRR::fractional_bind(&CoreSeeds::color_seed(), color as f32);
+                            FHRR::fractional_bind(CoreSeeds::color_seed(), color as f32);
                         for i in 0..crate::core::config::GLOBAL_DIMENSION {
                             condition_phase[i] = color_phase[i];
                         }
@@ -137,7 +137,7 @@ impl TopDownAxiomator {
                 // Usulkan warna ini sebagai titik pusat untuk jendela out_w x out_h
                 let mut condition_phase =
                     Array1::<f32>::zeros(crate::core::config::GLOBAL_DIMENSION);
-                let color_phase = FHRR::fractional_bind(&CoreSeeds::color_seed(), color as f32);
+                let color_phase = FHRR::fractional_bind(CoreSeeds::color_seed(), color as f32);
                 for i in 0..crate::core::config::GLOBAL_DIMENSION {
                     condition_phase[i] = color_phase[i];
                 }
@@ -176,7 +176,7 @@ impl TopDownAxiomator {
                             // FILL_HOLE detected!
                             let id_tensor = Self::identity_tensor();
                             let color_cond = FHRR::fractional_bind(
-                                &CoreSeeds::color_seed(),
+                                CoreSeeds::color_seed(),
                                 in_atom.color as f32,
                             );
 
@@ -355,7 +355,7 @@ impl TopDownAxiomator {
 
                 if dx.abs() > 0.1 || dy.abs() > 0.1 {
                     let condition =
-                        FHRR::fractional_bind(&CoreSeeds::color_seed(), in_atom.color as f32);
+                        FHRR::fractional_bind(CoreSeeds::color_seed(), in_atom.color as f32);
 
                     axioms.push(TopologicalMatch {
                         source_index: 0,

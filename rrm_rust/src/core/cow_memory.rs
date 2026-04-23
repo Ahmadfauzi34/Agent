@@ -9,6 +9,12 @@ pub struct TensorChunk {
     pub cells: [f32; CHUNK_SIZE * CHUNK_SIZE],
 }
 
+impl Default for TensorChunk {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TensorChunk {
     pub fn new() -> Self {
         Self {

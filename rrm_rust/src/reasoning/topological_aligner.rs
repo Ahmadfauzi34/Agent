@@ -178,7 +178,7 @@ impl TopologicalAligner {
 
         // Generate Hypothesis: GEOMETRI GLOBAL & KONDISIONAL
         // Kita suntikkan aksioma geometri statis untuk dicoba oleh MCTS
-        let geometry_ops = vec![
+        let geometry_ops = [
             "MIRROR_X",
             "MIRROR_Y",
             "ROTATE_90",

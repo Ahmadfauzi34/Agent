@@ -12,6 +12,12 @@ pub struct SkillLibrary {
     pub macros: HashMap<String, MacroSkill>,
 }
 
+impl Default for SkillLibrary {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SkillLibrary {
     pub fn new() -> Self {
         Self {
@@ -76,11 +82,11 @@ impl SkillLibrary {
 
         if let Some(start) = markdown.find("```yaml") {
             if let Some(end) = markdown[start + 7..].find("```") {
-                content_str = &markdown[start + 7..start + 7 + end].trim();
+                content_str = markdown[start + 7..start + 7 + end].trim();
             }
         } else if let Some(start) = markdown.find("```json") {
             if let Some(end) = markdown[start + 7..].find("```") {
-                content_str = &markdown[start + 7..start + 7 + end].trim();
+                content_str = markdown[start + 7..start + 7 + end].trim();
             }
         }
 
