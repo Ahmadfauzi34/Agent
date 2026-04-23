@@ -1,3 +1,6 @@
+#[global_allocator]
+static ALLOCATOR: memory::allocator::TrackingAllocator = memory::allocator::TrackingAllocator::new();
+
 pub mod core;
 pub mod memory;
 pub mod perception;
