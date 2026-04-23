@@ -15,6 +15,12 @@ pub struct CausalAssessment {
     pub explanation: String,
 }
 
+impl Default for CausalReasoner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CausalReasoner {
     pub fn new() -> Self {
         Self {

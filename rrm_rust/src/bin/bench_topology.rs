@@ -3,7 +3,6 @@ static ALLOCATOR: rrm_rust::memory::allocator::TrackingAllocator = rrm_rust::mem
 
 use rrm_rust::core::entity_manifold::EntityManifold;
 use rrm_rust::quantum_topology::QuantumCellComplex;
-use std::sync::Arc;
 use std::time::Instant;
 
 fn main() {
@@ -15,23 +14,22 @@ fn main() {
 
     let mut cx = vec![0.0; n];
     let mut cy = vec![0.0; n];
-    let mut masses = vec![1.0; n];
-    let mut tokens = vec![1; n];
+    let masses = vec![1.0; n];
+    let tokens = vec![1; n];
 
     for i in 0..n {
         cx[i] = (i as f32 * 1.1) % 100.0;
         cy[i] = (i as f32 * 1.7) % 100.0;
     }
 
-    manifold.centers_x = Arc::new(cx);
-    manifold.centers_y = Arc::new(cy);
-    manifold.masses = Arc::new(masses);
-    manifold.tokens = Arc::new(tokens);
-    manifold.ensure_scalar_capacity(n); // To make sure other vectors are same length
+    manifold.centers_x = cx;
+    manifold.centers_y = cy;
+    manifold.masses = masses;
+    manifold.tokens = tokens;
+    manifold.ensure_scalar_capacity(n);
 
     let epsilon = 5.0;
 
-    // Warmup
     for _ in 0..5 {
         let _ = QuantumCellComplex::from_manifold(&manifold, epsilon);
     }
@@ -43,5 +41,5 @@ fn main() {
     }
     let duration = start.elapsed() / iterations as u32;
 
-    println!("Average time: {:?}", duration);
+    println!("Average time for n={}: {:?}", n, duration);
 }

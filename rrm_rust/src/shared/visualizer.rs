@@ -350,7 +350,7 @@ impl Visualizer {
 
         let mut barcode = String::with_capacity(sample_size * 3);
         for i in 0..sample_size {
-            barcode.push_str(&Self::amplitude_to_unicode(tensor[i]));
+            barcode.push_str(Self::amplitude_to_unicode(tensor[i]));
         }
 
         // Energy indicator dengan threshold
@@ -763,7 +763,7 @@ impl Visualizer {
             .filter(|(cond, _)| *cond)
             .map(|(_, name)| *name)
             .next()
-            .unwrap_or(&"Random/Uniform")
+            .unwrap_or("Random/Uniform")
             .to_string()
     }
 

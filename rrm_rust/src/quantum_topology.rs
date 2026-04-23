@@ -4,8 +4,7 @@
 
 use crate::core::config::GLOBAL_DIMENSION;
 use crate::core::entity_manifold::EntityManifold;
-use ndarray::{s, Array1, Array2};
-use serde::{Deserialize, Serialize};
+use ndarray::{Array1, Array2};
 
 /// Quantum Cell Complex: Simplicial complex dengan amplitude kuantum
 #[derive(Clone, Debug)]
@@ -428,10 +427,10 @@ impl ReasoningSheaf {
                 for d in 0..GLOBAL_DIMENSION {
                     fiber[d] = (px * (d as f32)).sin() + (py * (d as f32)).cos();
                 }
-                section = section + &fiber;
+                section += &fiber;
             }
             if !set_i.is_empty() {
-                section = section / (set_i.len() as f32);
+                section /= set_i.len() as f32;
             }
             local_sections.push(section);
 
@@ -490,12 +489,12 @@ impl ReasoningSheaf {
 
         for (i, section) in self.local_sections.iter().enumerate() {
             let weight = self.cover[i].len() as f32;
-            global = global + &(section * weight);
+            global += &(section * weight);
             total_weight += weight;
         }
 
         if total_weight > 0.0 {
-            global = global / total_weight;
+            global /= total_weight;
             Some(global)
         } else {
             None
@@ -568,14 +567,14 @@ impl SpectralEmbedding {
             );
             let v_norm = v.dot(&v).sqrt();
             if v_norm > 0.0 {
-                v = v / v_norm;
+                v /= v_norm;
             }
 
             // Gram-Schmidt orthogonalization
             for prev in 0..dim {
                 let u = embedding.column(prev).to_owned();
                 let proj = v.dot(&u);
-                v = v - &(u * proj);
+                v -= &(u * proj);
             }
 
             // Power iteration
@@ -683,7 +682,7 @@ impl QuantumTensorNetwork {
         }
 
         let top_tensor = current_features
-            .get(0)
+            .first()
             .cloned()
             .unwrap_or_else(|| Array1::<f32>::zeros(GLOBAL_DIMENSION));
 

@@ -241,7 +241,7 @@ impl RrmAgent {
                 );
                 let _ = wiki.append_to_log(
                     "Execution_Log",
-                    &format!("Run #X -> SUCCESS via HierarchicalPlanner fallback"),
+                    "Run #X -> SUCCESS via HierarchicalPlanner fallback",
                 );
 
                 self.decoder.collapse_to_grid(
@@ -261,7 +261,7 @@ impl RrmAgent {
                 let mut wiki = crate::self_awareness::executable_wiki::ExecutableWiki::new(
                     "rrm_rust/knowledge/skills/",
                 );
-                let _ = wiki.append_to_log("Analysis_Log", &format!("Catastrophic Failure Detected. Need to synthesize generative skill via crossover."));
+                let _ = wiki.append_to_log("Analysis_Log", "Catastrophic Failure Detected. Need to synthesize generative skill via crossover.");
 
                 // Simulasi pembuatan skill baru hasil "crossover"
                 let new_page = crate::self_awareness::executable_wiki::WikiPage {
@@ -309,7 +309,7 @@ impl RrmAgent {
             .mental_replay
             .practice_in_dreams(&mut self.counterfactual_engine, &self.ontology);
 
-        if discovered_skills.len() > 0 {
+        if !discovered_skills.is_empty() {
             println!(
                 "✨ [Eureka!] RRM menemukan {} komposisi skill baru di alam mimpinya!",
                 discovered_skills.len()
@@ -369,7 +369,7 @@ impl RrmAgent {
         let mut betti_1_holes = 0;
         let mut curvature_norm = 0.0;
 
-        if let Some((man_in, man_out)) = train_states.iter().next() {
+        if let Some((man_in, man_out)) = train_states.first() {
             let delta = StructuralAnalyzer::analyze(man_in, man_out);
             let report = self.self_reflection.assess_situation(&delta);
             println!(
@@ -393,7 +393,7 @@ impl RrmAgent {
 
         // Cek Saliency Ratio: Seberapa besar porsi grid yang benar-benar aktif dibanding keseluruhan?
         // Menghitung berdasarkan massa total entitas aktif (jumlah piksel)
-        if let Some((man_in, _)) = train_states.iter().next() {
+        if let Some((man_in, _)) = train_states.first() {
             let mut total_active_mass = 0.0;
             for i in 0..man_in.active_count {
                 if man_in.tokens[i] != 0 {
@@ -409,7 +409,7 @@ impl RrmAgent {
         let mut historical_axiom_injected = false;
         if let Some(ref delta) = pre_emptive_delta {
             // Jika ada deteksi warna atau ada deteksi lubang (Betti-1), injeksi aksioma pewarnaan area
-            if (delta.signature.color_transitions.len() > 0
+            if (!delta.signature.color_transitions.is_empty()
                 && delta.signature.dim_relation
                     == crate::perception::structural_analyzer::DimensionRelation::Equal)
                 || betti_1_holes > 0
@@ -472,7 +472,7 @@ impl RrmAgent {
 
             // 2. RESONATE (Regenerasi Axioms jika kosong, biarkan jika sudah diset oleh Micro-Steps/ObstacleStuck)
             if seed_axioms.is_empty() {
-                if let Some((man_in, man_out)) = train_states.iter().next() {
+                if let Some((man_in, man_out)) = train_states.first() {
                     let mut matches = TopDownAxiomator::generate_axioms(man_in, man_out);
 
                     // Injeksi Asosiasi Masa Lalu jika relevan
@@ -665,13 +665,13 @@ impl RrmAgent {
                                     let sy = m.spans_y[i];
                                     let es = m.entanglement_status[i];
 
-                                    Arc::make_mut(&mut m.masses)[new_idx] = mass;
-                                    Arc::make_mut(&mut m.tokens)[new_idx] = tok;
-                                    Arc::make_mut(&mut m.centers_x)[new_idx] = cx;
-                                    Arc::make_mut(&mut m.centers_y)[new_idx] = cy;
-                                    Arc::make_mut(&mut m.spans_x)[new_idx] = sx;
-                                    Arc::make_mut(&mut m.spans_y)[new_idx] = sy;
-                                    Arc::make_mut(&mut m.entanglement_status)[new_idx] = es;
+                                    m.masses[new_idx] = mass;
+                                    m.tokens[new_idx] = tok;
+                                    m.centers_x[new_idx] = cx;
+                                    m.centers_y[new_idx] = cy;
+                                    m.spans_x[new_idx] = sx;
+                                    m.spans_y[new_idx] = sy;
+                                    m.entanglement_status[new_idx] = es;
                                 }
                                 new_idx += 1;
                             }
@@ -777,7 +777,7 @@ impl RrmAgent {
 
                     for (name, dx, dy) in micro_steps {
                         let tensor_spatial =
-                            crate::core::fhrr::FHRR::fractional_bind_2d(&x_seed, dx, &y_seed, dy);
+                            crate::core::fhrr::FHRR::fractional_bind_2d(x_seed, dx, y_seed, dy);
                         let mut node = WaveNode::new(
                             name.to_string(),
                             None,
@@ -828,13 +828,13 @@ impl RrmAgent {
                                 let sy = manifold.spans_y[old_idx];
                                 let es = manifold.entanglement_status[old_idx];
 
-                                Arc::make_mut(&mut manifold.masses)[new_idx] = m;
-                                Arc::make_mut(&mut manifold.tokens)[new_idx] = t;
-                                Arc::make_mut(&mut manifold.centers_x)[new_idx] = cx;
-                                Arc::make_mut(&mut manifold.centers_y)[new_idx] = cy;
-                                Arc::make_mut(&mut manifold.spans_x)[new_idx] = sx;
-                                Arc::make_mut(&mut manifold.spans_y)[new_idx] = sy;
-                                Arc::make_mut(&mut manifold.entanglement_status)[new_idx] = es;
+                                manifold.masses[new_idx] = m;
+                                manifold.tokens[new_idx] = t;
+                                manifold.centers_x[new_idx] = cx;
+                                manifold.centers_y[new_idx] = cy;
+                                manifold.spans_x[new_idx] = sx;
+                                manifold.spans_y[new_idx] = sy;
+                                manifold.entanglement_status[new_idx] = es;
                             }
                             new_idx += 1;
                         }
@@ -894,16 +894,13 @@ impl RrmAgent {
                                 let mut idx = 0;
                                 for atom in atoms.iter() {
                                     macro_manifold.ensure_scalar_capacity(idx + 1);
-                                    Arc::make_mut(&mut macro_manifold.masses)[idx] =
-                                        atom.pixel_count as f32;
-                                    Arc::make_mut(&mut macro_manifold.tokens)[idx] = atom.color;
-                                    Arc::make_mut(&mut macro_manifold.centers_x)[idx] =
-                                        atom.center_of_mass.0;
-                                    Arc::make_mut(&mut macro_manifold.centers_y)[idx] =
-                                        atom.center_of_mass.1;
-                                    Arc::make_mut(&mut macro_manifold.spans_x)[idx] =
+                                    macro_manifold.masses[idx] = atom.pixel_count as f32;
+                                    macro_manifold.tokens[idx] = atom.color;
+                                    macro_manifold.centers_x[idx] = atom.center_of_mass.0;
+                                    macro_manifold.centers_y[idx] = atom.center_of_mass.1;
+                                    macro_manifold.spans_x[idx] =
                                         (atom.bounding_box.2 - atom.bounding_box.0).max(1.0);
-                                    Arc::make_mut(&mut macro_manifold.spans_y)[idx] =
+                                    macro_manifold.spans_y[idx] =
                                         (atom.bounding_box.3 - atom.bounding_box.1).max(1.0);
                                     idx += 1;
                                 }
@@ -970,7 +967,7 @@ impl RrmAgent {
                         temp_axiom.tier = rule.physics_tier;
 
                         // Uji satu pasang train state untuk mendapatkan gradient geseran
-                        if let Some((man_in, expected_out)) = train_states.iter().next() {
+                        if let Some((man_in, expected_out)) = train_states.first() {
                             let result = engine.what_if(&temp_axiom, man_in, expected_out);
 
                             if !result.is_success {
@@ -1070,7 +1067,7 @@ impl RrmAgent {
                     let mut ceo_engine = DeepActiveInferenceEngine::new();
                     ceo_engine.switch_mode(SimulationMode::Probabilistic);
 
-                    let depths = vec![2, 5, 10, 20];
+                    let depths = [2, 5, 10, 20];
                     for (attempt, &take_n) in depths.iter().enumerate() {
                         println!(
                             "   🔍 Search Attempt {}: Exploring top {} advanced axioms...",
@@ -1275,7 +1272,7 @@ impl RrmAgent {
                                 // Topologi Kuantum: Evaluasi Reasoning Sheaf (Local-to-Global Gluing)
                                 // Memastikan aturan yang ditemukan benar-benar konsisten tanpa celah anomali
                                 if let Some(ref rule) = best_rule {
-                                    if let Some(man_in) = rule.state_manifolds.get(0) {
+                                    if let Some(man_in) = rule.state_manifolds.first() {
                                         let sheaf =
                                             crate::quantum_topology::ReasoningSheaf::from_manifold(
                                                 man_in, 3,
@@ -1344,8 +1341,8 @@ impl RrmAgent {
                     let fast_pass_axioms: Vec<WaveNode> = seed_axioms
                         .iter()
                         .filter(|a| a.physics_tier <= 2)
-                        .cloned()
                         .take(3)
+                        .cloned()
                         .collect();
 
                     let search = Arc::new(AsyncWaveSearch::new(expected_grids.clone(), 1));
@@ -1482,7 +1479,7 @@ impl RrmAgent {
                         axiom_type: vec!["FAILED_TRANS_X_5".to_string()],
                         condition_tensor: None,
                         tensor_spatial: crate::core::fhrr::FHRR::fractional_bind_2d(
-                            &x_seed, 5.0, &y_seed, 0.0,
+                            x_seed, 5.0, y_seed, 0.0,
                         ),
                         tensor_semantic: ndarray::Array1::ones(
                             crate::core::config::GLOBAL_DIMENSION,
@@ -1505,7 +1502,7 @@ impl RrmAgent {
                         axiom_type: vec!["FAILED_TRANS_Y_2".to_string()],
                         condition_tensor: None,
                         tensor_spatial: crate::core::fhrr::FHRR::fractional_bind_2d(
-                            &x_seed, 0.0, &y_seed, 2.0,
+                            x_seed, 0.0, y_seed, 2.0,
                         ),
                         tensor_semantic: ndarray::Array1::ones(
                             crate::core::config::GLOBAL_DIMENSION,

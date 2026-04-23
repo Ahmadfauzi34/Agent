@@ -1,7 +1,6 @@
 use crate::core::core_seeds::CoreSeeds;
 use crate::core::entity_manifold::EntityManifold;
 use crate::core::fhrr::FHRR;
-use std::sync::Arc;
 // AxiomGenerator is missing from rust so we use FHRR directly for macro translations.
 // This preserves the kinematics loop exactly as it was.
 
@@ -14,8 +13,8 @@ impl SwarmDynamics {
     /// Menerapkan "Kinetika Gerombolan" (Swarm Kinematics).
     /// Semua entitas yang memenuhi syarat akan bergerak bersamaan (misal: "Gravity Drop", "Flocking").
     pub fn apply_swarm_gravity(u: &mut EntityManifold, delta_x: f32, delta_y: f32) {
-        let width = u.global_width as f32;
-        let height = u.global_height as f32;
+        let width = u.global_width;
+        let height = u.global_height;
 
         let total_pixel_steps_x = (delta_x * (width - 1.0)).abs().round() as usize;
         let total_pixel_steps_y = (delta_y * (height - 1.0)).abs().round() as usize;
@@ -31,9 +30,9 @@ impl SwarmDynamics {
 
         // Inline translation generation using FHRR fractional bind
         let swarm_shift_tensor = FHRR::fractional_bind_2d(
-            &CoreSeeds::x_axis_seed(),
+            CoreSeeds::x_axis_seed(),
             step_x,
-            &CoreSeeds::y_axis_seed(),
+            CoreSeeds::y_axis_seed(),
             step_y,
         );
 
@@ -107,8 +106,8 @@ impl SwarmDynamics {
             // Apply kinetics and quantum shifts
             for i in 0..active_count {
                 if can_move[i] {
-                    Arc::make_mut(&mut u.centers_x)[i] = next_rel_xs[i];
-                    Arc::make_mut(&mut u.centers_y)[i] = next_rel_ys[i];
+                    u.centers_x[i] = next_rel_xs[i];
+                    u.centers_y[i] = next_rel_ys[i];
 
                     let future_state = {
                         let entity_tensor = u.get_spatial_tensor(i);

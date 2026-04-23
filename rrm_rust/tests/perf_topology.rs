@@ -16,10 +16,10 @@ fn bench_from_manifold() {
     let masses = vec![1.0; n];
     let tokens = (0..n).map(|i| (i % 10) as i32).collect::<Vec<_>>();
 
-    manifold.centers_x = Arc::new(cx);
-    manifold.centers_y = Arc::new(cy);
-    manifold.masses = Arc::new(masses);
-    manifold.tokens = Arc::new(tokens);
+    manifold.centers_x = cx;
+    manifold.centers_y = cy;
+    manifold.masses = masses;
+    manifold.tokens = tokens;
     manifold.ensure_scalar_capacity(n);
 
     let epsilon = 5.0;

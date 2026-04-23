@@ -32,7 +32,7 @@ fn distill_yaml_skills() {
         // Jika kita ingin menggeser seluruh alam semesta sejauh (dx, dy),
         // Vektor Transformasinya hanyalah: X_Seed^dx (X) Y_Seed^dy
 
-        let mut skill_tensor = FHRR::fractional_bind_2d(&x_seed, dx, &y_seed, dy);
+        let mut skill_tensor = FHRR::fractional_bind_2d(x_seed, dx, y_seed, dy);
 
         // Untuk operasi cermin atau rotasi (di luar translasi standar), dalam VSA/FHRR sesungguhnya
         // memerlukan Permutation Matrix. Namun, sebagai placeholder (karena kita akan melatih MCTS untuk menemukannya),
@@ -192,14 +192,14 @@ fn main() {
             for (y, row) in test_in.iter().enumerate() {
                 for (x, &val) in row.iter().enumerate() {
                     raw_manifold.ensure_scalar_capacity(raw_idx + 1);
-                    Arc::make_mut(&mut raw_manifold.masses)[raw_idx] = 1.0;
-                    Arc::make_mut(&mut raw_manifold.tokens)[raw_idx] = val;
-                    Arc::make_mut(&mut raw_manifold.centers_x)[raw_idx] = x as f32;
-                    Arc::make_mut(&mut raw_manifold.centers_y)[raw_idx] = y as f32;
+                    raw_manifold.masses[raw_idx] = 1.0;
+                    raw_manifold.tokens[raw_idx] = val;
+                    raw_manifold.centers_x[raw_idx] = x as f32;
+                    raw_manifold.centers_y[raw_idx] = y as f32;
 
                     // Span = 1 since it's raw pixel
-                    Arc::make_mut(&mut raw_manifold.spans_x)[raw_idx] = 1.0;
-                    Arc::make_mut(&mut raw_manifold.spans_y)[raw_idx] = 1.0;
+                    raw_manifold.spans_x[raw_idx] = 1.0;
+                    raw_manifold.spans_y[raw_idx] = 1.0;
 
                     raw_idx += 1;
                 }
@@ -229,7 +229,7 @@ fn main() {
             if final_result.len() != test_out.len() {
                 success = false;
             } else {
-                for (_r, (r_row, t_row)) in final_result.iter().zip(test_out.iter()).enumerate() {
+                for (r_row, t_row) in final_result.iter().zip(test_out.iter()) {
                     if r_row != t_row {
                         success = false;
                         break;
@@ -256,5 +256,5 @@ fn main() {
     agent.dream(); // Simulasi REM
 
     let dummy_manifold = EntityManifold::default();
-    let _ = immortal.hibernate(&dummy_manifold); // Simpan state KV int8 ke bin
+    immortal.hibernate(&dummy_manifold); // Simpan state KV int8 ke bin
 }

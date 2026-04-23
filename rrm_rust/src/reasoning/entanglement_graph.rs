@@ -4,6 +4,12 @@ pub struct EntanglementGraph {
     pub row_ptr: Vec<usize>,
 }
 
+impl Default for EntanglementGraph {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EntanglementGraph {
     pub fn new() -> Self {
         Self {

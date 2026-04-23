@@ -37,6 +37,12 @@ pub enum ScenarioVariation {
     TopologyChange(TopologyHint),
 }
 
+impl Default for MentalReplay {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MentalReplay {
     pub fn new() -> Self {
         Self {

@@ -11,6 +11,12 @@ pub struct WaveDynamics {
     pub entanglement_graph: EntanglementGraph,
 }
 
+impl Default for WaveDynamics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WaveDynamics {
     pub fn new() -> Self {
         Self {
@@ -118,8 +124,7 @@ impl WaveDynamics {
 
             let current_status = manifold.entanglement_status[target_index];
             if entanglement_weight > current_status {
-                std::sync::Arc::make_mut(&mut manifold.entanglement_status)[target_index] =
-                    entanglement_weight;
+                manifold.entanglement_status[target_index] = entanglement_weight;
             }
         }
     }

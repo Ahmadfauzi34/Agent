@@ -1,17 +1,3 @@
-# Bolt's Journal - Critical Learnings
-
-Your journal is NOT a log - only add entries for CRITICAL learnings that will help you avoid mistakes or make better decisions.
-
-⚠️ ONLY add journal entries when you discover:
-- A performance bottleneck specific to this codebase's architecture
-- An optimization that surprisingly DIDN'T work (and why)
-- A rejected change with a valuable lesson
-- A codebase-specific performance pattern or anti-pattern
-- A surprising edge case in how this app handles performance
-
-Format:
-```markdown
-## YYYY-MM-DD - [Title]
-**Learning:** [Insight]
-**Action:** [How to apply next time]
-```
+## 2026-04-22 - [Performance/Memory Optimization] Removing Arc<Vec<T>> overhead in EntityManifold
+**Learning:** `Arc::make_mut` inside a hot inner loop (like MCTS simulation) causes severe heap thrashing and deep copies when the strong count > 1. This defeats the purpose of Copy-on-Write for small arrays and destroys L1 cache locality, drastically slowing down simulations.
+**Action:** Changed `EntityManifold` internal arrays to use plain `Vec<T>`. Relied on top-level contiguous `m.clone()` for states which is easily optimized by `memcpy` and eliminates locking and branching overhead for thousands of internal tensor mutations.

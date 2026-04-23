@@ -4,6 +4,12 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 pub struct AnomalousExtractor;
 
+impl Default for AnomalousExtractor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AnomalousExtractor {
     pub fn new() -> Self {
         Self
@@ -322,16 +328,14 @@ pub fn extract_anomalous_quadrant(state: &EntityManifold) -> EntityManifold {
 
             new_state.ensure_scalar_capacity(copied + 1);
 
-            std::sync::Arc::make_mut(&mut new_state.masses)[copied] = state.masses[idx];
-            std::sync::Arc::make_mut(&mut new_state.tokens)[copied] = state.tokens[idx];
+            new_state.masses[copied] = state.masses[idx];
+            new_state.tokens[copied] = state.tokens[idx];
 
-            std::sync::Arc::make_mut(&mut new_state.centers_x)[copied] =
-                state.centers_x[idx] - min_x as f32;
-            std::sync::Arc::make_mut(&mut new_state.centers_y)[copied] =
-                state.centers_y[idx] - min_y as f32;
+            new_state.centers_x[copied] = state.centers_x[idx] - min_x as f32;
+            new_state.centers_y[copied] = state.centers_y[idx] - min_y as f32;
 
-            std::sync::Arc::make_mut(&mut new_state.spans_x)[copied] = state.spans_x[idx];
-            std::sync::Arc::make_mut(&mut new_state.spans_y)[copied] = state.spans_y[idx];
+            new_state.spans_x[copied] = state.spans_x[idx];
+            new_state.spans_y[copied] = state.spans_y[idx];
 
             copied += 1;
         }

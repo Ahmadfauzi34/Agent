@@ -3,6 +3,12 @@ use ndarray::{Array1, ArrayViewMut1};
 
 pub struct MaintenanceEngine;
 
+impl Default for MaintenanceEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MaintenanceEngine {
     pub fn new() -> Self {
         Self

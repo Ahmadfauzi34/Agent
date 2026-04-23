@@ -81,7 +81,7 @@ impl WaveNode {
                 .state_manifolds
                 .iter()
                 .map(|m: &EntityManifold| {
-                    if m.masses.len() > 0 && m.masses[0] > 100.0 {
+                    if !m.masses.is_empty() && m.masses[0] > 100.0 {
                         let mut shallow = EntityManifold::new();
                         shallow.active_count = 0;
                         shallow
@@ -284,7 +284,7 @@ impl FractalArena {
             let cloned: Vec<EntityManifold> = self.states[idx]
                 .iter()
                 .map(|m: &EntityManifold| {
-                    if m.masses.len() > 0 && m.masses[0] > 100.0 {
+                    if !m.masses.is_empty() && m.masses[0] > 100.0 {
                         let mut shallow = EntityManifold::new();
                         shallow.active_count = 0;
                         shallow
@@ -336,7 +336,7 @@ impl FractalArena {
             let current_tolerance = self.tolerances[idx].precision_width;
 
             total_pragmatic_error += SimdEnergyCalculator::calculate_pragmatic_streaming(
-                &*manifold_read,
+                manifold_read,
                 expected_grid,
                 m_width,
                 m_height,
@@ -344,7 +344,7 @@ impl FractalArena {
                 current_tolerance,
             );
             total_epistemic_value +=
-                SimdEnergyCalculator::calculate_epistemic(&*manifold_read, &initial_read);
+                SimdEnergyCalculator::calculate_epistemic(manifold_read, initial_read);
         }
 
         // 🌟 CAPABILITY AWARENESS: MIND-BODY DISCONNECT DETECTOR 🌟
@@ -460,7 +460,7 @@ impl AsyncWaveSearch {
                 future::yield_now().await;
 
                 // Cek jika Ground State sudah ditemukan
-                if self.ground_states.read().unwrap().len() > 0 {
+                if !self.ground_states.read().unwrap().is_empty() {
                     break;
                 }
 
@@ -472,7 +472,7 @@ impl AsyncWaveSearch {
                 // Apply Axiom
                 let current_axiom_str = arena.axiom_path[current_idx]
                     .last()
-                    .map(|s: &String| s.clone())
+                    .cloned()
                     .unwrap_or_else(|| "IDENTITY_STATIC".to_string());
 
                 // We must extract these immutable fields BEFORE modifying `arena.states`
@@ -527,14 +527,14 @@ impl AsyncWaveSearch {
 
                 // Jika ada cabang lain yang mendarat di hash yang sama, berikan bonus amplitudo (Constructive Interference)
                 if let Some(siblings) = state_hashes.get(&state_hash) {
-                    if siblings.len() > 0 {
+                    if !siblings.is_empty() {
                         arena.amplitudes[current_idx] *= 1.2; // Amplification bonus
                         arena.phases[current_idx] = 0.0; // Reset phase to align
                     }
                 }
                 state_hashes
                     .entry(state_hash)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(current_idx);
 
                 // Reasoning (Free Energy)
@@ -599,14 +599,14 @@ impl AsyncWaveSearch {
                     );
 
                     let debug_manifold = &arena.states[current_idx][0];
-                    Visualizer::print_particle_memory_map(&debug_manifold);
+                    Visualizer::print_particle_memory_map(debug_manifold);
                 }
 
                 // Cek Ground State
                 if is_ground_state {
                     // Resonansi Topologis: Pastikan Gluing Mulus sebelum Ground State disahkan
                     let mut topological_resonance = 1.0;
-                    if let Some(man_in) = arena.states[current_idx].get(0) {
+                    if let Some(man_in) = arena.states[current_idx].first() {
                         let sheaf =
                             crate::quantum_topology::ReasoningSheaf::from_manifold(man_in, 3);
                         if !sheaf.check_sheaf_condition() {
