@@ -72,9 +72,10 @@ pub struct MctsNodeInfo {
     pub axiom_type: String,
 }
 
-// Platform-specific memory tracking (Implemented)
+// Platform-specific memory tracking (stub)
 fn get_heap_usage() -> usize {
-    crate::memory::allocator::TrackingAllocator::get_allocated()
+    // TODO: Implement dengan dlmalloc atau platform API
+    0
 }
 
 /// ═══════════════════════════════════════════════════════════════════════════════
