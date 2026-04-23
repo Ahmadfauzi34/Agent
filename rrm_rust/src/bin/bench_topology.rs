@@ -1,6 +1,3 @@
-#[global_allocator]
-static ALLOCATOR: rrm_rust::memory::allocator::TrackingAllocator = rrm_rust::memory::allocator::TrackingAllocator::new();
-
 use rrm_rust::core::entity_manifold::EntityManifold;
 use rrm_rust::quantum_topology::QuantumCellComplex;
 use std::sync::Arc;
