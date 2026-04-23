@@ -439,15 +439,33 @@ export class TensorFlowEngine {
       this.ensureDbLoaded();
       if (this.vectorDb.length === 0) return Err("Memory DB is empty.");
 
-      // Compute cosine similarity for all
-      const matches = this.vectorDb.map(record => {
-          const sim = tf.tidy(() => {
-              const a = tf.tensor1d(vector);
-              const b = tf.tensor1d(record.vector);
-              return tf.div(tf.dot(a, b), tf.mul(tf.norm(a), tf.norm(b))).dataSync()[0];
-          });
-          return { ...record, score: sim };
+      // ⚡ Bolt Optimization: Vectorized Cosine Similarity
+      // We calculate similarities for all vectors in one single TensorFlow operation
+      // rather than O(n) synchronous .dataSync() calls.
+      const scores = tf.tidy(() => {
+          const queryTensor = tf.tensor1d(vector);
+          const queryNorm = tf.norm(queryTensor);
+          const eps = 1e-8; // Prevent division by zero
+
+          // [num_records, vector_dim]
+          const dbTensors = tf.tensor2d(this.vectorDb.map(r => r.vector));
+
+          // Dot products: [num_records]
+          const dotProducts = tf.matMul(dbTensors, queryTensor.expandDims(1)).squeeze();
+
+          // Norms of all DB records: [num_records]
+          const dbNorms = tf.norm(dbTensors, 'euclidean', 1);
+
+          // Cosine similarities
+          const similarities = tf.div(dotProducts, tf.mul(queryNorm, dbNorms).add(eps));
+
+          return similarities.dataSync();
       });
+
+      const matches = this.vectorDb.map((record, i) => ({
+          ...record,
+          score: scores[i]
+      }));
 
       // Sort descending
       matches.sort((a, b) => b.score - a.score);
