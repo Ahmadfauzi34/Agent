@@ -1,6 +1,5 @@
 use rrm_rust::core::entity_manifold::EntityManifold;
 use rrm_rust::quantum_topology::QuantumCellComplex;
-use std::sync::Arc;
 use std::time::Instant;
 
 #[test]

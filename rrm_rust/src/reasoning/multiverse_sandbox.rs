@@ -124,7 +124,7 @@ impl MultiverseSandbox {
                     }
                     let sem = u.get_semantic_tensor(e);
                     if FHRR::similarity(&sem, cond) >= 0.8 {
-                        found = true;
+                        found = true; _ = found;
                         let cx = u.centers_x[e];
                         let cy = u.centers_y[e];
                         if cx < min_x {
@@ -206,12 +206,12 @@ impl MultiverseSandbox {
 
         // 🌟 FISIKA TIER 7: CROP / PEMOTONGAN DIMENSI (FULL OPTIMIZED) 🌟
         if physics_tier == 7 {
-            let mut min_x = 0.0;
-            let mut max_x = 0.0;
-            let mut min_y = 0.0;
-            let mut max_y = 0.0;
-            let mut target_w = 0.0;
-            let mut target_h = 0.0;
+            let mut min_x = 0.0; _ = min_x;
+            let mut max_x = 0.0; _ = max_x;
+            let mut min_y = 0.0; _ = min_y;
+            let mut max_y = 0.0; _ = max_y;
+            let mut target_w = 0.0; _ = target_w;
+            let mut target_h = 0.0; _ = target_h;
             let mut found = false;
 
             // 1. Evaluasi logika Bounding-Box atau Anchor-Window untuk mendapatkan min_x, max_x, dsb.
@@ -239,7 +239,7 @@ impl MultiverseSandbox {
                     }
 
                     if count > 0.0 {
-                        found = true;
+                        found = true; _ = found;
                         let anchor_cx = (sum_x / count).round();
                         let anchor_cy = (sum_y / count).round();
 
@@ -255,8 +255,8 @@ impl MultiverseSandbox {
                             min_y = 0.0;
                         }
 
-                        max_x = min_x + target_w - 1.0;
-                        max_y = min_y + target_h - 1.0;
+                        max_x = min_x + target_w - 1.0; _ = max_x;
+                        max_y = min_y + target_h - 1.0; _ = max_y;
                     }
                 }
             } else if axiom_type.starts_with("CROP_TO_QUADRANT_") {
@@ -299,7 +299,7 @@ impl MultiverseSandbox {
 
                     for e in 0..u.active_count {
                         if u.masses[e] > 0.0 && u.tokens[e] == target_color {
-                            found = true;
+                            found = true; _ = found;
                             let cx = u.centers_x[e];
                             let cy = u.centers_y[e];
                             if cx < min_x {
@@ -649,8 +649,8 @@ impl MultiverseSandbox {
         mode: &str,
         _padding: f32,
     ) {
-        let mut pivot_x = 0.0;
-        let mut pivot_y = 0.0;
+        let mut pivot_x = 0.0; _ = pivot_x;
+        let mut pivot_y = 0.0; _ = pivot_y;
         let mut _density_w = u.global_width;
         let mut _density_h = u.global_height;
 
