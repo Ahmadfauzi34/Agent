@@ -439,15 +439,27 @@ export class TensorFlowEngine {
       this.ensureDbLoaded();
       if (this.vectorDb.length === 0) return Err("Memory DB is empty.");
 
-      // Compute cosine similarity for all
-      const matches = this.vectorDb.map(record => {
-          const sim = tf.tidy(() => {
-              const a = tf.tensor1d(vector);
-              const b = tf.tensor1d(record.vector);
-              return tf.div(tf.dot(a, b), tf.mul(tf.norm(a), tf.norm(b))).dataSync()[0];
-          });
-          return { ...record, score: sim };
+      // Compute cosine similarity for all in a single batched tensor operation
+      const scores = tf.tidy(() => {
+          const query = tf.tensor1d(vector);
+          const dbTensors = tf.tensor2d(this.vectorDb.map(r => r.vector));
+
+          const queryNorm = tf.norm(query);
+          const dbNorms = tf.norm(dbTensors, 2, 1);
+
+          const dotProducts = dbTensors.matMul(query.expandDims(1)).squeeze();
+          const sim = tf.div(dotProducts, tf.mul(queryNorm, dbNorms));
+
+          if (this.vectorDb.length === 1) {
+              return [sim.dataSync()[0]];
+          }
+          return Array.from(sim.dataSync());
       });
+
+      const matches = this.vectorDb.map((record, i) => ({
+          ...record,
+          score: scores[i]
+      }));
 
       // Sort descending
       matches.sort((a, b) => b.score - a.score);
