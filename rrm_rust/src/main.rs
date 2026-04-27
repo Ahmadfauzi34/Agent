@@ -170,7 +170,7 @@ fn main() {
         let result = agent.solve_task(&train_in, &train_out, &test_in);
 
         let mut success = true;
-        let mut final_result = result.clone();
+        let mut final_result = result.clone(); _ = final_result;
 
         if result.len() != test_out.len() {
             success = false;
