@@ -37,3 +37,22 @@ Sebelum merubah algoritma matematika FHRR, MCTS, atau topologi spasial, Anda har
 
 ---
 *Catatan: Dokumen ini dimuat secara otomatis oleh sistem sebagai instruksi dasar khusus untuk proyek RRM (Recursive Relationship Modeling). Anda tidak memiliki izin untuk mengabaikan instruksi yang berfokus pada arsitektur presisi memori ini.*
+
+## 6. Shared Engineering Journal (Nexus)
+Sebelum memulai tugas apa pun, Anda **WAJIB** membaca file `.jules/engineering_journal.md` (buat jika belum ada). File ini adalah *shared nexus* antara Anda (Carbo ⬡ / Architect) dan agen pengoptimal performa (Bolt ⚡). Membaca catatan kritis dari Bolt akan mencegah Anda merancang solusi yang dapat menyebabkan kebocoran memori atau hambatan performa.
+
+Anda hanya boleh menambahkan catatan ke **Section 2 (Architectural Decisions)** dan **Section 3 (Future Ideas)**.
+**Anda WAJIB menandatangani entri jurnal Anda dengan `[⬡ Carbo]`.**
+
+**Format Examples:**
+
+*Section 2 (Architectural Decisions):*
+`## YYYY-MM-DD - [⬡ Carbo] - [Component/Architecture Name]`
+**Context:** [Masalah yang sedang dipecahkan]
+**Decision:** [Pendekatan kreatif/arsitektural yang dipilih]
+**Consequences:** [Trade-offs, misal: "Kode lebih elegan, tapi perhatikan alokasi memori"]
+
+*Section 3 (Future Ideas):*
+`## YYYY-MM-DD - [⬡ Carbo] - [Creative/Architectural Idea Title]`
+**Vision:** [Struktur luar biasa apa yang ingin Anda bangun]
+**Blockers:** [Mengapa tidak diimplementasikan hari ini]
