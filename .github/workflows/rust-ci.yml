@@ -29,6 +29,7 @@ jobs:
           shared-key: "rrm-rust-ci"
 
       - name: cargo check
+        working-directory: ./rrm_rust
         run: cargo check --all-targets --all-features
 
   clippy:
@@ -50,6 +51,7 @@ jobs:
           shared-key: "rrm-rust-ci"
 
       - name: cargo clippy (all targets, all features)
+        working-directory: ./rrm_rust
         run: cargo clippy --all-targets --all-features -- -D warnings
 
   test:
@@ -69,6 +71,7 @@ jobs:
           shared-key: "rrm-rust-ci"
 
       - name: cargo test --release
+        working-directory: ./rrm_rust
         run: cargo test --release --all-features
 
   fmt:
@@ -84,5 +87,5 @@ jobs:
           components: rustfmt
 
       - name: Check formatting
+        working-directory: ./rrm_rust
         run: cargo fmt --all -- --check
-
