@@ -14,13 +14,7 @@
 #![allow(
     clippy::module_name_repetitions,
     clippy::must_use_candidate,
-    // === DOMAIN-SPECIFIC: Tensor Math ===
-    // FHRR menggunakan f32 untuk SIMD alignment (AVX2 256-bit = 8x f32).
-    // Cast dari i64 (JSON) ke f32 (tensor) adalah intentional dan validated.
-    // Jangan tambah allow baru tanpa signature [⬡ Carbo] di engineering journal.
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
+    
 )]
 
 
