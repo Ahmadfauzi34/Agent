@@ -14,7 +14,7 @@
 #![allow(
     clippy::module_name_repetitions,
     clippy::must_use_candidate,
-))]
+)]
 
 #[global_allocator]
 static ALLOCATOR: rrm_rust::memory::allocator::TrackingAllocator =
@@ -152,7 +152,6 @@ fn main() {
         let result = agent.solve_task(&train_in, &train_out, &test_in);
 
         let mut success = true;
-        let mut final_result = result.clone();
 
         if result.len() != test_out.len() {
             success = false;
@@ -165,7 +164,7 @@ fn main() {
             }
         }
 
-        if !success {
+        let _final_result = if !success {
             println!(
                 "MCTS failed. Engaging Generative Synthesized Skill: extract_anomalous_quadrant..."
             );
@@ -189,7 +188,7 @@ fn main() {
             raw_manifold.active_count = raw_idx;
 
             let res_em = extract_anomalous_quadrant(&raw_manifold);
-            final_result = vec![
+            let mut fallback_result = vec![
                 vec![0; res_em.global_width as usize];
                 res_em.global_height as usize
             ];
@@ -202,23 +201,26 @@ fn main() {
                         && cy >= 0
                         && cy < res_em.global_height as i32
                     {
-                        final_result[cy as usize][cx as usize] = res_em.tokens[i];
+                        fallback_result[cy as usize][cx as usize] = res_em.tokens[i];
                     }
                 }
             }
             success = true;
 
-            if final_result.len() != test_out.len() {
+            if fallback_result.len() != test_out.len() {
                 success = false;
             } else {
-                for (r_row, t_row) in final_result.iter().zip(test_out.iter()) {
+                for (r_row, t_row) in fallback_result.iter().zip(test_out.iter()) {
                     if r_row != t_row {
                         success = false;
                         break;
                     }
                 }
             }
-        }
+            fallback_result
+        } else {
+            result
+        };
 
         if success {
             println!("✅ SUCCESS (100% Match!)");
