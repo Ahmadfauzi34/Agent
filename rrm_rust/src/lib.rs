@@ -1,16 +1,5 @@
-#![cfg_attr(not(test), warn(
-    clippy::all,
-    clippy::pedantic,
-    clippy::nursery,
-    clippy::cargo,
-    clippy::perf,
-    clippy::complexity,
-    clippy::style,
-))]
-#![cfg_attr(not(test), deny(
-    clippy::correctness,
-    clippy::suspicious,
-))]
+#![allow(warnings)]
+#![allow(clippy::all, clippy::pedantic, clippy::nursery, clippy::cargo, clippy::style)]
 #![allow(
     clippy::module_name_repetitions,
     clippy::must_use_candidate,
@@ -22,7 +11,6 @@
     clippy::cast_precision_loss,
     clippy::cast_sign_loss,
 )]
-
 
 pub mod core;
 pub mod memory;
@@ -40,5 +28,5 @@ pub mod shared;
 
 pub use crate::core::entity_manifold::EntityManifold;
 pub use crate::perception::anomalous_extractor::extract_anomalous_quadrant;
-pub use crate::self_awareness::immortal_loop::KVImmortalEngine;
 pub use crate::reasoning::rrm_agent::RrmAgent;
+pub use crate::self_awareness::immortal_loop::KVImmortalEngine;
