@@ -1,5 +1,11 @@
 #![allow(warnings)]
-#![allow(clippy::all, clippy::pedantic, clippy::nursery, clippy::cargo, clippy::style)]
+#![allow(
+    clippy::all,
+    clippy::pedantic,
+    clippy::nursery,
+    clippy::cargo,
+    clippy::style
+)]
 #![allow(
     clippy::module_name_repetitions,
     clippy::must_use_candidate,
