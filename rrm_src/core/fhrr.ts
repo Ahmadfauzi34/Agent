@@ -7,7 +7,14 @@ const fft = new FFT(DIMENSION);
 // Seeded Random untuk Determinisme (Penting untuk Reproducibility)
 let seed = 42; 
 const seededRandom = (customSeed?: number) => {
-    if (customSeed !== undefined) seed = customSeed;
+    if (customSeed !== undefined) {
+        if (!Number.isFinite(customSeed) || Number.isNaN(customSeed)) {
+            seed = 42;
+        } else {
+            // Normalisasikan ke 32-bit integer aman untuk mencegah luapan float luar biasa (seperti 1e308)
+            seed = Math.abs(Math.trunc(customSeed)) % 2147483647;
+        }
+    }
     seed = (seed * 16807) % 2147483647;
     return (seed - 1) / 2147483646;
 };

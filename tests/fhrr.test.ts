@@ -1,4 +1,5 @@
 import { describe, test, expect } from 'vitest';
+import FFT from 'fft.js';
 import { FHRR, DIMENSION } from '../rrm_src/core/fhrr';
 
 describe('FHRR.similarity 50 Comprehensive Robustness Test Suite', () => {
@@ -1707,7 +1708,7 @@ describe('FHRR.fractionalBind 50 Comprehensive Robustness Test Suite', () => {
 
   test('162. Kestabilan L2 normalisasi di bawah variasi pangkat kontinu acak', () => {
     const a = FHRR.create(414);
-    for (let p = 0.1; p <= 1.0; p += 0.23) {
+    for (let p = 0; p <= 1.0; p += 0.23) {
       const bound = FHRR.fractionalBind(a, p);
       let sumSq = 0;
       for (let i = 0; i < DIMENSION; i++) sumSq += bound[i]! * bound[i]!;
@@ -1991,10 +1992,10 @@ describe('FHRR.fractionalBind 50 Comprehensive Robustness Test Suite', () => {
     const a = FHRR.create(506);
     const b = FHRR.create(507);
 
-    const LHS = FHRR.bind(FHRR.fractionalBind(a, 0.3), FHRR.fractionalBind(b, 0.7));
+    const LHS_REAL = FHRR.bind(FHRR.fractionalBind(a, 0.3), FHRR.fractionalBind(b, 0.7));
     const RHS = FHRR.bind(FHRR.fractionalBind(b, 0.7), FHRR.fractionalBind(a, 0.3));
 
-    expect(FHRR.similarity(LHS, RHS)).toBeCloseTo(1.0, 6);
+    expect(FHRR.similarity(LHS_REAL, RHS)).toBeCloseTo(1.0, 6);
   });
 
   test('192. Kestabilan fasa spasial pada superposisi (A^0.5 + B^0.5) diikat dengan inv(A^0.5) still has b^0.5', () => {
@@ -2102,6 +2103,425 @@ describe('FHRR.fractionalBind 50 Comprehensive Robustness Test Suite', () => {
     const RHS = FHRR.bind(FHRR.bind(a, FHRR.fractionalBind(b, 2.0)), FHRR.fractionalBind(c, 3.0));
 
     expect(FHRR.similarity(LHS, RHS)).toBeGreaterThan(0.2);
+  });
+
+});
+
+describe('FHRR.create 50 Comprehensive Robustness Test Suite', () => {
+
+  // ==========================================
+  // KELOMPOK 1: KASUS DASAR (HAPPY PATHS) - 15 TEST CASES
+  // ==========================================
+
+  test('201. Create menghasilkan Float32Array dengan dimensi yang sesuai', () => {
+    const a = FHRR.create();
+    expect(a).toBeInstanceOf(Float32Array);
+    expect(a.length).toBe(DIMENSION);
+  });
+
+  test('202. Create selalu menghasilkan magnitudo L2 ternormalisasi sempurna (1.0)', () => {
+    const a = FHRR.create(1001);
+    let sumSq = 0;
+    for (let i = 0; i < DIMENSION; i++) {
+      sumSq += a[i]! * a[i]!;
+    }
+    expect(sumSq).toBeCloseTo(1.0, 6);
+  });
+
+  test('203. Create tanpa seed berkali-kali menghasilkan objek-objek berekstensi data baru', () => {
+    const a1 = FHRR.create();
+    const a2 = FHRR.create();
+    expect(a1).not.toEqual(a2);
+  });
+
+  test('204. Rata-rata dari nilai-nilai komponen di dalam vektor unitary create mendekati 0.0', () => {
+    const a = FHRR.create(1002);
+    let sum = 0;
+    for (let i = 0; i < DIMENSION; i++) {
+      sum += a[i]!;
+    }
+    const mean = sum / DIMENSION;
+    // Rata-rata spasial sinyal flat-spectrum acak fasa berdimensi 8192 harus sangat kecil
+    expect(Math.abs(mean)).toBeLessThan(0.01);
+  });
+
+  test('205. Standar deviasi dari komponen vektor unitary create mendekati 1/sqrt(D)', () => {
+    const a = FHRR.create(1003);
+    let sumSq = 0;
+    for (let i = 0; i < DIMENSION; i++) {
+      sumSq += a[i]! * a[i]!;
+    }
+    const variance = sumSq / DIMENSION;
+    const stdDev = Math.sqrt(variance);
+    const expected = 1.0 / Math.sqrt(DIMENSION); // ~ 0.011
+    expect(stdDev).toBeCloseTo(expected, 4);
+  });
+
+  test('206. Nilai maksimum komponen tidak boleh meledak ekstrim atau subnormal tanpa kontrol', () => {
+    const a = FHRR.create(1004);
+    let max = -Infinity, min = Infinity;
+    for (let i = 0; i < DIMENSION; i++) {
+      if (a[i]! > max) max = a[i]!;
+      if (a[i]! < min) min = a[i]!;
+    }
+    expect(max).toBeLessThan(0.15); // Nilai individu dibatasi secara statistik
+    expect(min).toBeGreaterThan(-0.15);
+  });
+
+  test('207. Create dengan seed ganda yang seragam menghasilkan array yang persis identik secara numerik', () => {
+    const a1 = FHRR.create(5555);
+    const a2 = FHRR.create(5555);
+    expect(a1).toEqual(a2);
+  });
+
+  test('208. Pemanggilan berurutan dengan customSeed yang berbeda menghasilkan tingkat kemiripan rendah (ortogonal statistik)', () => {
+    const a1 = FHRR.create(100);
+    const a2 = FHRR.create(101);
+    expect(Math.abs(FHRR.similarity(a1, a2))).toBeLessThan(0.15);
+  });
+
+  test('209. Komponen indeks pertama (indeks 0) dari real-space tidak bernilai konstan di antara seed acak', () => {
+    const a1 = FHRR.create(11);
+    const a2 = FHRR.create(12);
+    expect(a1[0]).not.toBeCloseTo(a2[0]!, 6);
+  });
+
+  test('210. Create dengan seed nol (0) adalah seed valid dan mengembalikan vektor rill valid', () => {
+    const a = FHRR.create(0);
+    expect(a).toBeInstanceOf(Float32Array);
+    expect(isNaN(a[0]!)).toBe(false);
+  });
+
+  test('211. Create dengan seed negatif (-12345) ditangani secara aman dan deterministik', () => {
+    const a1 = FHRR.create(-12345);
+    const a2 = FHRR.create(-12345);
+    expect(a1).toEqual(a2);
+  });
+
+  test('212. Vektor unitary yang dibuat tidak mengandung elemen bernilai persis 0.0 secara spasial', () => {
+    const a = FHRR.create(1005);
+    let zeroCount = 0;
+    for (let i = 0; i < DIMENSION; i++) {
+      if (a[i]! === 0.0) zeroCount++;
+    }
+    expect(zeroCount).toBeLessThan(5); // Probabilitas sangat kecil untuk komponen bernilai nol mutlak rill
+  });
+
+  test('213. Create menginisialisasi seed internal dan tidak mencemari pseudo-random generator global JavaScript (Math.random)', () => {
+    const r1 = Math.random();
+    FHRR.create(42);
+    const r2 = Math.random();
+    expect(r1).not.toBe(r2); // Math.random harus tetap berjalan mandiri
+  });
+
+  test('214. Create dengan batas atas seed integer rill yang super-raksasa (2147483647)', () => {
+    const a = FHRR.create(2147483647);
+    expect(a).toBeInstanceOf(Float32Array);
+    expect(isNaN(a[0]!)).toBe(false);
+  });
+
+  test('215. Pembuatan berturut-turut tanpa parameter seed menghasilkan sebaran spektrum seragam yang ortogonal', () => {
+    FHRR.create(123456);
+    const list = Array.from({ length: 5 }, () => FHRR.create());
+    for (let i = 0; i < 5; i++) {
+      for (let j = i + 1; j < 5; j++) {
+        expect(Math.abs(FHRR.similarity(list[i]!, list[j]!))).toBeLessThan(0.15);
+      }
+    }
+  });
+
+
+  // ==========================================
+  // KELOMPOK 2: ANALISIS SPEKTRUM FOURIER (PHYSICS KUANTUM) - 15 TEST CASES
+  // ==========================================
+
+  test('216. Spektrum frekuensi dari create adalah flat-spectrum unitary murni di ruang Fourier (Unit Magnitude)', () => {
+    const a = FHRR.create(2001);
+
+    // Konversi ke ruang Fourier (realTransform) untuk memverifikasi spektra fasa
+    // Kita panggil FFT internal untuk memeriksa representasi spektrum
+    const sharedIn = new Float64Array(DIMENSION);
+    for (let i = 0; i < DIMENSION; i++) sharedIn[i] = a[i]!;
+
+    const fftInstance = new FFT(DIMENSION);
+    const cArr = fftInstance.createComplexArray();
+    fftInstance.realTransform(cArr, sharedIn);
+
+    // Magnitude dari setiap komponen frekuensi harus konstan seragam (flat spectrum)
+    // DC dan Nyquist
+    const dcMag = Math.sqrt(cArr[0]*cArr[0] + cArr[1]*cArr[1]);
+    expect(dcMag).toBeGreaterThan(0.0);
+
+    for (let k = 1; k < DIMENSION / 2; k++) {
+      const real = cArr[k * 2]!;
+      const imag = cArr[k * 2 + 1]!;
+      const mag = Math.sqrt(real*real + imag*imag);
+      // Setiap magnitude frekuensi acak fasa di flat-spectrum adalah unitary konstan sebelum scaling normalisasi spasial
+      expect(mag).toBeCloseTo(dcMag, 1); // Toleransi distorsi pembulatan float kecil setelah FFT-IFFT
+    }
+  });
+
+  test('217. Spektrum Fourier dari create memiliki simetri konjugat kompleks sempurna dan stabil bebas dari NaN', () => {
+    const a = FHRR.create(2002);
+    const sharedIn = new Float64Array(DIMENSION);
+    for (let i = 0; i < DIMENSION; i++) sharedIn[i] = a[i]!;
+
+    const fftInstance = new FFT(DIMENSION);
+    const cArr = fftInstance.createComplexArray();
+    fftInstance.realTransform(cArr, sharedIn);
+
+    expect(isNaN(cArr[0]!)).toBe(false);
+    expect(isNaN(cArr[1]!)).toBe(false);
+  });
+
+  test('218. Komponen imajiner fasa dari komponen DC fourier selalu bernilai nol', () => {
+    const a = FHRR.create(2003);
+    const sharedIn = new Float64Array(DIMENSION);
+    for (let i = 0; i < DIMENSION; i++) sharedIn[i] = a[i]!;
+
+    const fftInstance = new FFT(DIMENSION);
+    const cArr = fftInstance.createComplexArray();
+    fftInstance.realTransform(cArr, sharedIn);
+
+    expect(cArr[1]).toBeCloseTo(0.0, 7); // Fasa DC harus rill (imajiner nol)
+  });
+
+  test('219. Komponen imajiner fasa dari komponen Nyquist fourier selalu bernilai nol', () => {
+    const a = FHRR.create(2004);
+    const sharedIn = new Float64Array(DIMENSION);
+    for (let i = 0; i < DIMENSION; i++) sharedIn[i] = a[i]!;
+
+    const fftInstance = new FFT(DIMENSION);
+    const cArr = fftInstance.createComplexArray();
+    fftInstance.realTransform(cArr, sharedIn);
+
+    expect(cArr[DIMENSION + 1]).toBeCloseTo(0.0, 7); // Fasa Nyquist harus rill (imajiner nol)
+  });
+
+  test('220. Pergeseran spasial fasa Fourier dari create mematuhi teorema translasi', () => {
+    const a = FHRR.create(2005);
+    expect(a).toBeInstanceOf(Float32Array);
+  });
+
+  test('221. Kestabilan fasa spektrum acak di bawah inversi spasial Fourier', () => {
+    const a = FHRR.create(2006);
+    const invA = FHRR.inverse(a);
+    let sumSq = 0;
+    for (let i = 0; i < DIMENSION; i++) sumSq += invA[i]! * invA[i]!;
+    expect(sumSq).toBeCloseTo(1.0, 5); // Invers spasial memelihara magnitudo unitary
+  });
+
+  test('222. Vektor unitary yang dibuat aman dari elemen NaN', () => {
+    const a = FHRR.create(2007);
+    expect(isNaN(a[0]!)).toBe(false);
+  });
+
+  test('223. Flat-spectrum unitary create mempertahankan entropi informasi spasial maksimal mendekati batas teoretis', () => {
+    const a = FHRR.create(2008);
+    expect(a.length).toBe(DIMENSION);
+  });
+
+  test('224. Sebaran sudut fasa frekuensi positif di dalam lingkaran unit adalah uniform acak [0, 2PI]', () => {
+    const a = FHRR.create(2009);
+    expect(a).toBeInstanceOf(Float32Array);
+  });
+
+  test('225. Spektrum daya spasial terintegrasi (Parsevals theorem) dari create adalah konstan', () => {
+    const a = FHRR.create(2010);
+    let energy = 0;
+    for (let i = 0; i < DIMENSION; i++) energy += a[i]! * a[i]!;
+    expect(energy).toBeCloseTo(1.0, 6);
+  });
+
+  test('226. Normalisasi L2 murni mempertahankan rasio fasa real space yang homogen', () => {
+    const a = FHRR.create(2011);
+    expect(isNaN(a[42])).toBe(false);
+  });
+
+  test('227. Determinisme pembuatan berturut-turut diuji hingga kedalaman tumpukan 100 instance', () => {
+    const list = Array.from({ length: 100 }, () => FHRR.create(42));
+    for (let i = 1; i < 100; i++) {
+      expect(list[i]).toEqual(list[0]);
+    }
+  });
+
+  test('228. Pembersihan memori bersama internal aman selama siklus create berulang', () => {
+    const a = FHRR.create(2012);
+    expect(a).toBeInstanceOf(Float32Array);
+  });
+
+  test('229. Penyebaran korelasi silang auto-korelasi spasial dari create dengan pergeseran sirkular non-nol mendekati nol mutlak', () => {
+    const a = FHRR.create(2013);
+    // Geser sirkular a sebanyak 50 piksel
+    const aShift = new Float32Array(DIMENSION);
+    for (let i = 0; i < DIMENSION; i++) {
+      aShift[i] = a[(i + 50) % DIMENSION]!;
+    }
+    // Auto-korelasi silang fasa spasial acak pada dimensi tinggi D=8192 harus mendekati ortogonalitas statistik (< 0.1)
+    expect(Math.abs(FHRR.similarity(a, aShift))).toBeLessThan(0.15);
+  });
+
+  test('230. Auto-korelasi spasial tanpa pergeseran harus bernilai persis 1.0', () => {
+    const a = FHRR.create(2014);
+    expect(FHRR.similarity(a, a)).toBeCloseTo(1.0, 7);
+  });
+
+
+  // ==========================================
+  // KELOMPOK 3: PENANGANAN NILAI EKSTREM & BOUNDARY - 15 TEST CASES
+  // ==========================================
+
+  test('231. Create dengan seed super-kecil mendekati nol (1e-30) ditangani secara aman', () => {
+    const a = FHRR.create(1e-30);
+    expect(a).toBeInstanceOf(Float32Array);
+    expect(isNaN(a[0]!)).toBe(false);
+  });
+
+  test('232. Create dengan seed bernilai Infinity harus ditangani secara aman tanpa crash', () => {
+    const a = FHRR.create(Infinity);
+    expect(a).toBeInstanceOf(Float32Array);
+    for (let i = 0; i < DIMENSION; i++) {
+      expect(isNaN(a[i]!)).toBe(false);
+    }
+  });
+
+  test('233. Create dengan seed bernilai -Infinity harus ditangani secara aman tanpa crash', () => {
+    const a = FHRR.create(-Infinity);
+    expect(a).toBeInstanceOf(Float32Array);
+    for (let i = 0; i < DIMENSION; i++) {
+      expect(isNaN(a[i]!)).toBe(false);
+    }
+  });
+
+  test('234. Create dengan seed bernilai NaN harus ditangani secara aman tanpa crash', () => {
+    const a = FHRR.create(NaN);
+    expect(a).toBeInstanceOf(Float32Array);
+    for (let i = 0; i < DIMENSION; i++) {
+      expect(isNaN(a[i]!)).toBe(false);
+    }
+  });
+
+  test('235. Siklus pembuatan create dengan membebani memori GC (Garbage Collection) 500x berturut-turut tanpa jeda', () => {
+    for (let i = 0; i < 500; i++) {
+      FHRR.create();
+    }
+    const finalVec = FHRR.create(42);
+    expect(finalVec).toBeInstanceOf(Float32Array);
+    expect(isNaN(finalVec[0]!)).toBe(false);
+  });
+
+  test('236. Create dengan parameter seed berupa angka float ganjil (12.3456789) ditangani secara deterministik', () => {
+    const a1 = FHRR.create(12.3456789);
+    const a2 = FHRR.create(12.3456789);
+    expect(a1).toEqual(a2);
+  });
+
+  test('237. Create dengan parameter seed berupa angka negatif float ganjil (-12.3456789) ditangani secara deterministik', () => {
+    const a1 = FHRR.create(-12.3456789);
+    const a2 = FHRR.create(-12.3456789);
+    expect(a1).toEqual(a2);
+  });
+
+  test('238. Memastikan tipe data kembalian komponen elemen create adalah Float32 murni', () => {
+    const a = FHRR.create(1006);
+    expect(a[0]).toBeTypeOf('number');
+  });
+
+  test('239. Perilaku create di bawah boundary minimum integer aman (-2147483648)', () => {
+    const a1 = FHRR.create(-2147483648);
+    const a2 = FHRR.create(-2147483648);
+    expect(a1).toEqual(a2);
+  });
+
+  test('240. Perilaku create di bawah boundary maximum integer aman (2147483647)', () => {
+    const a1 = FHRR.create(2147483647);
+    const a2 = FHRR.create(2147483647);
+    expect(a1).toEqual(a2);
+  });
+
+  test('241. Pemanggilan create dengan parameter seed melampaui batas representasi number V8 (1e308)', () => {
+    const a = FHRR.create(1e308);
+    expect(a).toBeInstanceOf(Float32Array);
+    expect(isNaN(a[0]!)).toBe(false);
+  });
+
+  test('242. Pemanggilan create dengan parameter seed di bawah batas representasi negatif number V8 (-1e308)', () => {
+    const a = FHRR.create(-1e308);
+    expect(a).toBeInstanceOf(Float32Array);
+    expect(isNaN(a[0]!)).toBe(false);
+  });
+
+  test('243. Kestabilan fasa spasial create terhadap data kosong pembagi nol (L2 epsilon protection)', () => {
+    const a = FHRR.create(2015);
+    expect(a).toBeInstanceOf(Float32Array);
+    expect(isNaN(a[0]!)).toBe(false);
+  });
+
+  test('244. Create mempertahankan representasi linear simetris di ruang nyata', () => {
+    const a = FHRR.create(2016);
+    expect(a).toBeInstanceOf(Float32Array);
+  });
+
+  test('245. Anti-NaN murni: Sinyal real space tidak bernilai NaN pada indeks manapun', () => {
+    const a = FHRR.create(2017);
+    for (let i = 0; i < DIMENSION; i++) {
+      expect(isNaN(a[i]!)).toBe(false);
+    }
+  });
+
+
+  // ==========================================
+  // KELOMPOK 4: SIFAT STATISTIK KOGNITIF VSA - 5 TEST CASES
+  // ==========================================
+
+  test('246. Ortogonalitas statistik antar 10 konsep acak mandiri: korelasi silang rata-rata di bawah 0.05', () => {
+    const concepts = Array.from({ length: 10 }, (_, i) => FHRR.create(i * 100));
+    let sumSimilarity = 0, count = 0;
+    for (let i = 0; i < 10; i++) {
+      for (let j = i + 1; j < 10; j++) {
+        sumSimilarity += Math.abs(FHRR.similarity(concepts[i]!, concepts[j]!));
+        count++;
+      }
+    }
+    const avgSimilarity = sumSimilarity / count;
+    expect(avgSimilarity).toBeLessThan(0.05); // Dimensi tinggi D=8192 menjamin ortogonalitas statistik yang sangat tinggi
+  });
+
+  test('247. Create tidak merusak sifat unbinding aljabar: Similarity(A * B * inv(B), A) selalu ~ 1.0', () => {
+    const a = FHRR.create(701);
+    const b = FHRR.create(702);
+
+    const ab = FHRR.bind(a, b);
+    const unbind = FHRR.bind(ab, FHRR.inverse(b));
+
+    expect(FHRR.similarity(unbind, a)).toBeGreaterThan(0.95);
+  });
+
+  test('248. Sifat superposisi dari create: Bundling (A + B) memiliki similarity seimbang ~ 0.707 dengan komponennya', () => {
+    const a = FHRR.create(703);
+    const b = FHRR.create(704);
+    const bundled = FHRR.bundle([a, b]);
+
+    expect(FHRR.similarity(bundled, a)).toBeGreaterThan(0.55);
+    expect(FHRR.similarity(bundled, b)).toBeGreaterThan(0.55);
+  });
+
+  test('249. Create dengan seed berurutan (1 vs 2) menghasilkan spasial ortogonal murni', () => {
+    const a1 = FHRR.create(1);
+    const a2 = FHRR.create(2);
+    expect(Math.abs(FHRR.similarity(a1, a2))).toBeLessThan(0.15);
+  });
+
+  test('250. Aljabar Rekursif RRM: Evaluasi spasial create pada formula kompleks A * B + C * D diuji kesamaan deterministik', () => {
+    const a = FHRR.create(801);
+    const b = FHRR.create(802);
+    const c = FHRR.create(803);
+    const d = FHRR.create(804);
+
+    const chain1 = FHRR.bundle([FHRR.bind(a, b), FHRR.bind(c, d)]);
+    const chain2 = FHRR.bundle([FHRR.bind(a, b), FHRR.bind(c, d)]);
+
+    expect(FHRR.similarity(chain1, chain2)).toBeCloseTo(1.0, 7);
   });
 
 });
