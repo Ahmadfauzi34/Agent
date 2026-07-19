@@ -7,11 +7,15 @@ pub struct TrackingAllocator {
     allocator: System,
 }
 
+impl Default for TrackingAllocator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TrackingAllocator {
     pub const fn new() -> Self {
-        Self {
-            allocator: System,
-        }
+        Self { allocator: System }
     }
 
     pub fn get_allocated() -> usize {
