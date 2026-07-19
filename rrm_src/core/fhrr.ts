@@ -72,16 +72,27 @@ export const FHRR = {
   bind: (a: Float32Array, b: Float32Array): Float32Array => {
     // Zero-Copy/Minimal-Copy float transfer
     for (let i = 0; i < DIMENSION; i++) {
-        _sharedInA[i] = a[i];
-        _sharedInB[i] = b[i];
+        let valA = a[i]!;
+        let valB = b[i]!;
+
+        // Deteksi & Tangani NaN / Infinity
+        if (!Number.isFinite(valA) || Number.isNaN(valA)) {
+          valA = 0.0;
+        }
+        if (!Number.isFinite(valB) || Number.isNaN(valB)) {
+          valB = 0.0;
+        }
+
+        _sharedInA[i] = valA;
+        _sharedInB[i] = valB;
     }
 
     fft.realTransform(_sharedcA, _sharedInA);
     fft.realTransform(_sharedcB, _sharedInB);
     
     for (let i = 0; i < _sharedcA.length; i += 2) {
-      const rA = _sharedcA[i], iA = _sharedcA[i+1];
-      const rB = _sharedcB[i], iB = _sharedcB[i+1];
+      const rA = _sharedcA[i]!, iA = _sharedcA[i+1]!;
+      const rB = _sharedcB[i]!, iB = _sharedcB[i+1]!;
       
       // (a+bi)(c+di) = (ac-bd) + (ad+bc)i
       _sharedcRes[i] = (rA * rB) - (iA * iB);
@@ -94,7 +105,7 @@ export const FHRR = {
     let magSq = 0;
     
     for(let i = 0; i < DIMENSION; i++) {
-        finalVec[i] = _sharedcOut[i * 2]; // Ambil bagian Real
+        finalVec[i] = _sharedcOut[i * 2]!; // Ambil bagian Real
         magSq += finalVec[i] * finalVec[i];
     }
     
