@@ -139,8 +139,17 @@ export const FHRR = {
     let dot = 0, magA = 0, magB = 0;
     
     for (let i = 0; i < DIMENSION; i++) {
-      const valA = a[i]!;
-      const valB = b[i]!;
+      let valA = a[i]!;
+      let valB = b[i]!;
+
+      // Deteksi & Tangani NaN / Infinity
+      if (!Number.isFinite(valA) || Number.isNaN(valA)) {
+        valA = 0.0;
+      }
+      if (!Number.isFinite(valB) || Number.isNaN(valB)) {
+        valB = 0.0;
+      }
+
       dot += valA * valB;
       magA += valA * valA;
       magB += valB * valB;
