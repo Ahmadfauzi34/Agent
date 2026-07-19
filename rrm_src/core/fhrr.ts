@@ -7,7 +7,14 @@ const fft = new FFT(DIMENSION);
 // Seeded Random untuk Determinisme (Penting untuk Reproducibility)
 let seed = 42; 
 const seededRandom = (customSeed?: number) => {
-    if (customSeed !== undefined) seed = customSeed;
+    if (customSeed !== undefined) {
+        if (!Number.isFinite(customSeed) || Number.isNaN(customSeed)) {
+            seed = 42;
+        } else {
+            // Normalisasikan ke 32-bit integer aman untuk mencegah luapan float luar biasa (seperti 1e308)
+            seed = Math.abs(Math.trunc(customSeed)) % 2147483647;
+        }
+    }
     seed = (seed * 16807) % 2147483647;
     return (seed - 1) / 2147483646;
 };
@@ -72,16 +79,27 @@ export const FHRR = {
   bind: (a: Float32Array, b: Float32Array): Float32Array => {
     // Zero-Copy/Minimal-Copy float transfer
     for (let i = 0; i < DIMENSION; i++) {
-        _sharedInA[i] = a[i];
-        _sharedInB[i] = b[i];
+        let valA = a[i]!;
+        let valB = b[i]!;
+
+        // Deteksi & Tangani NaN / Infinity
+        if (!Number.isFinite(valA) || Number.isNaN(valA)) {
+          valA = 0.0;
+        }
+        if (!Number.isFinite(valB) || Number.isNaN(valB)) {
+          valB = 0.0;
+        }
+
+        _sharedInA[i] = valA;
+        _sharedInB[i] = valB;
     }
 
     fft.realTransform(_sharedcA, _sharedInA);
     fft.realTransform(_sharedcB, _sharedInB);
     
     for (let i = 0; i < _sharedcA.length; i += 2) {
-      const rA = _sharedcA[i], iA = _sharedcA[i+1];
-      const rB = _sharedcB[i], iB = _sharedcB[i+1];
+      const rA = _sharedcA[i]!, iA = _sharedcA[i+1]!;
+      const rB = _sharedcB[i]!, iB = _sharedcB[i+1]!;
       
       // (a+bi)(c+di) = (ac-bd) + (ad+bc)i
       _sharedcRes[i] = (rA * rB) - (iA * iB);
@@ -94,7 +112,7 @@ export const FHRR = {
     let magSq = 0;
     
     for(let i = 0; i < DIMENSION; i++) {
-        finalVec[i] = _sharedcOut[i * 2]; // Ambil bagian Real
+        finalVec[i] = _sharedcOut[i * 2]!; // Ambil bagian Real
         magSq += finalVec[i] * finalVec[i];
     }
     
@@ -139,8 +157,17 @@ export const FHRR = {
     let dot = 0, magA = 0, magB = 0;
     
     for (let i = 0; i < DIMENSION; i++) {
-      const valA = a[i]!;
-      const valB = b[i]!;
+      let valA = a[i]!;
+      let valB = b[i]!;
+
+      // Deteksi & Tangani NaN / Infinity
+      if (!Number.isFinite(valA) || Number.isNaN(valA)) {
+        valA = 0.0;
+      }
+      if (!Number.isFinite(valB) || Number.isNaN(valB)) {
+        valB = 0.0;
+      }
+
       dot += valA * valB;
       magA += valA * valA;
       magB += valB * valB;
@@ -157,22 +184,35 @@ export const FHRR = {
    * 6. FRACTIONAL BINDING (Fisika Kuantum)
    */
   fractionalBind: (vec: Float32Array, power: number): Float32Array => {
+    // Validasi input power
+    let p = power;
+    if (!Number.isFinite(p) || Number.isNaN(p)) {
+      p = 0.0;
+    }
+
     for (let i = 0; i < DIMENSION; i++) {
-        _sharedInA[i] = vec[i]!;
+        let val = vec[i]!;
+        if (!Number.isFinite(val) || Number.isNaN(val)) {
+          val = 0.0;
+        }
+        _sharedInA[i] = val;
     }
     fft.realTransform(_sharedcA, _sharedInA);
 
     for (let i = 0; i < _sharedcA.length; i += 2) {
-        const real = _sharedcA[i]!;
-        const imag = _sharedcA[i+1]!;
+        let real = _sharedcA[i]!;
+        let imag = _sharedcA[i+1]!;
         
+        if (!Number.isFinite(real) || Number.isNaN(real)) real = 0.0;
+        if (!Number.isFinite(imag) || Number.isNaN(imag)) imag = 0.0;
+
         // Konversi ke Polar
         const r = Math.sqrt(real*real + imag*imag);
         const theta = Math.atan2(imag, real);
         
         // Pangkatkan (r^k, theta*k)
-        const newR = Math.pow(r, power);
-        const newTheta = theta * power;
+        const newR = Math.pow(r, p);
+        const newTheta = theta * p;
         
         // Kembali ke Rectangular
         _sharedcRes[i] = newR * Math.cos(newTheta);
@@ -184,8 +224,12 @@ export const FHRR = {
     const finalVec = new Float32Array(DIMENSION);
     let magSq = 0;
     for(let i = 0; i < DIMENSION; i++) {
-        finalVec[i] = _sharedcOut[i * 2]!;
-        magSq += finalVec[i] * finalVec[i];
+        let val = _sharedcOut[i * 2]!;
+        if (!Number.isFinite(val) || Number.isNaN(val)) {
+          val = 0.0;
+        }
+        finalVec[i] = val;
+        magSq += val * val;
     }
 
     // Normalisasi Branchless
