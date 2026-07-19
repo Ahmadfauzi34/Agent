@@ -1,1 +1,0 @@
-tulis perubahan penting untuk folder perception di sini
