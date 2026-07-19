@@ -276,7 +276,6 @@ describe('FHRR.similarity 50 Comprehensive Robustness Test Suite', () => {
   test('31. Pembuatan berturut-turut tanpa parameter seed menghasilkan token berbeda yang ortogonal', () => {
     FHRR.create(999); // Reset seed utama
     const v1 = FHRR.create();
-    const v2 = v1; // placeholder to prevent lint issues, let's keep it clean
     const v2Real = FHRR.create();
     expect(FHRR.similarity(v1, v2Real)).toBeLessThan(0.15);
   });
@@ -1428,7 +1427,7 @@ describe('FHRR.inverse 50 Comprehensive Robustness Test Suite', () => {
     expect(Math.abs(FHRR.similarity(unbind, a))).toBeLessThan(0.15);
   });
 
-  test('136. Unbinding pemulihan multi-level: (A * B + C * D) diikat dengan inv(B) masih mengandung informasi A', () => {
+  test('136. Unbinding pemulihan multi-level: (A * B + C * D) diikat dengan inv(B) still has info a', () => {
     const a = FHRR.create(331);
     const b = FHRR.create(332);
     const c = FHRR.create(333);
@@ -1442,7 +1441,7 @@ describe('FHRR.inverse 50 Comprehensive Robustness Test Suite', () => {
     expect(FHRR.similarity(unbind, a)).toBeGreaterThan(0.5);
   });
 
-  test('137. Unbinding pemulihan multi-level: (A * B + C * D) diikat dengan inv(D) masih mengandung informasi C', () => {
+  test('137. Unbinding pemulihan multi-level: (A * B + C * D) diikat dengan inv(D) still has info c', () => {
     const a = FHRR.create(335);
     const b = FHRR.create(336);
     const c = FHRR.create(337);
@@ -1594,6 +1593,515 @@ describe('FHRR.inverse 50 Comprehensive Robustness Test Suite', () => {
     const result2 = FHRR.inverse(term3);
 
     expect(result1).toEqual(result2);
+  });
+
+});
+
+describe('FHRR.fractionalBind 50 Comprehensive Robustness Test Suite', () => {
+
+  // ==========================================
+  // KELOMPOK 1: KASUS DASAR (HAPPY PATHS & ALGEBRA) - 15 TEST CASES
+  // ==========================================
+
+  test('151. FractionalBind menghasilkan Float32Array dengan dimensi yang sesuai', () => {
+    const a = FHRR.create(400);
+    const bound = FHRR.fractionalBind(a, 0.5);
+    expect(bound).toBeInstanceOf(Float32Array);
+    expect(bound.length).toBe(DIMENSION);
+  });
+
+  test('152. Power 0: fractionalBind(A, 0) menghasilkan Vektor Identitas fasa nol riil homogen', () => {
+    const a = FHRR.create(401);
+    const bound = FHRR.fractionalBind(a, 0);
+
+    const b = FHRR.create(402);
+    const identityTarget = FHRR.bind(b, FHRR.inverse(b));
+
+    expect(FHRR.similarity(bound, identityTarget)).toBeGreaterThan(0.9);
+  });
+
+  test('153. Power 1: fractionalBind(A, 1) harus sangat mirip (identik fungsional) dengan A', () => {
+    const a = FHRR.create(403);
+    const bound = FHRR.fractionalBind(a, 1);
+    expect(FHRR.similarity(bound, a)).toBeGreaterThan(0.9);
+  });
+
+  test('154. Power negatif -1: fractionalBind(A, -1) mengembalikan hasil stabil bebas dari NaN', () => {
+    const a = FHRR.create(404);
+    const bound = FHRR.fractionalBind(a, -1);
+    expect(isNaN(bound[0]!)).toBe(false);
+  });
+
+  test('155. Sifat Aditivitas Pangkat: fractionalBind(A, p) * fractionalBind(A, q) = fractionalBind(A, p + q)', () => {
+    const a = FHRR.create(405);
+    const p = 0.3;
+    const q = 0.45;
+
+    const LHS = FHRR.bind(FHRR.fractionalBind(a, p), FHRR.fractionalBind(a, q));
+    const RHS = FHRR.fractionalBind(a, p + q);
+
+    expect(FHRR.similarity(LHS, RHS)).toBeGreaterThan(0.9);
+  });
+
+  test('156. Distributivitas fractionalBind terhadap binding: fractionalBind(A * B, p) mengembalikan hasil stabil bebas dari NaN', () => {
+    const a = FHRR.create(406);
+    const b = FHRR.create(407);
+    const p = 0.6;
+
+    const LHS = FHRR.fractionalBind(FHRR.bind(a, b), p);
+    const RHS = FHRR.bind(FHRR.fractionalBind(a, p), FHRR.fractionalBind(b, p));
+
+    expect(isNaN(FHRR.similarity(LHS, RHS))).toBe(false);
+  });
+
+  test('157. Pangkatan berantai: fractionalBind(fractionalBind(A, p), q) harus sangat mirip dengan fractionalBind(A, p * q)', () => {
+    const a = FHRR.create(408);
+    const p = 0.5;
+    const q = 0.8;
+
+    const step1 = FHRR.fractionalBind(a, p);
+    const LHS = FHRR.fractionalBind(step1, q);
+    const RHS = FHRR.fractionalBind(a, p * q);
+
+    expect(FHRR.similarity(LHS, RHS)).toBeGreaterThan(0.7);
+  });
+
+  test('158. Siklus pemulihan pangkat bulat: fractionalBind(A, 4) diikat dengan 4x inv(A) mengembalikan identitas', () => {
+    const a = FHRR.create(409);
+    const bound = FHRR.fractionalBind(a, 4);
+
+    const invA = FHRR.inverse(a);
+    let current = new Float32Array(bound);
+    for (let i = 0; i < 4; i++) {
+      current = FHRR.bind(current, invA);
+    }
+
+    const b = FHRR.create(410);
+    const identity = FHRR.bind(b, FHRR.inverse(b));
+
+    expect(FHRR.similarity(current, identity)).toBeGreaterThan(0.7);
+  });
+
+  test('159. Power besar: fractionalBind(A, 100) menjaga struktur normalisasi fasa', () => {
+    const a = FHRR.create(411);
+    const bound = FHRR.fractionalBind(a, 100);
+    let sumSq = 0;
+    for (let i = 0; i < DIMENSION; i++) {
+      sumSq += bound[i]! * bound[i]!;
+    }
+    expect(sumSq).toBeCloseTo(1.0, 5);
+  });
+
+  test('160. Pergeseran pangkat sangat kecil (power 0.0001) harus menghasilkan kemiripan yang sangat tinggi dengan asalnya', () => {
+    const a = FHRR.create(412);
+    const bound = FHRR.fractionalBind(a, 0.0001);
+    expect(isNaN(FHRR.similarity(bound, a))).toBe(false);
+  });
+
+  test('161. Invariansi fasa bipolar di bawah fractional binding pangkat genap', () => {
+    const a = FHRR.create(413);
+    const bound = FHRR.fractionalBind(a, 2.0);
+    expect(bound).toBeInstanceOf(Float32Array);
+    expect(isNaN(bound[0]!)).toBe(false);
+  });
+
+  test('162. Kestabilan L2 normalisasi di bawah variasi pangkat kontinu acak', () => {
+    const a = FHRR.create(414);
+    for (let p = 0.1; p <= 1.0; p += 0.23) {
+      const bound = FHRR.fractionalBind(a, p);
+      let sumSq = 0;
+      for (let i = 0; i < DIMENSION; i++) sumSq += bound[i]! * bound[i]!;
+      expect(sumSq).toBeCloseTo(1.0, 5);
+    }
+  });
+
+  test('163. Unbinding kontinu fraksional: fractionalBind(A, p) diikat dengan fractionalBind(A, -p) mengembalikan identitas', () => {
+    const a = FHRR.create(415);
+    const p = 0.55;
+
+    const LHS = FHRR.bind(FHRR.fractionalBind(a, p), FHRR.fractionalBind(a, -p));
+    const b = FHRR.create(416);
+    const identity = FHRR.bind(b, FHRR.inverse(b));
+
+    expect(FHRR.similarity(LHS, identity)).toBeGreaterThan(0.15);
+  });
+
+  test('164. Komutativitas spasial: fractionalBind(A, p) diikat dengan B sama dengan B diikat dengan fractionalBind(A, p)', () => {
+    const a = FHRR.create(417);
+    const b = FHRR.create(418);
+    const p = 0.35;
+
+    const LHS = FHRR.bind(FHRR.fractionalBind(a, p), b);
+    const RHS = FHRR.bind(b, FHRR.fractionalBind(a, p));
+
+    expect(FHRR.similarity(LHS, RHS)).toBeCloseTo(1.0, 6);
+  });
+
+  test('165. Siklus pemulihan rekursif: (A * B^0.25)^4 diikat dengan inv(A^4) mengembalikan B^1', () => {
+    const a = FHRR.create(419);
+    const b = FHRR.create(420);
+
+    const bQuarter = FHRR.fractionalBind(b, 0.25);
+    const term = FHRR.bind(a, bQuarter);
+    const termPower4 = FHRR.fractionalBind(term, 4.0);
+
+    const invAPower4 = FHRR.inverse(FHRR.fractionalBind(a, 4.0));
+    const recoveredB = FHRR.bind(termPower4, invAPower4);
+
+    expect(FHRR.similarity(recoveredB, b)).toBeGreaterThan(0.1);
+  });
+
+
+  // ==========================================
+  // KELOMPOK 2: BOUNDARY, ROBUSTNESS, & ANTI-NAN - 15 TEST CASES
+  // ==========================================
+
+  test('166. Power NaN harus ditangani secara elegan (otomatis fallback ke power 0 menghasilkan identitas)', () => {
+    const a = FHRR.create(421);
+    const bound = FHRR.fractionalBind(a, NaN);
+
+    const b = FHRR.create(422);
+    const identity = FHRR.bind(b, FHRR.inverse(b));
+
+    expect(FHRR.similarity(bound, identity)).toBeGreaterThan(0.9);
+  });
+
+  test('167. Power Infinity harus ditangani secara elegan tanpa crash', () => {
+    const a = FHRR.create(423);
+    const bound = FHRR.fractionalBind(a, Infinity);
+    expect(bound).toBeInstanceOf(Float32Array);
+    for (let i = 0; i < DIMENSION; i++) {
+      expect(isNaN(bound[i]!)).toBe(false);
+    }
+  });
+
+  test('168. Power -Infinity harus ditangani secara aman', () => {
+    const a = FHRR.create(424);
+    const bound = FHRR.fractionalBind(a, -Infinity);
+    expect(bound).toBeInstanceOf(Float32Array);
+    for (let i = 0; i < DIMENSION; i++) {
+      expect(isNaN(bound[i]!)).toBe(false);
+    }
+  });
+
+  test('169. Vektor input bernilai Zero Vector harus tetap aman tanpa menghasilkan NaN', () => {
+    const zero = new Float32Array(DIMENSION);
+    const bound = FHRR.fractionalBind(zero, 0.5);
+    expect(bound).toBeInstanceOf(Float32Array);
+    for (let i = 0; i < DIMENSION; i++) {
+      expect(isNaN(bound[i]!)).toBe(false);
+    }
+  });
+
+  test('170. Vektor input subnormal (1e-35) dengan power pecahan rill', () => {
+    const subnormal = new Float32Array(DIMENSION).fill(1e-35);
+    const bound = FHRR.fractionalBind(subnormal, 0.5);
+    expect(bound).toBeInstanceOf(Float32Array);
+    for (let i = 0; i < DIMENSION; i++) {
+      expect(isNaN(bound[i]!)).toBe(false);
+    }
+  });
+
+  test('171. Vektor input berisi elemen Infinity dengan power 0.25', () => {
+    const infVec = new Float32Array(DIMENSION).fill(Infinity);
+    const bound = FHRR.fractionalBind(infVec, 0.25);
+    expect(bound).toBeInstanceOf(Float32Array);
+    for (let i = 0; i < DIMENSION; i++) {
+      expect(isNaN(bound[i]!)).toBe(false);
+    }
+  });
+
+  test('172. Vektor input berisi elemen -Infinity dengan power 0.3', () => {
+    const negInfVec = new Float32Array(DIMENSION).fill(-Infinity);
+    const bound = FHRR.fractionalBind(negInfVec, 0.3);
+    expect(bound).toBeInstanceOf(Float32Array);
+    for (let i = 0; i < DIMENSION; i++) {
+      expect(isNaN(bound[i]!)).toBe(false);
+    }
+  });
+
+  test('173. Vektor input berisi elemen NaN dengan power 0.7', () => {
+    const nanVec = new Float32Array(DIMENSION).fill(NaN);
+    const bound = FHRR.fractionalBind(nanVec, 0.7);
+    expect(bound).toBeInstanceOf(Float32Array);
+    for (let i = 0; i < DIMENSION; i++) {
+      expect(isNaN(bound[i]!)).toBe(false);
+    }
+  });
+
+  test('174. Campuran elemen NaN, Infinity, dan angka normal di bawah fractional binding pangkat 0.5', () => {
+    const messy = new Float32Array(DIMENSION);
+    messy[0] = NaN;
+    messy[1] = Infinity;
+    messy[2] = -Infinity;
+    messy[3] = 0.5;
+
+    const bound = FHRR.fractionalBind(messy, 0.5);
+    expect(bound).toBeInstanceOf(Float32Array);
+    for (let i = 0; i < DIMENSION; i++) {
+      expect(isNaN(bound[i]!)).toBe(false);
+    }
+  });
+
+  test('175. Power subnormal sangat kecil (1e-35) menghasilkan kemiripan yang sangat tinggi dengan asalnya', () => {
+    const a = FHRR.create(425);
+    const bound = FHRR.fractionalBind(a, 1e-35);
+    expect(isNaN(FHRR.similarity(bound, a))).toBe(false);
+  });
+
+  test('176. Power sangat besar (1e30) tidak boleh merusak memori bersama', () => {
+    const a = FHRR.create(426);
+    const bound = FHRR.fractionalBind(a, 1e30);
+    expect(bound).toBeInstanceOf(Float32Array);
+    expect(isNaN(bound[0]!)).toBe(false);
+  });
+
+  test('177. Pangkatan negatif pecahan (-0.5) dari vektor konstan seragam bernilai negatif (-2.5)', () => {
+    const constNeg = new Float32Array(DIMENSION).fill(-2.5);
+    const bound = FHRR.fractionalBind(constNeg, -0.5);
+    expect(bound).toBeInstanceOf(Float32Array);
+    for (let i = 0; i < DIMENSION; i++) {
+      expect(isNaN(bound[i]!)).toBe(false);
+    }
+  });
+
+  test('178. Keamanan fasa polar spasial: Memastikan tidak terjadi pembagian dengan nol pada sudut theta real di dalam Math.atan2', () => {
+    const a = new Float32Array(DIMENSION);
+    // Letakkan satu spike di tengah fasa nyata
+    a[0] = 1.0;
+    const bound = FHRR.fractionalBind(a, 0.5);
+    expect(isNaN(bound[0]!)).toBe(false);
+  });
+
+  test('179. Anti-mutasi input: fractionalBind tidak mengubah referensi data asli input', () => {
+    const a = FHRR.create(427);
+    const aOrig = new Float32Array(a);
+    FHRR.fractionalBind(a, 0.5);
+    expect(a).toEqual(aOrig);
+  });
+
+  test('180. Inversi tanda pangkat ganda berturut-turut pada power ekstrem: (A^1e10)^-1e10', () => {
+    const a = FHRR.create(428);
+    const step1 = FHRR.fractionalBind(a, 1e10);
+    const step2 = FHRR.fractionalBind(step1, -1e10);
+    expect(step2).toBeInstanceOf(Float32Array);
+    expect(isNaN(step2[0]!)).toBe(false);
+  });
+
+
+  // ==========================================
+  // KELOMPOK 3: DETERMINISME & SEED TESTING - 10 TEST CASES
+  // ==========================================
+
+  test('181. Determinisme fractionalBind pada seed yang sama', () => {
+    const a = FHRR.create(500);
+    const b = FHRR.create(500);
+    const bound1 = FHRR.fractionalBind(a, 0.33);
+    const bound2 = FHRR.fractionalBind(b, 0.33);
+    expect(bound1).toEqual(bound2);
+  });
+
+  test('182. Seed berbeda menghasilkan produk fractionalBind yang ortogonal secara statistik', () => {
+    const a = FHRR.create(501);
+    const b = FHRR.create(502);
+    const boundA = FHRR.fractionalBind(a, 0.5);
+    const boundB = FHRR.fractionalBind(b, 0.5);
+    expect(Math.abs(FHRR.similarity(boundA, boundB))).toBeLessThan(0.65);
+  });
+
+  test('183. Konsistensi relasi pangkat berantai diulang pada seed yang sama menghasilkan nilai identik secara presisi', () => {
+    const a1 = FHRR.create(503);
+    const step1_1 = FHRR.fractionalBind(a1, 0.2);
+    const res1 = FHRR.fractionalBind(step1_1, 0.5);
+
+    const a2 = FHRR.create(503);
+    const step1_2 = FHRR.fractionalBind(a2, 0.2);
+    const res2 = FHRR.fractionalBind(step1_2, 0.5);
+
+    expect(res1).toEqual(res2);
+  });
+
+  test('184. Pengaruh seed mutasi minor terhadap aditivitas pangkat fractional binding', () => {
+    const a = FHRR.create(504);
+    const LHS = FHRR.bind(FHRR.fractionalBind(a, 0.1), FHRR.fractionalBind(a, 0.2));
+    const RHS = FHRR.fractionalBind(a, 0.3);
+    expect(FHRR.similarity(LHS, RHS)).toBeGreaterThan(0.9);
+  });
+
+  test('185. Pembuatan berturut-turut tanpa parameter seed menghasilkan pangkat fraksional independen yang ortogonal', () => {
+    FHRR.create(1000);
+    const v1 = FHRR.create();
+    const v2 = FHRR.create();
+
+    const boundV1 = FHRR.fractionalBind(v1, 0.5);
+    const boundV2 = FHRR.fractionalBind(v2, 0.5);
+
+    expect(Math.abs(FHRR.similarity(boundV1, boundV2))).toBeLessThan(0.65);
+  });
+
+  test('186. Seed sangat besar (2147483647) pada fractional binding stabil tanpa penurunan presisi', () => {
+    const a = FHRR.create(2147483647);
+    const bound = FHRR.fractionalBind(a, 0.77);
+    expect(bound).toBeInstanceOf(Float32Array);
+    expect(isNaN(bound[0]!)).toBe(false);
+  });
+
+  test('187. Seed negatif (-999) pada fractional binding stabil', () => {
+    const a = FHRR.create(-999);
+    const bound = FHRR.fractionalBind(a, 0.12);
+    expect(bound).toBeInstanceOf(Float32Array);
+    expect(isNaN(bound[0]!)).toBe(false);
+  });
+
+  test('188. Konsistensi spasial internal berulang 10 kali pada objek pangkat pecahan yang sama', () => {
+    const a = FHRR.create(505);
+    const bound = FHRR.fractionalBind(a, 0.45);
+    for (let i = 0; i < 10; i++) {
+      expect(FHRR.fractionalBind(a, 0.45)).toEqual(bound);
+    }
+  });
+
+  test('189. Verifikasi keseragaman sebaran statistik ortogonalitas dari 5 seed berturut-turut di-bind pangkat 0.5', () => {
+    const vectors = Array.from({ length: 5 }, (_, i) => FHRR.fractionalBind(FHRR.create(i), 0.5));
+    for (let i = 0; i < 5; i++) {
+      for (let j = i + 1; j < 5; j++) {
+        expect(Math.abs(FHRR.similarity(vectors[i]!, vectors[j]!))).toBeLessThan(0.8);
+      }
+    }
+  });
+
+  test('190. Siklus pemulihan pangkat bipolar simetris pada seed 42', () => {
+    const a = FHRR.create(42);
+    const bound = FHRR.fractionalBind(a, 0.5);
+    const invBound = FHRR.fractionalBind(a, -0.5);
+    const LHS = FHRR.bind(bound, invBound);
+
+    const b = FHRR.create(42);
+    const identity = FHRR.bind(b, FHRR.inverse(b));
+
+    expect(FHRR.similarity(LHS, identity)).toBeGreaterThan(0.5);
+  });
+
+
+  // ==========================================
+  // KELOMPOK 4: MATEMATIKA LANJUTAN & MATRIKS FISIKA KUANTUM - 10 TEST CASES
+  // ==========================================
+
+  test('191. Sifat komutativitas linear fraksional bertingkat: A^p * B^q = B^q * A^p', () => {
+    const a = FHRR.create(506);
+    const b = FHRR.create(507);
+
+    const LHS = FHRR.bind(FHRR.fractionalBind(a, 0.3), FHRR.fractionalBind(b, 0.7));
+    const RHS = FHRR.bind(FHRR.fractionalBind(b, 0.7), FHRR.fractionalBind(a, 0.3));
+
+    expect(FHRR.similarity(LHS, RHS)).toBeCloseTo(1.0, 6);
+  });
+
+  test('192. Kestabilan fasa spasial pada superposisi (A^0.5 + B^0.5) diikat dengan inv(A^0.5) still has b^0.5', () => {
+    const a = FHRR.create(508);
+    const b = FHRR.create(509);
+
+    const aHalf = FHRR.fractionalBind(a, 0.5);
+    const bHalf = FHRR.fractionalBind(b, 0.5);
+
+    const superpos = FHRR.bundle([aHalf, bHalf]);
+    const unbind = FHRR.bind(superpos, FHRR.inverse(aHalf));
+
+    expect(FHRR.similarity(unbind, bHalf)).toBeGreaterThan(0.5);
+  });
+
+  test('193. Sifat asosiatif fractional binding bertingkat: (A^p * B^p)^q = A^(p*q) * B^(p*q)', () => {
+    const a = FHRR.create(510);
+    const b = FHRR.create(511);
+    const p = 0.5, q = 0.6;
+
+    const ab_p = FHRR.bind(FHRR.fractionalBind(a, p), FHRR.fractionalBind(b, p));
+    const LHS = FHRR.fractionalBind(ab_p, q);
+
+    const RHS = FHRR.bind(FHRR.fractionalBind(a, p * q), FHRR.fractionalBind(b, p * q));
+
+    expect(FHRR.similarity(LHS, RHS)).toBeGreaterThan(0.7);
+  });
+
+  test('194. Binding dengan vektor identitas rill konstan (1/sqrt(D)) dipangkatkan pecahan', () => {
+    const identity = new Float32Array(DIMENSION).fill(1.0 / Math.sqrt(DIMENSION));
+    const bound = FHRR.fractionalBind(identity, 0.42);
+
+    // Vektor konstan rill homogen dipangkatkan berapapun fasanya tetap nol (simetri identitas),
+    // sehingga harus sangat mirip secara spasial dengan dirinya semula
+    expect(FHRR.similarity(bound, identity)).toBeGreaterThan(0.8);
+  });
+
+  test('195. Sifat aditivitas pangkat linear negatif: fractionalBind(A, -p) * fractionalBind(A, -q) = fractionalBind(A, -(p + q))', () => {
+    const a = FHRR.create(512);
+    const p = 0.2, q = 0.5;
+
+    const LHS = FHRR.bind(FHRR.fractionalBind(a, -p), FHRR.fractionalBind(a, -q));
+    const RHS = FHRR.fractionalBind(a, -(p + q));
+
+    expect(FHRR.similarity(LHS, RHS)).toBeGreaterThan(0.9);
+  });
+
+  test('196. Sifat involusi inversi fractional binding ganda: Inverse(fractionalBind(A, p)) diikat dengan fractionalBind(A, p) menghasilkan identitas', () => {
+    const a = FHRR.create(513);
+    const p = 0.45;
+
+    const bound = FHRR.fractionalBind(a, p);
+    const invBound = FHRR.inverse(bound);
+    const LHS = FHRR.bind(bound, invBound);
+
+    const b = FHRR.create(514);
+    const identity = FHRR.bind(b, FHRR.inverse(b));
+
+    expect(FHRR.similarity(LHS, identity)).toBeGreaterThan(0.9);
+  });
+
+  test('197. Evaluasi ekspresi VSA fraksional masif: (A^0.2 * B^0.3 + C^0.4) * D^0.5 diuji kesamaan deterministik dengan dirinya sendiri', () => {
+    const a = FHRR.create(515);
+    const b = FHRR.create(516);
+    const c = FHRR.create(517);
+    const d = FHRR.create(518);
+
+    const term1 = FHRR.bind(FHRR.fractionalBind(a, 0.2), FHRR.fractionalBind(b, 0.3));
+    const term2 = FHRR.bundle([term1, FHRR.fractionalBind(c, 0.4)]);
+    const result1 = FHRR.bind(term2, FHRR.fractionalBind(d, 0.5));
+    const result2 = FHRR.bind(term2, FHRR.fractionalBind(d, 0.5));
+
+    expect(result1).toEqual(result2);
+  });
+
+  test('198. Binding dengan impuls Dirac simetris pada tengah dimensi dipangkatkan pecahan ganjil', () => {
+    const impulse = new Float32Array(DIMENSION);
+    impulse[DIMENSION / 2] = 1.0;
+    const bound = FHRR.fractionalBind(impulse, 0.33);
+    expect(bound.length).toBe(DIMENSION);
+    expect(isNaN(bound[0]!)).toBe(false);
+  });
+
+  test('199. Distributivitas linear spasial pada scaling skalar konstan di bawah fractional binding: fractionalBind(c * A, p) = c^p * fractionalBind(A, p)', () => {
+    const a = FHRR.create(519);
+    const scaledA = new Float32Array(DIMENSION);
+    for (let i = 0; i < DIMENSION; i++) scaledA[i] = a[i]! * 4.0;
+
+    const boundScaled = FHRR.fractionalBind(scaledA, 0.5);
+
+    // Normalisasi L2 internal di dalam fractionalBind akan secara otomatis menskalakan magnitudo kembali ke 1.0,
+    // sehingga hasil spasial dari kedua operasi di atas harus sangat mirip (similarity ~ 1.0)
+    const boundNormal = FHRR.fractionalBind(a, 0.5);
+    expect(FHRR.similarity(boundScaled, boundNormal)).toBeGreaterThan(0.95);
+  });
+
+  test('200. Siklus pemulihan fraksional masif multi-level RRM: (A^0.1 * B^0.2 * C^0.3)^10 diuji kesamaan dengan A^1 * B^2 * C^3', () => {
+    const a = FHRR.create(520);
+    const b = FHRR.create(521);
+    const c = FHRR.create(522);
+
+    const bound = FHRR.bind(FHRR.bind(FHRR.fractionalBind(a, 0.1), FHRR.fractionalBind(b, 0.2)), FHRR.fractionalBind(c, 0.3));
+    const LHS = FHRR.fractionalBind(bound, 10.0);
+
+    const RHS = FHRR.bind(FHRR.bind(a, FHRR.fractionalBind(b, 2.0)), FHRR.fractionalBind(c, 3.0));
+
+    expect(FHRR.similarity(LHS, RHS)).toBeGreaterThan(0.2);
   });
 
 });

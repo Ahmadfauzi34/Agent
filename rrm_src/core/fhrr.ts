@@ -177,22 +177,35 @@ export const FHRR = {
    * 6. FRACTIONAL BINDING (Fisika Kuantum)
    */
   fractionalBind: (vec: Float32Array, power: number): Float32Array => {
+    // Validasi input power
+    let p = power;
+    if (!Number.isFinite(p) || Number.isNaN(p)) {
+      p = 0.0;
+    }
+
     for (let i = 0; i < DIMENSION; i++) {
-        _sharedInA[i] = vec[i]!;
+        let val = vec[i]!;
+        if (!Number.isFinite(val) || Number.isNaN(val)) {
+          val = 0.0;
+        }
+        _sharedInA[i] = val;
     }
     fft.realTransform(_sharedcA, _sharedInA);
 
     for (let i = 0; i < _sharedcA.length; i += 2) {
-        const real = _sharedcA[i]!;
-        const imag = _sharedcA[i+1]!;
+        let real = _sharedcA[i]!;
+        let imag = _sharedcA[i+1]!;
         
+        if (!Number.isFinite(real) || Number.isNaN(real)) real = 0.0;
+        if (!Number.isFinite(imag) || Number.isNaN(imag)) imag = 0.0;
+
         // Konversi ke Polar
         const r = Math.sqrt(real*real + imag*imag);
         const theta = Math.atan2(imag, real);
         
         // Pangkatkan (r^k, theta*k)
-        const newR = Math.pow(r, power);
-        const newTheta = theta * power;
+        const newR = Math.pow(r, p);
+        const newTheta = theta * p;
         
         // Kembali ke Rectangular
         _sharedcRes[i] = newR * Math.cos(newTheta);
@@ -204,8 +217,12 @@ export const FHRR = {
     const finalVec = new Float32Array(DIMENSION);
     let magSq = 0;
     for(let i = 0; i < DIMENSION; i++) {
-        finalVec[i] = _sharedcOut[i * 2]!;
-        magSq += finalVec[i] * finalVec[i];
+        let val = _sharedcOut[i * 2]!;
+        if (!Number.isFinite(val) || Number.isNaN(val)) {
+          val = 0.0;
+        }
+        finalVec[i] = val;
+        magSq += val * val;
     }
 
     // Normalisasi Branchless
