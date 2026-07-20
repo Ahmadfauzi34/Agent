@@ -6,7 +6,7 @@ const fft = new FFT(DIMENSION);
 
 // Seeded Random untuk Determinisme (Penting untuk Reproducibility)
 let seed = 42; 
-const seededRandom = (customSeed?: number) => {
+export const seededRandom = (customSeed?: number) => {
     if (customSeed !== undefined) {
         if (!Number.isFinite(customSeed) || Number.isNaN(customSeed)) {
             seed = 42;
