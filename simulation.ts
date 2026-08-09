@@ -2,6 +2,38 @@ import * as tf from '@tensorflow/tfjs';
 
 export type SimulationType = 'reaction-diffusion' | 'wave-equation';
 
+// Detect Endianness for 32-bit pixel manipulation
+const isLittleEndian = new Uint8Array(new Uint32Array([0x11223344]).buffer)[0] === 0x44;
+
+// Pre-compute colormaps for faster rendering
+const rdMap32 = new Uint32Array(256);
+const waveMap32 = new Uint32Array(256);
+
+for (let i = 0; i < 256; i++) {
+  // Reaction-Diffusion (Bio/Neon)
+  const r_rd = Math.floor(i * 0.1);
+  const g_rd = i;
+  const b_rd = Math.floor(i * 0.8);
+  const a = 255;
+
+  if (isLittleEndian) {
+      rdMap32[i] = (a << 24) | (b_rd << 16) | (g_rd << 8) | r_rd;
+  } else {
+      rdMap32[i] = (r_rd << 24) | (g_rd << 16) | (b_rd << 8) | a;
+  }
+
+  // Wave Equation (Water)
+  const r_w = Math.floor(i * 0.2);
+  const g_w = Math.floor(i * 0.5);
+  const b_w = i;
+
+  if (isLittleEndian) {
+      waveMap32[i] = (a << 24) | (b_w << 16) | (g_w << 8) | r_w;
+  } else {
+      waveMap32[i] = (r_w << 24) | (g_w << 16) | (b_w << 8) | a;
+  }
+}
+
 export class TensorSimulation {
   private state1: tf.Tensor2D | null = null;
   private state2: tf.Tensor2D | null = null;
@@ -142,26 +174,25 @@ export class TensorSimulation {
 
     try {
         const data = await renderData.data();
-        
         const imgData = ctx.createImageData(this.width, this.height);
-        for (let i = 0; i < data.length; i++) {
-          const val = Math.floor(data[i] * 255);
-          const idx = i * 4;
-          
-          if (type === 'reaction-diffusion') {
-              // Bio/Neon colormap
-              imgData.data[idx] = Math.floor(val * 0.1); // R
-              imgData.data[idx + 1] = val; // G
-              imgData.data[idx + 2] = Math.floor(val * 0.8); // B
-              imgData.data[idx + 3] = 255; // A
-          } else {
-              // Water colormap
-              imgData.data[idx] = Math.floor(val * 0.2); // R
-              imgData.data[idx + 1] = Math.floor(val * 0.5); // G
-              imgData.data[idx + 2] = val; // B
-              imgData.data[idx + 3] = 255; // A
-          }
+        const out32 = new Uint32Array(imgData.data.buffer);
+        const len = data.length;
+
+        // Hoist the type condition and use 32-bit assignments via LUT
+        if (type === 'reaction-diffusion') {
+            for (let i = 0; i < len; i++) {
+                let val = (data[i] * 255) | 0;
+                if (val < 0) val = 0; else if (val > 255) val = 255;
+                out32[i] = rdMap32[val];
+            }
+        } else {
+            for (let i = 0; i < len; i++) {
+                let val = (data[i] * 255) | 0;
+                if (val < 0) val = 0; else if (val > 255) val = 255;
+                out32[i] = waveMap32[val];
+            }
         }
+
         ctx.putImageData(imgData, 0, 0);
     } catch (e) {
         console.error("Render error:", e);
