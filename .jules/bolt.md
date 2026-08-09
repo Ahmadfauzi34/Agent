@@ -1,3 +1,6 @@
 ## 2026-04-22 - [Performance/Memory Optimization] Removing Arc<Vec<T>> overhead in EntityManifold
 **Learning:** `Arc::make_mut` inside a hot inner loop (like MCTS simulation) causes severe heap thrashing and deep copies when the strong count > 1. This defeats the purpose of Copy-on-Write for small arrays and destroys L1 cache locality, drastically slowing down simulations.
 **Action:** Changed `EntityManifold` internal arrays to use plain `Vec<T>`. Relied on top-level contiguous `m.clone()` for states which is easily optimized by `memcpy` and eliminates locking and branching overhead for thousands of internal tensor mutations.
+## 2026-04-25 - [Render Optimization] Cached ImageData + Uint32Array writing
+**Learning:** Recreating `ImageData` inside a tight render loop with `createImageData` is slow and creates massive GC pressure, especially for large visual simulations (500x500 pixels = 1 million array elements per frame). Furthermore, writing pixel data byte-by-byte (R, G, B, A) is much slower than writing a full 32-bit integer representing the ABGR value via a `Uint32Array` view of the underlying buffer.
+**Action:** Cache the `ImageData` object at the class level and reuse it across frames. Use a `Uint32Array` view over `imgData.data.buffer` to set colors with a single assignment `buf32[i] = (a << 24) | (b << 16) | (g << 8) | r`.

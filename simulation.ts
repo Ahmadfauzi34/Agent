@@ -8,6 +8,9 @@ export class TensorSimulation {
   private width: number;
   private height: number;
   private kernel: tf.Tensor4D;
+  private cachedImgData: ImageData | null = null;
+  private endiannessChecked: boolean = false;
+  private isLittleEndian: boolean = true;
 
   constructor(width: number, height: number) {
     this.width = width;
@@ -143,23 +146,45 @@ export class TensorSimulation {
     try {
         const data = await renderData.data();
         
-        const imgData = ctx.createImageData(this.width, this.height);
+        if (!this.cachedImgData) {
+            this.cachedImgData = ctx.createImageData(this.width, this.height);
+        }
+        const imgData = this.cachedImgData;
+
+        // Check endianness once to ensure correct byte ordering for Uint32Array
+        if (!this.endiannessChecked) {
+            const buffer = new ArrayBuffer(4);
+            const view8 = new Uint8Array(buffer);
+            const view32 = new Uint32Array(buffer);
+            view32[0] = 0x0a0b0c0d;
+            this.isLittleEndian = (view8[0] === 0x0d && view8[1] === 0x0c && view8[2] === 0x0b && view8[3] === 0x0a);
+            this.endiannessChecked = true;
+        }
+
+        const buf32 = new Uint32Array(imgData.data.buffer);
+
         for (let i = 0; i < data.length; i++) {
           const val = Math.floor(data[i] * 255);
-          const idx = i * 4;
           
+          let r, g, b;
           if (type === 'reaction-diffusion') {
               // Bio/Neon colormap
-              imgData.data[idx] = Math.floor(val * 0.1); // R
-              imgData.data[idx + 1] = val; // G
-              imgData.data[idx + 2] = Math.floor(val * 0.8); // B
-              imgData.data[idx + 3] = 255; // A
+              r = Math.floor(val * 0.1);
+              g = val;
+              b = Math.floor(val * 0.8);
           } else {
               // Water colormap
-              imgData.data[idx] = Math.floor(val * 0.2); // R
-              imgData.data[idx + 1] = Math.floor(val * 0.5); // G
-              imgData.data[idx + 2] = val; // B
-              imgData.data[idx + 3] = 255; // A
+              r = Math.floor(val * 0.2);
+              g = Math.floor(val * 0.5);
+              b = val;
+          }
+          const a = 255;
+
+          // 0xAABBGGRR in little-endian, 0xRRGGBBAA in big-endian
+          if (this.isLittleEndian) {
+              buf32[i] = (a << 24) | (b << 16) | (g << 8) | r;
+          } else {
+              buf32[i] = (r << 24) | (g << 16) | (b << 8) | a;
           }
         }
         ctx.putImageData(imgData, 0, 0);
